@@ -1,4 +1,21 @@
-# Anvia
+<p align="center">
+  <img src="apps/docs/public/assets/logo.png" alt="Anvia logo" width="180" />
+</p>
+
+<h1 align="center">Anvia</h1>
+
+<p align="center">
+  <strong>Provider-agnostic agents, tool workflows, and structured extraction for TypeScript applications.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-89c83f?style=flat-square" alt="MIT license" />
+  <img src="https://img.shields.io/badge/core-v0.1.0-2f80c7?style=flat-square" alt="@anvia/core v0.1.0" />
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript 5.9" />
+  <img src="https://img.shields.io/badge/pnpm-11.0.4-f69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm 11.0.4" />
+  <img src="https://img.shields.io/badge/runtime-Node.js-3c873a?style=flat-square&logo=node.js&logoColor=white" alt="Node.js runtime" />
+  <img src="https://img.shields.io/badge/docs-cookbook-6f42c1?style=flat-square" alt="Cookbook docs" />
+</p>
 
 Anvia is a TypeScript runtime for building provider-agnostic agents, tool workflows, and structured extraction inside your application code.
 
@@ -8,68 +25,16 @@ It is designed for teams that want more structure than raw model calls, but less
 
 Anvia gives you a compact set of primitives for production-adjacent AI workflows:
 
-- Build agents with instructions, tools, context, history, streaming, hooks, turn limits, and output schemas.
-- Compose reusable pipelines with explicit steps, named parallel branches, agent prompts, extraction, and batched runs.
-- Create provider-backed completion and embedding models for OpenAI, OpenAI-compatible APIs, Anthropic, Anthropic-compatible APIs, Gemini, and Vertex AI.
-- Define tools with Zod schemas, runtime validation, optional output validation, and concurrency controls.
-- Extract structured data with schema-first extractors built from reusable completion models.
-- Stream normalized events or expose newline-delimited JSON through `ReadableStream`.
-- Add RAG with local All-MiniLM embeddings, in-memory vector search, metadata filters, dynamic context, and ChromaDB.
-- Add Postgres-backed RAG through pgvector when you want embeddings beside application data.
-- Connect MCP servers, local skills, image inputs, and document/PDF attachments where the provider supports them.
-- Observe runs through a generic observer interface, with optional Langfuse or OpenTelemetry tracing.
-- Serve agents locally with Anvia Studio for chat, traces, sessions, and tool approval workflows.
+- Agents, tools, extractors, pipelines, streaming, and typed output schemas.
+- Provider-backed completion and embedding models across OpenAI, Anthropic, Gemini, Mistral, and compatible APIs.
+- RAG primitives with in-memory search, local embeddings, ChromaDB, Qdrant, and pgvector adapters.
+- Runtime integrations for MCP, local skills, multimodal attachments, observability, and Anvia Studio.
 
 ## When To Choose Anvia
 
 Choose Anvia when you are building AI features inside a TypeScript product and want provider-agnostic agents, extractors, tools, pipelines, and Studio workflows without giving up control of your application's data, permissions, persistence, and side effects.
 
-Anvia is strongest when you need:
-
-- Application-owned agent infrastructure that can move across providers and runtime environments.
-- Typed tools and structured extraction with runtime validation.
-- Explicit model, agent, extractor, and pipeline boundaries that stay easy to test.
-- Local development workflows for trying agents, inspecting traces, managing sessions, and approving tools.
-- A cookbook-first path from simple calls to production-adjacent workflows.
-
-Anvia is less focused today on one-off raw completion calls, fully visual no-code workflow design, or hiding provider and runtime choices behind a large abstraction layer. The core SDK is designed so hosted execution can build on portable primitives later without changing the ownership model.
-
-## Comparison
-
-Use Anvia when you want provider-neutral AI features inside your own TypeScript app. Use broader frameworks when you want more platform-managed surface. Use provider-native SDKs when your product is centered on one provider's agent runtime.
-
-The full comparison lives in [Comparison](apps/docs/content/docs/guides/comparison.mdx).
-
-## Design Philosophy
-
-Anvia is designed as a small runtime library, not a full application platform. AI features should be ordinary TypeScript objects that your application creates, configures, tests, and passes around. Anvia owns the model-facing runtime behavior. Your application owns product behavior.
-
-| Design choice | Advantage | Tradeoff |
-| --- | --- | --- |
-| Stable built objects | Easier testing, sharing, and reasoning | You wire objects explicitly |
-| Application-owned infrastructure | Better fit for existing products and security boundaries | Less automatic platform behavior |
-| Provider-neutral models | Easier provider switching and mixed-provider systems | Some provider-native features stay behind adapters |
-| Typed tools, extractors, and pipelines | Clear contracts and safer composition | More upfront schema definition |
-| Optional integrations | Smaller core and incremental adoption | You choose and configure the integrations you need |
-
-The full rationale lives in [Design Philosophy](apps/docs/content/docs/guides/design-philosophy.mdx).
-
-## Design Position
-
-Anvia sits between provider-first agent SDKs and larger orchestration frameworks such as LangChain.
-
-Provider-first SDKs are convenient when the provider runtime owns the workflow. Large orchestration frameworks are powerful when you need many abstractions for chains, graphs, memory, retrievers, callbacks, and execution policies. Anvia keeps the core model smaller: it gives you explicit runtime objects that compose with ordinary TypeScript.
-
-The main boundary is deliberate:
-
-- `client` is provider access: API keys, base URLs, and provider-specific model wiring.
-- `completionModel(...)` is a reusable model capability.
-- `AgentBuilder` configures agent behavior around a stable runtime `id`.
-- `ExtractorBuilder` configures schema-first extraction without a public extractor id.
-- `PipelineBuilder` composes application steps, named parallel branches, agents, and extractors into runnable workflows.
-- `Agent` identity is stable for Studio, tracing, and multi-agent registration. Optional `name` and `description` remain display metadata.
-
-This keeps common workflows concise while making the important boundaries visible.
+For deeper positioning, see [Comparison](apps/docs/content/docs/guides/comparison.mdx) and [Design Philosophy](apps/docs/content/docs/guides/design-philosophy.mdx).
 
 ## API Shape
 
