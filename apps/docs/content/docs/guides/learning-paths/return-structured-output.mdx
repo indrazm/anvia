@@ -42,7 +42,7 @@ import { z } from "zod";
 const ticketSchema = z.object({
   customer: z.string(), priority: z.enum(["low", "medium", "high"]), summary: z.string(), });
 
-const model = new OpenAIClient({ apiKey }).completionModel("gpt-5");
+const model = new OpenAIClient({ apiKey }).completionModel("gpt-5.5");
 
 const extractor = new ExtractorBuilder(model, ticketSchema)
   .instructions("Extract support ticket fields.")
@@ -66,7 +66,7 @@ import { AgentBuilder } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
-const model = new OpenAIClient({ apiKey }).completionModel("gpt-5");
+const model = new OpenAIClient({ apiKey }).completionModel("gpt-5.5");
 
 const agent = new AgentBuilder("classifier", model)
   .instructions("Classify support messages.")

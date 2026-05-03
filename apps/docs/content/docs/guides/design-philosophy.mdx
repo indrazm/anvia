@@ -4,9 +4,14 @@ description: Why Anvia favors stable TypeScript objects, explicit boundaries, an
 icon: Lightbulb
 ---
 
-Anvia is designed as a small runtime library, not a full application platform.
+Anvia is designed as an application-owned AI runtime for TypeScript teams, not a full application platform.
 
-The core idea is simple: AI features should be ordinary TypeScript objects that your application creates, configures, tests, and passes around. Anvia owns the model-facing runtime behavior. Your application owns product behavior.
+The core idea is simple: AI features should be ordinary TypeScript objects that your application creates, configures, tests, and passes around. Anvia owns the AI runtime boundary. Your application owns product behavior.
+
+That boundary is deliberate:
+
+- Anvia owns model adapters, agent execution, tool calling, schemas, streaming, pipelines, retrieval primitives, observers, and local Studio iteration.
+- Your application owns users, auth, databases, memory, permissions, approvals, queues, audit logs, deployment, and side effects.
 
 ## Stable Runtime Objects
 
@@ -20,7 +25,7 @@ import { AgentBuilder } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 
 const client = new OpenAIClient({ apiKey: process.env.OPENAI_API_KEY });
-const model = client.completionModel("gpt-5");
+const model = client.completionModel("gpt-5.5");
 
 export const supportAgent = new AgentBuilder("support", model)
   .instructions("Answer support questions clearly.")
@@ -98,7 +103,7 @@ const permissionHook = createHook({
 
 Advantage: Anvia owns the execution control point, but your application owns the permission decision and approval runtime.
 
-## Provider-Neutral Model Boundary
+## Provider-Agnostic Model Boundary
 
 Provider clients create reusable completion and embedding models. Agents and extractors depend on normalized model capabilities, not on one provider's runtime model.
 
@@ -114,8 +119,8 @@ const anthropic = new AnthropicClient({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const model =
   process.env.PROVIDER === "anthropic"
-    ? anthropic.completionModel("claude-sonnet-4-20250514")
-    : openai.completionModel("gpt-5");
+    ? anthropic.completionModel("claude-opus-4-6")
+    : openai.completionModel("gpt-5.5");
 
 export const agent = new AgentBuilder("triage", model)
   .instructions("Classify the customer request.")
@@ -228,7 +233,7 @@ Advantage: integrations add capabilities around the same runtime objects. You do
 | --- | --- | --- |
 | Stable built objects | Easier testing, sharing, and reasoning | You wire objects explicitly |
 | Application-owned infrastructure | Better fit for existing products and security boundaries | Less automatic platform behavior |
-| Provider-neutral models | Easier provider switching and mixed-provider systems | Some provider-native features stay behind adapters |
+| Provider-agnostic models | Easier provider switching and mixed-provider systems | Some provider-specific features stay behind adapters |
 | Typed tools, extractors, and pipelines | Clear contracts and safer composition | More upfront schema definition |
 | Studio as an iteration runtime | Faster agent testing before product UI/API work | Studio is not your production product surface |
 | Optional integrations | Smaller core and incremental adoption | You choose and configure the integrations you need |

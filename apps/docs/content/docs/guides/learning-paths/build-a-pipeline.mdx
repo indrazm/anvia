@@ -77,7 +77,7 @@ import { AgentBuilder, ExtractorBuilder, PipelineBuilder } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
-const model = new OpenAIClient({ apiKey }).completionModel("gpt-5");
+const model = new OpenAIClient({ apiKey }).completionModel("gpt-5.5");
 
 const summarizer = new AgentBuilder("summarizer", model)
   .instructions("Summarize support tickets in one paragraph.")

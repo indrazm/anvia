@@ -13,7 +13,7 @@ import { OpenAIClient } from "@anvia/openai";
 import { Studio } from "@anvia/studio";
 
 const client = new OpenAIClient({ apiKey });
-const model = client.completionModel("gpt-5");
+const model = client.completionModel("gpt-5.5");
 
 const agent = new AgentBuilder("support-operations", model)
   .name("Support Operations")

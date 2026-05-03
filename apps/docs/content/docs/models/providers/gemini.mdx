@@ -12,7 +12,7 @@ import { AgentBuilder } from "@anvia/core";
 import { GeminiClient } from "@anvia/gemini";
 
 const client = new GeminiClient({ apiKey });
-const model = client.completionModel("gemini-2.5-flash");
+const model = client.completionModel("gemini-3.1-flash-lite-preview");
 
 const agent = new AgentBuilder("support", model)
   .instructions("Answer support questions clearly.")
@@ -46,7 +46,7 @@ Use embedding models for document preprocessing and retrieval.
 
 | Capability | Example |
 | --- | --- |
-| Completion | `client.completionModel("gemini-2.5-flash")` |
+| Completion | `client.completionModel("gemini-3.1-flash-lite-preview")` |
 | Embeddings | `client.embeddingModel("gemini-embedding-001")` |
 | Vertex AI | `new GeminiClient({ vertexai: true, project, location })` |
 

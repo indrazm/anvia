@@ -68,7 +68,7 @@ Replace `searchWeb(...)` with your actual web search provider, crawler, internal
 ## 3. Build the Agent and Extractor
 
 ```ts
-const model = new OpenAIClient({ apiKey }).completionModel("gpt-5");
+const model = new OpenAIClient({ apiKey }).completionModel("gpt-5.5");
 
 const summarizer = new AgentBuilder("research-summarizer", model)
   .instructions(

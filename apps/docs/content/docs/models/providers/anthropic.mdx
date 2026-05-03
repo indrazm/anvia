@@ -12,7 +12,7 @@ import { AgentBuilder } from "@anvia/core";
 import { AnthropicClient } from "@anvia/anthropic";
 
 const client = new AnthropicClient({ apiKey });
-const model = client.completionModel("claude-sonnet-4-20250514");
+const model = client.completionModel("claude-opus-4-6");
 
 const agent = new AgentBuilder("support", model)
   .instructions("Answer support questions clearly.")
@@ -36,7 +36,7 @@ Use this form when secrets are injected by your app framework instead of read di
 
 | Capability | Example |
 | --- | --- |
-| Completion | `client.completionModel("claude-sonnet-4-20250514")` |
+| Completion | `client.completionModel("claude-opus-4-6")` |
 | Tool use | Supported through Anvia tools |
 | Streaming | Supported through normalized streaming events |
 

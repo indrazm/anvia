@@ -74,7 +74,7 @@ Create agents once near application startup or dependency wiring.
 
 ```ts
 const client = new OpenAIClient({ apiKey });
-const model = client.completionModel("gpt-5");
+const model = client.completionModel("gpt-5.5");
 
 export const supportAgent = new AgentBuilder("support", model)
   .instructions("Answer support questions using the available tools.")

@@ -86,7 +86,7 @@ class ConsoleObserver implements AgentObserver {
   }
 }
 
-const model = new OpenAIClient({ apiKey }).completionModel("gpt-5");
+const model = new OpenAIClient({ apiKey }).completionModel("gpt-5.5");
 const observer = new ConsoleObserver();
 
 const agent = new AgentBuilder("support", model)

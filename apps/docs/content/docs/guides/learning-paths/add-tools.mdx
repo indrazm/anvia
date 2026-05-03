@@ -40,7 +40,7 @@ const lookupOrder = createTool({
   },
 });
 
-const model = new OpenAIClient({ apiKey }).completionModel("gpt-5");
+const model = new OpenAIClient({ apiKey }).completionModel("gpt-5.5");
 
 const agent = new AgentBuilder("support", model)
   .instructions("Use tools when order status is needed.")

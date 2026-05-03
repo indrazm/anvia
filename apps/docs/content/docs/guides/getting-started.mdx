@@ -40,7 +40,7 @@ import { AgentBuilder } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 
 const client = new OpenAIClient({ apiKey });
-const model = client.completionModel("gpt-5");
+const model = client.completionModel("gpt-5.5");
 
 const agent = new AgentBuilder("support", model)
   .name("Support Agent")
@@ -65,7 +65,7 @@ pnpm exec tsx main.ts
 You now have the basic Anvia loop:
 
 1. `new OpenAIClient({ apiKey })` configures provider access.
-2. `client.completionModel("gpt-5")` creates a reusable model.
+2. `client.completionModel("gpt-5.5")` creates a reusable model.
 3. `AgentBuilder` configures the agent.
 4. `agent.prompt(...).send()` runs one prompt and returns a final response.
 
@@ -83,7 +83,7 @@ const client = new OpenAIClient({
   baseUrl,
   apiKey,
 });
-const model = client.completionModel("openai/gpt-5.2");
+const model = client.completionModel("openai/gpt-5.5");
 
 const agent = new AgentBuilder("support", model)
   .instructions("Answer clearly.")
@@ -97,7 +97,7 @@ import { AgentBuilder } from "@anvia/core";
 import { AnthropicClient } from "@anvia/anthropic";
 
 const client = new AnthropicClient({ apiKey });
-const model = client.completionModel("claude-sonnet-4-20250514");
+const model = client.completionModel("claude-opus-4-6");
 
 const agent = new AgentBuilder("support", model)
   .instructions("Answer clearly.")
@@ -111,7 +111,7 @@ import { AgentBuilder } from "@anvia/core";
 import { GeminiClient } from "@anvia/gemini";
 
 const client = new GeminiClient({ apiKey });
-const model = client.completionModel("gemini-2.5-flash");
+const model = client.completionModel("gemini-3.1-flash-lite-preview");
 
 const agent = new AgentBuilder("support", model)
   .instructions("Answer clearly.")
@@ -177,7 +177,7 @@ const lookupOrder = createTool({
 });
 
 const client = new OpenAIClient({ apiKey });
-const model = client.completionModel("gpt-5");
+const model = client.completionModel("gpt-5.5");
 
 const agent = new AgentBuilder("support", model)
   .instructions("Use tools when order status is needed.")

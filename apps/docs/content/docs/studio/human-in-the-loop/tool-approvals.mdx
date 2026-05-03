@@ -39,7 +39,7 @@ const refundOrder = createTool({
 });
 
 const client = new OpenAIClient({ apiKey });
-const model = client.completionModel("gpt-5");
+const model = client.completionModel("gpt-5.5");
 
 const agent = new AgentBuilder("support-operations", model)
   .instructions("Look up order state before refunding. Keep the final answer short.")
