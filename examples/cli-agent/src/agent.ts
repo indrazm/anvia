@@ -1,4 +1,5 @@
 import { AgentBuilder } from "@anvia/core/agent";
+import { Message } from "@anvia/core/completion";
 import { OpenAIClient } from "@anvia/openai";
 import { getModelName, getTavilyApiKey, OPENROUTER_BASE_URL } from "./config.js";
 import { toAnviaHistory } from "./memory.js";
@@ -46,11 +47,9 @@ export async function streamAssistantResponse({
 
   const agent = builder.build();
 
-  for await (const event of agent
-    .prompt(prompt)
-    .withHistory(toAnviaHistory(history))
-    .maxTurns(MAX_TURNS)
-    .stream()) {
+  const transcript = [...toAnviaHistory(history), Message.user(prompt)];
+
+  for await (const event of agent.prompt(transcript).maxTurns(MAX_TURNS).stream()) {
     if (event.type === "text_delta") {
       onDelta(event.delta);
     }

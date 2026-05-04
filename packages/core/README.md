@@ -47,6 +47,69 @@ const response = await agent.prompt("What is happening with order A123?").send()
 console.log(response.output);
 ```
 
+## Prompts and Memory
+
+Use a plain prompt for stateless calls:
+
+```ts
+await agent.prompt("Summarize this ticket.").send();
+```
+
+Use a message array when you already own the transcript. The last message is the active prompt and earlier messages are request history:
+
+```ts
+import { Message } from "@anvia/core";
+
+await agent
+  .prompt([
+    Message.user("My project is named Anvia."),
+    Message.assistant("Noted."),
+    Message.user("What is my project named?"),
+  ])
+  .send();
+```
+
+Configure durable conversation memory on the agent, then run through a session:
+
+```ts
+import {
+  AgentBuilder,
+  type MemoryAppendInput,
+  type MemoryContext,
+  type MemoryStore,
+  type Message,
+} from "@anvia/core";
+
+class AppMemoryStore implements MemoryStore {
+  private readonly sessions = new Map<string, Message[]>();
+
+  async load(context: MemoryContext): Promise<Message[]> {
+    return [...(this.sessions.get(context.sessionId) ?? [])];
+  }
+
+  async append(input: MemoryAppendInput): Promise<void> {
+    const current = this.sessions.get(input.context.sessionId) ?? [];
+    this.sessions.set(input.context.sessionId, [...current, ...input.messages]);
+  }
+
+  async clear(context: MemoryContext): Promise<void> {
+    this.sessions.delete(context.sessionId);
+  }
+}
+
+const memory = new AppMemoryStore();
+const agent = new AgentBuilder("support", model).memory(memory).build();
+
+await agent.session("thread_123", { userId: "user_456" }).prompt("Remember my plan.").send();
+await agent.session("thread_123", { userId: "user_456" }).prompt("What is my plan?").send();
+```
+
+Memory defaults to `savePolicy: "message"`, which saves the user prompt, each completed assistant message, and each completed tool result as soon as they are ready. You can choose `"turn"` or `"run"` at configuration time:
+
+```ts
+new AgentBuilder("support", model).memory(memory, { savePolicy: "turn" });
+```
+
 ## Structured Extraction
 
 ```ts
@@ -80,6 +143,7 @@ const result = await pipeline.run("Customer cannot complete checkout.");
 - `agent`: agent runtime and `AgentBuilder`
 - `tool`: typed tool creation and tool sets
 - `completion`: provider-neutral completion request and response types
+- `memory`: durable session memory interfaces and in-memory store
 - `extractor`: schema-first structured extraction
 - `pipeline`: typed sequential and parallel workflows
 - `embeddings`: embedding helpers and document embedding utilities

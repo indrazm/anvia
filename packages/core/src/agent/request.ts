@@ -14,6 +14,7 @@ import {
   textFromAssistantContent,
   Usage,
 } from "../completion/index";
+import type { MemoryContext, MemoryRegistration, MemorySavePolicy } from "../memory";
 import {
   type ActiveAgentRunObservers,
   type ActiveToolObservers,
@@ -87,7 +88,7 @@ export type AgentStreamEvent<RawResponse = unknown> =
     };
 
 export class PromptRequest<M extends CompletionModel = CompletionModel> {
-  private chatHistory: MessageType[] | undefined;
+  private chatHistory: MessageType[];
   private maxTurnCount: number;
   private activeHook: PromptHook | undefined;
   private concurrency = 1;
@@ -96,21 +97,21 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
   private constructor(
     private readonly agent: Agent<M>,
     private readonly promptMessage: MessageType,
+    private readonly initialHistory: MessageType[] = [],
+    private readonly memoryContext: MemoryContext | undefined = undefined,
   ) {
+    this.chatHistory = initialHistory;
     this.maxTurnCount = agent.defaultMaxTurns ?? 0;
     this.activeHook = agent.hook;
   }
 
   static fromAgent<M extends CompletionModel>(
     agent: Agent<M>,
-    prompt: string | MessageType,
+    prompt: string | MessageType | MessageType[],
+    options: { memoryContext?: MemoryContext | undefined } = {},
   ): PromptRequest<M> {
-    return new PromptRequest(agent, typeof prompt === "string" ? Message.user(prompt) : prompt);
-  }
-
-  withHistory(history: MessageType[]): this {
-    this.chatHistory = history;
-    return this;
+    const normalized = normalizePromptInput(prompt);
+    return new PromptRequest(agent, normalized.prompt, normalized.history, options.memoryContext);
   }
 
   maxTurns(maxTurns: number): this {
@@ -134,7 +135,10 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
   }
 
   async send(): Promise<PromptResponse> {
+    const runId = globalThis.crypto.randomUUID();
     const newMessages: MessageType[] = [this.promptMessage];
+    await this.prepareMemoryRun(runId, newMessages);
+    const pendingTurnMessages = this.memoryPolicy() === "turn" ? [...newMessages] : [];
     let usage = Usage.empty();
     let currentTurns = 0;
     let lastPrompt = this.promptMessage;
@@ -150,7 +154,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         lastPrompt = prompt;
         currentTurns += 1;
 
-        const historyForRequest = [...(this.chatHistory ?? []), ...newMessages.slice(0, -1)];
+        const historyForRequest = [...this.chatHistory, ...newMessages.slice(0, -1)];
         await this.runCompletionCallHook(prompt, historyForRequest, newMessages);
 
         const ragText = extractRagText(prompt);
@@ -172,11 +176,24 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         usage = Usage.add(usage, response.usage);
         await this.runCompletionResponseHook(prompt, response, newMessages);
 
-        newMessages.push(Message.assistant(response.choice, response.messageId));
+        const assistantMessage = Message.assistant(response.choice, response.messageId);
+        newMessages.push(assistantMessage);
+        await this.commitMemoryMessages(
+          runId,
+          currentTurns,
+          [assistantMessage],
+          pendingTurnMessages,
+        );
         const toolCalls = response.choice.filter(
           (item): item is ToolCall => item.type === "tool_call",
         );
         if (toolCalls.length === 0) {
+          await this.commitCompletedMemoryRun(
+            runId,
+            currentTurns,
+            newMessages,
+            pendingTurnMessages,
+          );
           const result: PromptResponse = {
             output: textFromAssistantContent(response.choice),
             usage,
@@ -191,16 +208,16 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           turn: currentTurns,
           runObservers,
         });
-        newMessages.push(Message.tool(toolResults));
+        const toolMessage = Message.tool(toolResults);
+        newMessages.push(toolMessage);
+        await this.commitMemoryMessages(runId, currentTurns, [toolMessage], pendingTurnMessages);
+        await this.commitCompletedMemoryTurn(runId, currentTurns, pendingTurnMessages);
       }
 
-      throw new MaxTurnsError(
-        this.maxTurnCount,
-        [...(this.chatHistory ?? []), ...newMessages],
-        lastPrompt,
-      );
+      throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
       await runObservers.error({ error, usage, messages: [...newMessages] });
+      await this.recordMemoryError(runId, error, newMessages);
       throw error;
     }
   }
@@ -210,7 +227,10 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       throw new Error("This completion model does not support streaming");
     }
 
+    const runId = globalThis.crypto.randomUUID();
     const newMessages: MessageType[] = [this.promptMessage];
+    await this.prepareMemoryRun(runId, newMessages);
+    const pendingTurnMessages = this.memoryPolicy() === "turn" ? [...newMessages] : [];
     let usage = Usage.empty();
     let currentTurns = 0;
     let lastPrompt = this.promptMessage;
@@ -226,7 +246,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         lastPrompt = prompt;
         currentTurns += 1;
 
-        const historyForRequest = [...(this.chatHistory ?? []), ...newMessages.slice(0, -1)];
+        const historyForRequest = [...this.chatHistory, ...newMessages.slice(0, -1)];
         yield {
           type: "turn_start",
           turn: currentTurns,
@@ -285,7 +305,14 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         usage = Usage.add(usage, response.usage);
         await this.runCompletionResponseHook(prompt, response, newMessages);
 
-        newMessages.push(Message.assistant(response.choice, response.messageId));
+        const assistantMessage = Message.assistant(response.choice, response.messageId);
+        newMessages.push(assistantMessage);
+        await this.commitMemoryMessages(
+          runId,
+          currentTurns,
+          [assistantMessage],
+          pendingTurnMessages,
+        );
         const toolCalls = response.choice.filter(
           (item): item is ToolCall => item.type === "tool_call",
         );
@@ -296,6 +323,12 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
         if (toolCalls.length === 0) {
           const output = textFromAssistantContent(response.choice);
+          await this.commitCompletedMemoryRun(
+            runId,
+            currentTurns,
+            newMessages,
+            pendingTurnMessages,
+          );
           yield {
             type: "final",
             output,
@@ -327,16 +360,16 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           yield { type: "tool_result", turn: currentTurns, ...result };
         }
         const toolResults = await toolResultsPromise;
-        newMessages.push(Message.tool(toolResults));
+        const toolMessage = Message.tool(toolResults);
+        newMessages.push(toolMessage);
+        await this.commitMemoryMessages(runId, currentTurns, [toolMessage], pendingTurnMessages);
+        await this.commitCompletedMemoryTurn(runId, currentTurns, pendingTurnMessages);
       }
 
-      throw new MaxTurnsError(
-        this.maxTurnCount,
-        [...(this.chatHistory ?? []), ...newMessages],
-        lastPrompt,
-      );
+      throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
       await runObservers.error({ error, usage, messages: [...newMessages] });
+      await this.recordMemoryError(runId, error, newMessages);
       yield { type: "error", error };
       throw error;
     }
@@ -467,7 +500,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         instructions: this.agent.instructions,
         trace: this.traceOptions,
         prompt: this.promptMessage,
-        history: this.chatHistory ?? [],
+        history: this.chatHistory,
         maxTurns: this.maxTurnCount,
       },
       failOnObserverError,
@@ -585,8 +618,143 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
   }
 
   private cancelled(newMessages: MessageType[], reason: string): PromptCancelledError {
-    return new PromptCancelledError([...(this.chatHistory ?? []), ...newMessages], reason);
+    return new PromptCancelledError([...this.chatHistory, ...newMessages], reason);
   }
+
+  private memory(): MemoryRegistration | undefined {
+    return this.memoryContext === undefined ? undefined : this.agent.memory;
+  }
+
+  private memoryPolicy(): MemorySavePolicy | undefined {
+    return this.memory()?.options.savePolicy;
+  }
+
+  private async prepareMemoryRun(runId: string, newMessages: MessageType[]): Promise<void> {
+    const memory = this.memory();
+    if (memory === undefined || this.memoryContext === undefined) {
+      this.chatHistory = this.initialHistory;
+      return;
+    }
+
+    const memoryHistory = await memory.store.load(this.memoryContext);
+    this.chatHistory = [...memoryHistory, ...this.initialHistory];
+    if (memory.options.savePolicy === "message") {
+      await memory.store.append({
+        context: this.memoryContext,
+        runId,
+        turn: 1,
+        messages: newMessages,
+      });
+    }
+  }
+
+  private async commitMemoryMessages(
+    runId: string,
+    turn: number,
+    messages: MessageType[],
+    pendingTurnMessages: MessageType[],
+  ): Promise<void> {
+    const memory = this.memory();
+    if (memory === undefined || this.memoryContext === undefined || messages.length === 0) {
+      return;
+    }
+    if (memory.options.savePolicy === "message") {
+      await memory.store.append({
+        context: this.memoryContext,
+        runId,
+        turn,
+        messages,
+      });
+    } else if (memory.options.savePolicy === "turn") {
+      pendingTurnMessages.push(...messages);
+    }
+  }
+
+  private async commitCompletedMemoryTurn(
+    runId: string,
+    turn: number,
+    pendingTurnMessages: MessageType[],
+  ): Promise<void> {
+    const memory = this.memory();
+    if (
+      memory === undefined ||
+      this.memoryContext === undefined ||
+      memory.options.savePolicy !== "turn" ||
+      pendingTurnMessages.length === 0
+    ) {
+      return;
+    }
+    await memory.store.append({
+      context: this.memoryContext,
+      runId,
+      turn,
+      messages: [...pendingTurnMessages],
+    });
+    pendingTurnMessages.length = 0;
+  }
+
+  private async commitCompletedMemoryRun(
+    runId: string,
+    turn: number,
+    newMessages: MessageType[],
+    pendingTurnMessages: MessageType[],
+  ): Promise<void> {
+    await this.commitCompletedMemoryTurn(runId, turn, pendingTurnMessages);
+    const memory = this.memory();
+    if (
+      memory === undefined ||
+      this.memoryContext === undefined ||
+      memory.options.savePolicy !== "run"
+    ) {
+      return;
+    }
+    await memory.store.append({
+      context: this.memoryContext,
+      runId,
+      turn,
+      messages: [...newMessages],
+    });
+  }
+
+  private async recordMemoryError(
+    runId: string,
+    error: unknown,
+    newMessages: MessageType[],
+  ): Promise<void> {
+    const memory = this.memory();
+    if (memory === undefined || this.memoryContext === undefined) {
+      return;
+    }
+    await memory.store.recordError?.({
+      context: this.memoryContext,
+      runId,
+      error,
+      messages: [...newMessages],
+    });
+  }
+}
+
+function normalizePromptInput(prompt: string | MessageType | MessageType[]): {
+  prompt: MessageType;
+  history: MessageType[];
+} {
+  if (typeof prompt === "string") {
+    return { prompt: Message.user(prompt), history: [] };
+  }
+  if (!Array.isArray(prompt)) {
+    return { prompt, history: [] };
+  }
+  if (prompt.length === 0) {
+    throw new TypeError("Prompt transcript must contain at least one message.");
+  }
+  const activePrompt = prompt.at(-1);
+  if (activePrompt === undefined) {
+    throw new TypeError("Prompt transcript must contain at least one message.");
+  }
+  return {
+    prompt: activePrompt,
+    history: prompt.slice(0, -1),
+  };
 }
 
 type ToolResultEventPayload = {

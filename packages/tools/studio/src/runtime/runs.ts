@@ -151,30 +151,52 @@ export function traceForRun(
   };
 }
 
-export async function* persistStreamingSessionRun(props: {
+export async function* persistStreamingSessionTranscript(props: {
   stream: AsyncIterable<AgentRunStreamEvent>;
   store: StudioSessionStore;
   session: StudioSession;
   message: string | Message;
+  runId: string;
 }): AsyncIterable<AgentRunStreamEvent> {
   const transcript: StudioTranscriptEntry[] = [messageToTranscriptEntry(props.message, 0)];
+  const title = optionalTitle(props.message);
 
-  for await (const event of props.stream) {
-    acceptTranscriptStreamEvent(transcript, event);
+  await props.store.saveSessionRunTranscript({
+    id: props.session.id,
+    runId: props.runId,
+    ...title,
+    transcript,
+    status: "running",
+  });
 
-    if (event.type === "final") {
-      const nextSession = await props.store.appendSessionRun({
+  try {
+    for await (const event of props.stream) {
+      acceptTranscriptStreamEvent(transcript, event);
+
+      const nextSession = await props.store.saveSessionRunTranscript({
         id: props.session.id,
-        ...optionalTitle(props.message),
-        messages: event.messages,
+        runId: props.runId,
+        ...title,
         transcript,
+        status: event.type === "final" ? "success" : event.type === "error" ? "error" : "running",
+        ...(event.type === "error" ? { error: serializeError(event.error) } : {}),
       });
       if (nextSession === undefined) {
         throw new Error("Session not found");
       }
-    }
 
-    yield event;
+      yield event;
+    }
+  } catch (error) {
+    await props.store.saveSessionRunTranscript({
+      id: props.session.id,
+      runId: props.runId,
+      ...title,
+      transcript,
+      status: "error",
+      error: serializeError(error),
+    });
+    throw error;
   }
 }
 

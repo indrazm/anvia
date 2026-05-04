@@ -51,11 +51,12 @@ Use usage data for logs, analytics, budgets, and rate-limit decisions.
 `messages` contains only the new messages created during this prompt run:
 
 ```ts
+import { Message } from "@anvia/core";
+
 const history = await conversations.loadMessages(conversationId);
 
 const response = await agent
-  .prompt(userInput)
-  .withHistory(history)
+  .prompt([...history, Message.user(userInput)])
   .send();
 
 await conversations.saveMessages(conversationId, [
@@ -88,4 +89,4 @@ Use observers and tracing when you need to inspect runs, generations, tool calls
 
 ## Next
 
-Read [Errors and Cancellation](/docs/guides/core-concepts/errors) to understand common failure modes and runtime limits.
+Read [Errors and Cancellation](/docs/guides/sdk-fundamentals/errors) to understand common failure modes and runtime limits.

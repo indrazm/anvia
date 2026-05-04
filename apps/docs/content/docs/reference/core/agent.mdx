@@ -26,9 +26,11 @@ class Agent<M extends CompletionModel = CompletionModel> {
   readonly observers: AgentObserverRegistration[];
   readonly dynamicContexts: DynamicContextRegistration[];
   readonly dynamicTools: DynamicToolRegistration[];
+  readonly memory?: MemoryRegistration;
 
   constructor(options: AgentOptions<M>);
-  prompt(prompt: string | Message): PromptRequest<M>;
+  prompt(prompt: string | Message | Message[]): PromptRequest<M>;
+  session(sessionId: string, options?: SessionOptions): AgentSession<M>;
   asTool(options: AgentToolOptions): Tool<{ prompt: string }, string>;
   getTool(toolName: string): Tool | undefined;
   callTool(toolName: string, args: string): Promise<string>;
@@ -37,7 +39,7 @@ class Agent<M extends CompletionModel = CompletionModel> {
 
 Purpose: immutable runnable agent configuration around one completion model.
 
-Return behavior: `prompt(...)` creates a mutable `PromptRequest`; `asTool(...)` exposes the agent as a tool that returns the nested agent output string.
+Return behavior: `prompt(...)` creates a mutable `PromptRequest`; `prompt(Message[])` treats the last message as the active prompt and earlier messages as stateless history; `session(...)` creates a durable memory-backed session; `asTool(...)` exposes the agent as a tool that returns the nested agent output string.
 
 Notable errors: the constructor throws `TypeError` when `id` is not a non-empty string. `asTool(...)` forwards errors from the nested prompt run.
 
@@ -62,6 +64,7 @@ type AgentOptions<M extends CompletionModel = CompletionModel> = {
   observers?: AgentObserverRegistration[];
   dynamicContexts?: DynamicContextRegistration[];
   dynamicTools?: DynamicToolRegistration[];
+  memory?: MemoryRegistration;
 };
 ```
 
@@ -94,6 +97,7 @@ class AgentBuilder<M extends CompletionModel = CompletionModel> {
   defaultMaxTurns(defaultMaxTurns: number): this;
   hook(hook: PromptHook): this;
   observe(observer: AgentObserver, options?: ObserveOptions): this;
+  memory(store: MemoryStore, options?: MemoryOptions): this;
   outputSchema(schema: ZodSchema): this;
   build(): Agent<M>;
 }
@@ -104,6 +108,59 @@ Purpose: fluent builder for agent configuration.
 Return behavior: all mutator methods return `this`; `build()` returns an `Agent`.
 
 Notable errors: the constructor rejects an empty agent id. `outputSchema(...)` can throw if the schema cannot be converted to provider JSON schema.
+
+## AgentSession
+
+```ts
+class AgentSession<M extends CompletionModel = CompletionModel> {
+  prompt(prompt: string | Message): PromptRequest<M>;
+  messages(): Promise<Message[]>;
+  clear(): Promise<void>;
+}
+```
+
+Purpose: durable conversation scope created by `agent.session(sessionId, options?)`.
+
+Return behavior: `prompt(...)` loads messages from the configured memory store before the run and appends new messages according to the agent memory policy. Session prompts do not accept `Message[]`; use `agent.prompt(Message[])` for explicit stateless transcripts.
+
+Notable errors: `agent.session(...)` throws when no memory store is configured or when the session id is empty.
+
+## Memory
+
+```ts
+type MemorySavePolicy = "message" | "turn" | "run";
+
+type MemoryContext = {
+  sessionId: string;
+  userId?: string;
+  metadata?: JsonObject;
+};
+
+interface MemoryStore {
+  load(context: MemoryContext): Promise<Message[]>;
+  append(input: {
+    context: MemoryContext;
+    runId: string;
+    turn: number;
+    messages: Message[];
+  }): Promise<void>;
+  clear(context: MemoryContext): Promise<void>;
+  recordError?(input: {
+    context: MemoryContext;
+    runId: string;
+    error: unknown;
+    messages: Message[];
+  }): Promise<void>;
+}
+
+type MemoryOptions = {
+  savePolicy?: MemorySavePolicy;
+};
+```
+
+Purpose: configure durable conversation storage for `agent.session(...)`.
+
+Return behavior: `savePolicy` defaults to `"message"`. Core provides the interface; applications provide the storage implementation.
 
 ## Dynamic Tools
 
@@ -132,10 +189,9 @@ Notable errors: errors from the vector index surface before the model request is
 class PromptRequest<M extends CompletionModel = CompletionModel> {
   static fromAgent<M extends CompletionModel>(
     agent: Agent<M>,
-    prompt: string | Message,
+    prompt: string | Message | Message[],
   ): PromptRequest<M>;
 
-  withHistory(history: Message[]): this;
   maxTurns(maxTurns: number): this;
   requestHook(hook: PromptHook): this;
   withToolConcurrency(concurrency: number): this;

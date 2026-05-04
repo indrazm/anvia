@@ -1,14 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { AgentBuilder } from "@anvia/core/agent";
-import type { Message } from "@anvia/core/completion";
+import { Message, type Message as MessageType } from "@anvia/core/completion";
 import { createTool } from "@anvia/core/tool";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
 type SavedHistoryRecord = {
   timestamp: string;
-  messages: Message[];
+  messages: MessageType[];
 };
 
 const tickets = new Map([
@@ -63,11 +63,11 @@ const agent = new AgentBuilder("agent", agentModel)
   .build();
 
 const history = await buildHistory();
-let finalMessages: Message[] | undefined;
+let finalMessages: MessageType[] | undefined;
 let isThinking = false;
 
 // This combines persisted history with tool calls in one streaming request.
-for await (const event of agent.prompt(prompt).withHistory(history).stream()) {
+for await (const event of agent.prompt([...history, Message.user(prompt)]).stream()) {
   if (event.type !== "reasoning_delta" && isThinking) {
     process.stdout.write("</think>\n");
     isThinking = false;
@@ -109,12 +109,12 @@ if (finalMessages !== undefined) {
   console.log("history file:", historyPath.pathname);
 }
 
-async function buildHistory(): Promise<Message[]> {
+async function buildHistory(): Promise<MessageType[]> {
   const records = await readRecords();
   return records.slice(-5).flatMap((record) => record.messages);
 }
 
-async function saveHistory(messages: Message[]): Promise<void> {
+async function saveHistory(messages: MessageType[]): Promise<void> {
   const records = await readRecords();
   records.push({
     timestamp: new Date().toISOString(),

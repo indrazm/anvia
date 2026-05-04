@@ -20,7 +20,7 @@ Legacy script names such as `cookbook:basic:01`, `cookbook:intermediate:14`, `co
 
 | Section | Focus |
 | --- | --- |
-| `01_basics` | First text calls, chat history, static context, streaming, and `ReadableStream` output. |
+| `01_basics` | First text calls, explicit transcripts, static context, streaming, `ReadableStream` output, and durable session memory. |
 | `02_tools` | Tool schemas, streamed tool events, hooks, concurrency, conditional tools, think tools, application state, history with tools, guarded tools, and dynamic tool selection. |
 | `03_structured_output` | Schema-first extraction, agent output schemas, context, retries, and extraction with prior messages. |
 | `04_providers_and_multimodal` | Provider adapters, model capabilities, reasoning streams, image/PDF attachments, image generation, audio generation, and transcription. |

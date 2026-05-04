@@ -3,7 +3,7 @@ title: Messages and History
 description: Understand Anvia message objects and the history arrays built from them.
 ---
 
-Anvia history is a plain `Message[]`. You choose where to store it, then pass it into each new prompt with `.withHistory(...)`.
+Anvia history is a plain `Message[]`. For explicit stateless history, pass the whole transcript to `agent.prompt([...])`; the last message is the active prompt and earlier messages are history.
 
 ## Message Roles
 
@@ -55,11 +55,9 @@ const history = [
 
 ```ts
 const history = await conversations.loadMessages(conversationId);
+const currentPrompt = Message.user(userInput);
 
-const response = await agent
-  .prompt(userInput)
-  .withHistory(history)
-  .send();
+const response = await agent.prompt([...history, currentPrompt]).send();
 
 await conversations.saveMessages(conversationId, [
   ...history,
@@ -150,4 +148,4 @@ Provider support for attachments varies. Check the provider and model before bui
 
 ## Next
 
-Read [Prompt Responses](/docs/guides/core-concepts/prompt-responses) to see what an agent run returns.
+Read [Prompt Responses](/docs/guides/sdk-fundamentals/prompt-responses) to see what an agent run returns.

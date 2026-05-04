@@ -1,9 +1,12 @@
 import {
   Agent,
+  type Message as CoreMessage,
   createHook,
   type HookAction,
   type JsonObject,
+  Message,
   type PromptHook,
+  resolveMemoryOptions,
   type ToolCallHookAction,
 } from "@anvia/core";
 import { serve } from "@hono/node-server";
@@ -34,7 +37,7 @@ import {
   mergeRunAndApprovalEvents,
   optionalTitle,
   parseRunRequest,
-  persistStreamingSessionRun,
+  persistStreamingSessionTranscript,
   streamAgentRunEvents,
   traceForRun,
   transcriptFromMessages,
@@ -174,9 +177,9 @@ function agentMetadata(agent: Agent): JsonObject {
 
 function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   const stores = resolveStores(options);
-  const agents = normalizeAgents(options.agents).map((agent) =>
-    withStudioTraceObserver(agent, stores.traces),
-  );
+  const agents = normalizeAgents(options.agents)
+    .map((agent) => withStudioSessionMemory(agent, stores.sessions))
+    .map((agent) => withStudioTraceObserver(agent, stores.traces));
   const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
   const approvalRuntime = createApprovalRuntime();
   const questionRuntime = createQuestionRuntime();
@@ -248,12 +251,19 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
     }
 
     const runId = globalThis.crypto.randomUUID();
-    const request = agent.agent.prompt(body.message);
-    if (session !== undefined) {
-      request.withHistory(session.messages);
-    } else if (body.history !== undefined) {
-      request.withHistory(body.history);
-    }
+    const memoryMetadata = {
+      agentId,
+      ...(body.metadata ?? {}),
+      studioRunId: runId,
+    };
+    const request =
+      session !== undefined
+        ? agent.agent.session(session.id, { metadata: memoryMetadata }).prompt(body.message)
+        : agent.agent.prompt(
+            body.history !== undefined
+              ? [...body.history, normalizePromptMessage(body.message)]
+              : body.message,
+          );
     if (body.maxTurns !== undefined) {
       request.maxTurns(body.maxTurns);
     }
@@ -295,11 +305,12 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
       const stream =
         session === undefined || stores.sessions === undefined
           ? runStream
-          : persistStreamingSessionRun({
+          : persistStreamingSessionTranscript({
               stream: runStream,
               store: stores.sessions,
               session,
               message: body.message,
+              runId,
             });
       return streamAgentRunEvents(c, stream);
     }
@@ -328,15 +339,30 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
       }
       const response = await request.send();
       if (session !== undefined && stores.sessions !== undefined) {
-        await stores.sessions.appendSessionRun({
+        await stores.sessions.saveSessionRunTranscript({
           id: session.id,
+          runId,
           ...optionalTitle(body.message),
-          messages: response.messages,
           transcript: transcriptFromMessages(response.messages),
+          status: "success",
         });
       }
       return c.json(response);
     } catch (error) {
+      if (session !== undefined && stores.sessions !== undefined) {
+        const messages = await stores.sessions.load({
+          sessionId: session.id,
+          metadata: memoryMetadata,
+        });
+        await stores.sessions.saveSessionRunTranscript({
+          id: session.id,
+          runId,
+          ...optionalTitle(body.message),
+          transcript: transcriptFromMessages(messages.slice(session.messageCount)),
+          status: "error",
+          error: serializeError(error),
+        });
+      }
       return errorResponse(c, 500, "internal_error", "Agent run failed", serializeError(error));
     }
   });
@@ -372,6 +398,29 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   };
 }
 
+function normalizePromptMessage(message: string | CoreMessage): CoreMessage {
+  return typeof message === "string" ? Message.user(message) : message;
+}
+
+function withStudioSessionMemory(
+  studioAgent: StudioAgent,
+  sessionStore: StudioSessionStore | undefined,
+): StudioAgent {
+  if (sessionStore === undefined) {
+    return studioAgent;
+  }
+
+  return {
+    ...studioAgent,
+    agent: cloneAgent(studioAgent.agent, {
+      memory: {
+        store: sessionStore,
+        options: resolveMemoryOptions({ savePolicy: "message" }),
+      },
+    }),
+  };
+}
+
 function withStudioTraceObserver(
   studioAgent: StudioAgent,
   traceStore: StudioTraceStore | undefined,
@@ -382,29 +431,40 @@ function withStudioTraceObserver(
 
   return {
     ...studioAgent,
-    agent: new Agent({
-      id: studioAgent.agent.id,
-      name: studioAgent.agent.name,
-      description: studioAgent.agent.description,
-      model: studioAgent.agent.model,
-      instructions: studioAgent.agent.instructions,
-      staticContext: studioAgent.agent.staticContext,
-      temperature: studioAgent.agent.temperature,
-      maxTokens: studioAgent.agent.maxTokens,
-      additionalParams: studioAgent.agent.additionalParams,
-      toolSet: studioAgent.agent.toolSet,
-      toolChoice: studioAgent.agent.toolChoice,
-      defaultMaxTurns: studioAgent.agent.defaultMaxTurns,
-      hook: studioAgent.agent.hook,
-      outputSchema: studioAgent.agent.outputSchema,
+    agent: cloneAgent(studioAgent.agent, {
       observers: [
         ...studioAgent.agent.observers,
         { observer: new StudioTraceObserver({ store: traceStore }) },
       ],
-      dynamicContexts: studioAgent.agent.dynamicContexts,
-      dynamicTools: studioAgent.agent.dynamicTools,
     }),
   };
+}
+
+function cloneAgent(
+  agent: Agent,
+  overrides: Partial<ConstructorParameters<typeof Agent>[0]> = {},
+): Agent {
+  return new Agent({
+    id: agent.id,
+    name: agent.name,
+    description: agent.description,
+    model: agent.model,
+    instructions: agent.instructions,
+    staticContext: agent.staticContext,
+    temperature: agent.temperature,
+    maxTokens: agent.maxTokens,
+    additionalParams: agent.additionalParams,
+    toolSet: agent.toolSet,
+    toolChoice: agent.toolChoice,
+    defaultMaxTurns: agent.defaultMaxTurns,
+    hook: agent.hook,
+    outputSchema: agent.outputSchema,
+    observers: agent.observers,
+    dynamicContexts: agent.dynamicContexts,
+    dynamicTools: agent.dynamicTools,
+    memory: agent.memory,
+    ...overrides,
+  });
 }
 
 function hasStudioTraceObserver(agent: Agent): boolean {

@@ -24,6 +24,7 @@ import {
 } from "@anvia/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Studio } from "../src/index";
+import { createSqliteSessionStore } from "../src/sqlite";
 
 class QueueModel {
   readonly provider = "test";
@@ -107,6 +108,31 @@ class GatedReasoningModel implements StreamingCompletionModel {
       this.releaseText = resolve;
     });
     yield { type: "text_delta", delta: "done" };
+  }
+}
+
+class FailingStreamingModel implements StreamingCompletionModel {
+  readonly provider = "test";
+  readonly defaultModel = "test";
+  readonly capabilities = {
+    streaming: true,
+    tools: true,
+    toolChoice: true,
+    imageInput: true,
+    documentInput: true,
+    outputSchema: true,
+    reasoning: true,
+  };
+  readonly requests: CompletionRequest[] = [];
+
+  async completion(): Promise<CompletionResponse> {
+    throw new Error("completion should not be called");
+  }
+
+  async *streamCompletion(request: CompletionRequest): AsyncIterable<CompletionStreamEvent> {
+    this.requests.push(request);
+    yield { type: "text_delta", delta: "partial" };
+    throw new Error("stream failed");
   }
 }
 
@@ -1572,7 +1598,7 @@ describe("Anvia studio", () => {
     });
   });
 
-  it("persists failed runner traces without mutating session history", async () => {
+  it("persists failed runner traces with partial session memory", async () => {
     const agent = new AgentBuilder("support", new QueueModel([])).build();
     const runner = new Studio([agent]);
 
@@ -1596,9 +1622,9 @@ describe("Anvia studio", () => {
 
     const loaded = await runner.fetch(new Request(`http://runner.test/sessions/${session.id}`));
     await expect(loaded.json()).resolves.toMatchObject({
-      messageCount: 0,
-      messages: [],
-      transcript: [],
+      messageCount: 1,
+      messages: [Message.user("fail")],
+      transcript: [{ kind: "message", role: "user", text: "fail" }],
     });
 
     const traces = (await (
@@ -1614,6 +1640,94 @@ describe("Anvia studio", () => {
       status: "error",
       error: { message: "No queued response" },
       observations: [{ kind: "generation", status: "error" }],
+    });
+  });
+
+  it("persists streaming failures with partial transcript entries", async () => {
+    const model = new FailingStreamingModel();
+    const agent = new AgentBuilder("support", model).build();
+    const runner = new Studio([agent]);
+
+    const created = await runner.fetch(
+      new Request("http://runner.test/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentId: "support" }),
+      }),
+    );
+    const session = (await created.json()) as { id: string };
+
+    const run = await runner.fetch(
+      new Request("http://runner.test/agents/support/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: "stream fail", sessionId: session.id, stream: true }),
+      }),
+    );
+
+    expect(run.status).toBe(200);
+    expect(await readJsonl(run)).toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        error: expect.objectContaining({ message: "stream failed" }),
+      }),
+    );
+
+    const loaded = await runner.fetch(new Request(`http://runner.test/sessions/${session.id}`));
+    await expect(loaded.json()).resolves.toMatchObject({
+      messageCount: 1,
+      messages: [Message.user("stream fail")],
+      transcript: [
+        { kind: "message", role: "user", text: "stream fail" },
+        { kind: "message", role: "assistant", text: "partial" },
+      ],
+    });
+  });
+
+  it("uses the SQLite session store as a core memory store", async () => {
+    const store = createSqliteSessionStore({ path: ":memory:" });
+    store.createSession({ id: "session_1", agentId: "support" });
+
+    await store.append({
+      context: { sessionId: "session_1" },
+      runId: "run_1",
+      turn: 1,
+      messages: [Message.user("hi")],
+    });
+    await expect(store.load({ sessionId: "session_1" })).resolves.toEqual([Message.user("hi")]);
+
+    await store.saveSessionRunTranscript({
+      id: "session_1",
+      runId: "run_1",
+      title: "hi",
+      status: "success",
+      transcript: [{ entryId: 0, kind: "message", role: "user", text: "hi" }],
+    });
+    expect((await store.listSessions({ limit: 10 }))[0]).toMatchObject({
+      id: "session_1",
+      title: "hi",
+      messageCount: 1,
+    });
+    expect((await store.getSession("session_1"))?.transcript).toEqual([
+      { entryId: 0, kind: "message", role: "user", text: "hi" },
+    ]);
+
+    await store.recordError?.({
+      context: { sessionId: "session_1", metadata: { studioRunId: "run_2" } },
+      runId: "core_run_2",
+      error: new Error("failed"),
+      messages: [Message.user("failed")],
+    });
+    expect((await store.getSession("session_1"))?.transcript).toEqual([
+      { entryId: 0, kind: "message", role: "user", text: "hi" },
+      { entryId: 1, kind: "message", role: "user", text: "failed" },
+    ]);
+
+    await store.clear({ sessionId: "session_1" });
+    expect(await store.getSession("session_1")).toMatchObject({
+      messageCount: 0,
+      messages: [],
+      transcript: [],
     });
   });
 

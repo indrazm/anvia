@@ -10,15 +10,16 @@ Agent tests should focus on the application boundary around the agent. Retrieval
 Put product policy around agent calls in a small wrapper. Then test that wrapper owns history, trace metadata, usage records, and error handling:
 
 ```ts
+import { Message, type Agent, type Message as MessageType } from "@anvia/core";
+
 export async function runSupportAgent(
   agent: Agent,
   conversationId: string,
   input: string,
-  history: Message[],
+  history: MessageType[],
 ) {
   const response = await agent
-    .prompt(input)
-    .withHistory(history)
+    .prompt([...history, Message.user(input)])
     .withTrace({ name: "support-agent" })
     .maxTurns(3)
     .send();

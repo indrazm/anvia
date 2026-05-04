@@ -2,12 +2,20 @@ import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
-import type { JsonObject, Message } from "@anvia/core";
+import type {
+  JsonObject,
+  JsonValue,
+  MemoryAppendInput,
+  MemoryContext,
+  MemoryErrorInput,
+  Message,
+} from "@anvia/core";
 import type {
   StudioSession,
-  StudioSessionAppendInput,
   StudioSessionCreateInput,
   StudioSessionListOptions,
+  StudioSessionRunStatus,
+  StudioSessionRunTranscriptInput,
   StudioSessionStore,
   StudioSessionSummary,
   StudioSessionTraceListOptions,
@@ -52,6 +60,17 @@ type TraceRow = {
   started_at: string;
   ended_at: string | null;
   duration_ms: number | null;
+};
+
+type SessionRunRow = {
+  run_id: string;
+  session_id: string;
+  status: StudioSessionRunStatus;
+  title: string | null;
+  transcript_json: string;
+  error_json: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export function createSqliteSessionStore(
@@ -119,19 +138,17 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
   }
 
   getSession(id: string): StudioSession | undefined {
-    const db = this.database();
-    const row = db
-      .prepare(
-        `SELECT id, agent_id, title, metadata_json, messages_json, transcript_json, created_at, updated_at
-         FROM runner_sessions
-         WHERE id = $id`,
-      )
-      .get({ $id: id }) as SessionRow | undefined;
+    const row = this.getSessionRow(id);
 
-    return row === undefined ? undefined : toSession(row);
+    return row === undefined ? undefined : toSession(row, this.listSessionRunRows(id));
   }
 
-  appendSessionRun(input: StudioSessionAppendInput): StudioSession | undefined {
+  load(context: MemoryContext): Promise<Message[]> {
+    const session = this.getSession(context.sessionId);
+    return Promise.resolve(session?.messages ?? []);
+  }
+
+  append(input: MemoryAppendInput): Promise<void> {
     const db = this.database();
 
     try {
@@ -142,43 +159,147 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
            FROM runner_sessions
            WHERE id = $id`,
         )
-        .get({ $id: input.id }) as SessionRow | undefined;
+        .get({ $id: input.context.sessionId }) as SessionRow | undefined;
 
       if (row === undefined) {
         db.exec("ROLLBACK");
-        return undefined;
+        return Promise.resolve();
       }
 
       const current = toSession(row);
       const messages = [...current.messages, ...input.messages];
-      const transcript = renumberTranscript([...current.transcript, ...input.transcript]);
-      const title = current.title ?? input.title;
       const updatedAt = new Date().toISOString();
 
       db.prepare(
         `UPDATE runner_sessions
+         SET messages_json = $messages,
+             updated_at = $updatedAt
+         WHERE id = $id`,
+      ).run({
+        $id: input.context.sessionId,
+        $messages: JSON.stringify(messages),
+        $updatedAt: updatedAt,
+      });
+      db.exec("COMMIT");
+      return Promise.resolve();
+    } catch (error) {
+      if (db.isTransaction) {
+        db.exec("ROLLBACK");
+      }
+      throw error;
+    }
+  }
+
+  clear(context: MemoryContext): Promise<void> {
+    const db = this.database();
+    const updatedAt = new Date().toISOString();
+
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      db.prepare(
+        `UPDATE runner_sessions
+         SET messages_json = '[]',
+             transcript_json = '[]',
+             updated_at = $updatedAt
+         WHERE id = $id`,
+      ).run({
+        $id: context.sessionId,
+        $updatedAt: updatedAt,
+      });
+      db.prepare("DELETE FROM runner_session_runs WHERE session_id = $id").run({
+        $id: context.sessionId,
+      });
+      db.exec("COMMIT");
+      return Promise.resolve();
+    } catch (error) {
+      if (db.isTransaction) {
+        db.exec("ROLLBACK");
+      }
+      throw error;
+    }
+  }
+
+  async recordError(input: MemoryErrorInput): Promise<void> {
+    const runId = studioRunId(input.context) ?? input.runId;
+    const existing = this.getSessionRun(input.context.sessionId, runId);
+    const transcript =
+      existing === undefined ||
+      parseJsonArray<StudioTranscriptEntry>(existing.transcript_json).length === 0
+        ? transcriptFromMessagesFallback(input.messages)
+        : parseJsonArray<StudioTranscriptEntry>(existing.transcript_json);
+    await this.saveSessionRunTranscript({
+      id: input.context.sessionId,
+      runId,
+      transcript,
+      status: "error",
+      error: serializeJsonError(input.error),
+    });
+  }
+
+  saveSessionRunTranscript(input: StudioSessionRunTranscriptInput): StudioSession | undefined {
+    const db = this.database();
+    const now = new Date().toISOString();
+
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      const row = this.getSessionRow(input.id);
+      if (row === undefined) {
+        db.exec("ROLLBACK");
+        return undefined;
+      }
+      const current = toSession(row, this.listSessionRunRows(input.id));
+      const title = current.title ?? input.title;
+
+      db.prepare(
+        `INSERT INTO runner_session_runs (
+          run_id,
+          session_id,
+          status,
+          title,
+          transcript_json,
+          error_json,
+          created_at,
+          updated_at
+        ) VALUES (
+          $runId,
+          $sessionId,
+          $status,
+          $title,
+          $transcript,
+          $error,
+          $now,
+          $now
+        )
+        ON CONFLICT(run_id) DO UPDATE SET
+          status = excluded.status,
+          title = COALESCE(runner_session_runs.title, excluded.title),
+          transcript_json = excluded.transcript_json,
+          error_json = excluded.error_json,
+          updated_at = excluded.updated_at`,
+      ).run({
+        $runId: input.runId,
+        $sessionId: input.id,
+        $status: input.status,
+        $title: input.title ?? null,
+        $transcript: JSON.stringify(renumberTranscript(input.transcript)),
+        $error: input.error === undefined ? null : JSON.stringify(input.error),
+        $now: now,
+      });
+
+      db.prepare(
+        `UPDATE runner_sessions
          SET title = $title,
-             messages_json = $messages,
-             transcript_json = $transcript,
              updated_at = $updatedAt
          WHERE id = $id`,
       ).run({
         $id: input.id,
         $title: title ?? null,
-        $messages: JSON.stringify(messages),
-        $transcript: JSON.stringify(transcript),
-        $updatedAt: updatedAt,
+        $updatedAt: now,
       });
       db.exec("COMMIT");
 
-      return {
-        ...current,
-        ...(title === undefined ? {} : { title }),
-        updatedAt,
-        messageCount: messages.length,
-        messages,
-        transcript,
-      };
+      const updated = this.getSession(input.id);
+      return updated;
     } catch (error) {
       if (db.isTransaction) {
         db.exec("ROLLBACK");
@@ -193,6 +314,7 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
     try {
       db.exec("BEGIN IMMEDIATE");
       db.prepare("DELETE FROM runner_traces WHERE session_id = $id").run({ $id: id });
+      db.prepare("DELETE FROM runner_session_runs WHERE session_id = $id").run({ $id: id });
       const result = db.prepare("DELETE FROM runner_sessions WHERE id = $id").run({ $id: id }) as {
         changes: number | bigint;
       };
@@ -374,6 +496,19 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
       ) STRICT;
       CREATE INDEX IF NOT EXISTS runner_sessions_agent_updated_idx
         ON runner_sessions(agent_id, updated_at DESC);
+      CREATE TABLE IF NOT EXISTS runner_session_runs (
+        run_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        title TEXT,
+        transcript_json TEXT NOT NULL,
+        error_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(session_id) REFERENCES runner_sessions(id) ON DELETE CASCADE
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS runner_session_runs_session_created_idx
+        ON runner_session_runs(session_id, created_at ASC);
       CREATE TABLE IF NOT EXISTS runner_traces (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -397,14 +532,49 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
     this.db = db;
     return db;
   }
+
+  private getSessionRow(id: string): SessionRow | undefined {
+    return this.database()
+      .prepare(
+        `SELECT id, agent_id, title, metadata_json, messages_json, transcript_json, created_at, updated_at
+         FROM runner_sessions
+         WHERE id = $id`,
+      )
+      .get({ $id: id }) as SessionRow | undefined;
+  }
+
+  private getSessionRun(sessionId: string, runId: string): SessionRunRow | undefined {
+    return this.database()
+      .prepare(
+        `SELECT run_id, session_id, status, title, transcript_json, error_json, created_at, updated_at
+         FROM runner_session_runs
+         WHERE session_id = $sessionId AND run_id = $runId`,
+      )
+      .get({ $sessionId: sessionId, $runId: runId }) as SessionRunRow | undefined;
+  }
+
+  private listSessionRunRows(sessionId: string): SessionRunRow[] {
+    return this.database()
+      .prepare(
+        `SELECT run_id, session_id, status, title, transcript_json, error_json, created_at, updated_at
+         FROM runner_session_runs
+         WHERE session_id = $sessionId
+         ORDER BY created_at ASC`,
+      )
+      .all({ $sessionId: sessionId }) as SessionRunRow[];
+  }
 }
 
-function toSession(row: SessionRow): StudioSession {
+function toSession(row: SessionRow, runRows: SessionRunRow[] = []): StudioSession {
   const summary = toSessionSummary(row);
+  const legacyTranscript = parseJsonArray<StudioTranscriptEntry>(row.transcript_json);
+  const runTranscript = runRows.flatMap((runRow) =>
+    parseJsonArray<StudioTranscriptEntry>(runRow.transcript_json),
+  );
   return {
     ...summary,
     messages: parseJsonArray<Message>(row.messages_json),
-    transcript: renumberTranscript(parseJsonArray<StudioTranscriptEntry>(row.transcript_json)),
+    transcript: renumberTranscript([...legacyTranscript, ...runTranscript]),
   };
 }
 
@@ -468,4 +638,107 @@ function parseJsonValue<T>(value: string | null): T | undefined {
 
 function renumberTranscript(entries: StudioTranscriptEntry[]): StudioTranscriptEntry[] {
   return entries.map((entry, entryId) => ({ ...entry, entryId }));
+}
+
+function studioRunId(context: MemoryContext): string | undefined {
+  const value = context.metadata?.studioRunId;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function serializeJsonError(error: unknown): JsonValue {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+  if (
+    error === null ||
+    typeof error === "string" ||
+    typeof error === "number" ||
+    typeof error === "boolean"
+  ) {
+    return error;
+  }
+  return String(error);
+}
+
+function transcriptFromMessagesFallback(messages: Message[]): StudioTranscriptEntry[] {
+  const transcript: StudioTranscriptEntry[] = [];
+  for (const message of messages) {
+    if (message.role === "system") {
+      continue;
+    }
+    if (message.role === "user") {
+      for (const content of message.content) {
+        if (content.type === "text") {
+          transcript.push({
+            entryId: transcript.length,
+            kind: "message",
+            role: "user",
+            text: content.text,
+          });
+        }
+      }
+      continue;
+    }
+    if (message.role === "tool") {
+      for (const content of message.content) {
+        transcript.push({
+          entryId: transcript.length,
+          kind: "tool",
+          toolName: "tool_result",
+          callId: content.callId ?? content.id,
+          result: content.content
+            .map((item) => ("text" in item ? item.text : "[image]"))
+            .join("\n"),
+        });
+      }
+      continue;
+    }
+
+    for (const content of message.content) {
+      if (content.type === "text") {
+        appendAssistantTranscriptText(transcript, content.text);
+      } else if (content.type === "reasoning") {
+        transcript.push({
+          entryId: transcript.length,
+          kind: "reasoning",
+          ...(content.id === undefined ? {} : { reasoningId: content.id }),
+          text: content.text,
+        });
+      } else if (content.type === "tool_call") {
+        transcript.push({
+          entryId: transcript.length,
+          kind: "tool",
+          toolName: content.function.name,
+          callId: content.callId ?? content.id,
+          args: formatJson(content.function.arguments),
+        });
+      }
+    }
+  }
+  return transcript;
+}
+
+function appendAssistantTranscriptText(transcript: StudioTranscriptEntry[], text: string): void {
+  const last = transcript.at(-1);
+  if (last?.kind === "message" && last.role === "assistant") {
+    last.text = `${last.text}${text}`;
+    return;
+  }
+  transcript.push({
+    entryId: transcript.length,
+    kind: "message",
+    role: "assistant",
+    text,
+  });
+}
+
+function formatJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }

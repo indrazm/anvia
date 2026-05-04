@@ -3,7 +3,7 @@ title: Agent History
 description: Work with chat history and multi-turn agent sessions.
 ---
 
-Anvia history is a plain `Message[]`. You choose where to store it, then pass it into each new prompt with `.withHistory(...)`.
+Anvia history is a plain `Message[]`. For explicit stateless history, pass the whole transcript to `agent.prompt([...])`; the last message is the active prompt and earlier messages are history.
 
 ## Basic Shape
 
@@ -37,11 +37,9 @@ const history = [
 
 ```ts
 const history = await conversations.loadMessages(conversationId);
+const currentPrompt = Message.user(userInput);
 
-const response = await agent
-  .prompt(userInput)
-  .withHistory(history)
-  .send();
+const response = await agent.prompt([...history, currentPrompt]).send();
 
 await conversations.saveMessages(conversationId, [
   ...history,

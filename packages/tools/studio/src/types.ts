@@ -5,6 +5,7 @@ import type {
   AgentTraceOptions,
   JsonObject,
   JsonValue,
+  MemoryStore,
   Message,
   PromptResponse,
   Usage,
@@ -112,14 +113,18 @@ export type StudioSessionListOptions = {
   limit: number;
 };
 
-export type StudioSessionAppendInput = {
+export type StudioSessionRunStatus = "running" | "success" | "error";
+
+export type StudioSessionRunTranscriptInput = {
   id: string;
+  runId: string;
   title?: string;
-  messages: Message[];
   transcript: StudioTranscriptEntry[];
+  status: StudioSessionRunStatus;
+  error?: JsonValue;
 };
 
-export type StudioSessionStore = {
+export type StudioSessionStore = MemoryStore & {
   readonly kind?: string;
   listSessions(
     options: StudioSessionListOptions,
@@ -128,8 +133,8 @@ export type StudioSessionStore = {
     input: StudioSessionCreateInput,
   ): StudioSessionSummary | Promise<StudioSessionSummary>;
   getSession(id: string): StudioSession | undefined | Promise<StudioSession | undefined>;
-  appendSessionRun(
-    input: StudioSessionAppendInput,
+  saveSessionRunTranscript(
+    input: StudioSessionRunTranscriptInput,
   ): StudioSession | undefined | Promise<StudioSession | undefined>;
   deleteSession?(id: string): boolean | Promise<boolean>;
 };

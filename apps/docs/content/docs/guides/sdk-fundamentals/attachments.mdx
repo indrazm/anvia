@@ -63,10 +63,7 @@ Conversation history is still a plain `Message[]`:
 ```ts
 const history = await conversations.loadMessages(conversationId);
 
-const response = await agent
-  .prompt(currentMessage)
-  .withHistory(history)
-  .send();
+const response = await agent.prompt([...history, currentMessage]).send();
 
 await conversations.saveMessages(conversationId, [
   ...history,

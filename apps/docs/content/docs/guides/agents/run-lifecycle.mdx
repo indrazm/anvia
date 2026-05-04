@@ -15,9 +15,10 @@ A prompt run starts from `agent.prompt(...)` and ends with either a final assist
 6. Repeat until the model returns final text or the turn limit is reached.
 
 ```ts
+import { Message } from "@anvia/core";
+
 const response = await agent
-  .prompt("Where is order A-100?")
-  .withHistory(history)
+  .prompt([...history, Message.user("Where is order A-100?")])
   .maxTurns(3)
   .send();
 
@@ -30,8 +31,7 @@ Use request-level methods for values that change per prompt.
 
 ```ts
 const response = await agent
-  .prompt(userInput)
-  .withHistory(history)
+  .prompt([...history, Message.user(userInput)])
   .withToolConcurrency(2)
   .withTrace({
     name: "support-message",
