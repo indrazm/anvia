@@ -17,6 +17,6 @@ const history = [
   Message.assistant("Noted. Your project is named Anvia."),
 ];
 
-const response = await agent.prompt("What is my project named?").withHistory(history).send();
+const response = await agent.prompt([...history, Message.user("What is my project named?")]).send();
 
 console.log(response.output);

@@ -1,5 +1,11 @@
 import type { CompletionModel, Document, JsonObject, JsonValue, ToolChoice } from "../completion";
 import type { McpServer } from "../mcp";
+import {
+  type MemoryOptions,
+  type MemoryRegistration,
+  type MemoryStore,
+  resolveMemoryOptions,
+} from "../memory";
 import type { AgentObserver, AgentObserverRegistration, ObserveOptions } from "../observability";
 import { toProviderJsonSchema, type ZodSchema } from "../schema/zod-schema";
 import type { SkillSet } from "../skills";
@@ -33,6 +39,7 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
   private observerRegistrations: AgentObserverRegistration[] = [];
   private dynamicContextRegistrations: DynamicContextRegistration[] = [];
   private dynamicToolRegistrations: DynamicToolRegistration[] = [];
+  private memoryRegistration: MemoryRegistration | undefined;
   private activeToolSet = new ToolSet();
 
   constructor(
@@ -143,6 +150,14 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
     return this;
   }
 
+  memory(store: MemoryStore, options: MemoryOptions = {}): this {
+    this.memoryRegistration = {
+      store,
+      options: resolveMemoryOptions(options),
+    };
+    return this;
+  }
+
   outputSchema(schema: ZodSchema): this {
     this.schema = toProviderJsonSchema(schema);
     return this;
@@ -167,6 +182,7 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
       observers: this.observerRegistrations,
       dynamicContexts: this.dynamicContextRegistrations,
       dynamicTools: this.dynamicToolRegistrations,
+      memory: this.memoryRegistration,
     });
   }
 

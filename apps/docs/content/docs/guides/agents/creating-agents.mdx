@@ -66,11 +66,12 @@ const agent = new AgentBuilder("support", model)
 `.prompt(...)` creates a request. Chain request-level options before `.send()`.
 
 ```ts
+import { Message } from "@anvia/core";
+
 const history = await conversations.loadMessages(conversationId);
 
 const response = await agent
-  .prompt("What did we decide earlier?")
-  .withHistory(history)
+  .prompt([...history, Message.user("What did we decide earlier?")])
   .maxTurns(2)
   .withTrace({ name: "support-follow-up", userId: "user_123" })
   .send();

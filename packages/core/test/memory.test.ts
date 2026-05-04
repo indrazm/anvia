@@ -1,0 +1,216 @@
+import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import {
+  AgentBuilder,
+  AssistantContent,
+  type CompletionModel,
+  type CompletionRequest,
+  type CompletionResponse,
+  createTool,
+  type MemoryAppendInput,
+  type MemoryContext,
+  type MemoryErrorInput,
+  type MemoryStore,
+  Message,
+  type Message as MessageType,
+  Usage,
+} from "../src/index";
+
+class QueueModel implements CompletionModel {
+  readonly provider = "test";
+  readonly defaultModel = "test";
+  readonly capabilities = {
+    streaming: false,
+    tools: true,
+    toolChoice: true,
+    imageInput: true,
+    documentInput: true,
+    outputSchema: true,
+    reasoning: true,
+  };
+  readonly requests: CompletionRequest[] = [];
+
+  constructor(private readonly responses: CompletionResponse[]) {}
+
+  async completion(request: CompletionRequest): Promise<CompletionResponse> {
+    this.requests.push(request);
+    const response = this.responses.shift();
+    if (response === undefined) {
+      throw new Error("No queued response");
+    }
+    return response;
+  }
+}
+
+class RecordingMemoryStore implements MemoryStore {
+  readonly appendCalls: MemoryAppendInput[] = [];
+  readonly errorCalls: MemoryErrorInput[] = [];
+  private readonly sessions = new Map<string, MessageType[]>();
+
+  constructor(initial: Record<string, MessageType[]> = {}) {
+    for (const [sessionId, messages] of Object.entries(initial)) {
+      this.sessions.set(sessionId, messages);
+    }
+  }
+
+  async load(context: MemoryContext): Promise<MessageType[]> {
+    return [...(this.sessions.get(context.sessionId) ?? [])];
+  }
+
+  async append(input: MemoryAppendInput): Promise<void> {
+    this.appendCalls.push({ ...input, messages: [...input.messages] });
+    const current = this.sessions.get(input.context.sessionId) ?? [];
+    this.sessions.set(input.context.sessionId, [...current, ...input.messages]);
+  }
+
+  async clear(context: MemoryContext): Promise<void> {
+    this.sessions.delete(context.sessionId);
+  }
+
+  async recordError(input: MemoryErrorInput): Promise<void> {
+    this.errorCalls.push({ ...input, messages: [...input.messages] });
+  }
+}
+
+function response(choice: CompletionResponse["choice"]): CompletionResponse {
+  return {
+    choice,
+    usage: Usage.empty(),
+    rawResponse: {},
+  };
+}
+
+const addTool = createTool({
+  name: "add",
+  description: "Add numbers",
+  input: z.object({
+    x: z.number(),
+    y: z.number(),
+  }),
+  output: z.number(),
+  execute: (args) => args.x + args.y,
+});
+
+describe("agent memory", () => {
+  it("uses prompt transcripts as stateless history", async () => {
+    const model = new QueueModel([response([AssistantContent.text("Anvia")])]);
+    const agent = new AgentBuilder("test-agent", model).build();
+    const transcript = [
+      Message.user("My project is named Anvia."),
+      Message.assistant("Noted."),
+      Message.user("What is my project named?"),
+    ];
+
+    await agent.prompt(transcript).send();
+
+    expect(model.requests[0]?.chatHistory).toEqual(transcript);
+  });
+
+  it("rejects empty prompt transcripts", async () => {
+    const model = new QueueModel([]);
+    const agent = new AgentBuilder("test-agent", model).build();
+
+    expect(() => agent.prompt([])).toThrow("at least one message");
+  });
+
+  it("loads session messages before running", async () => {
+    const previous = [Message.user("My project is named Anvia."), Message.assistant("Noted.")];
+    const store = new RecordingMemoryStore({ session_1: previous });
+    const model = new QueueModel([response([AssistantContent.text("Anvia")])]);
+    const agent = new AgentBuilder("test-agent", model).memory(store).build();
+
+    await agent.session("session_1").prompt("What is my project named?").send();
+
+    expect(model.requests[0]?.chatHistory).toEqual([
+      ...previous,
+      Message.user("What is my project named?"),
+    ]);
+  });
+
+  it("saves messages incrementally by default", async () => {
+    const store = new RecordingMemoryStore();
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "add", { x: 2, y: 5 })]),
+      response([AssistantContent.text("7")]),
+    ]);
+    const agent = new AgentBuilder("test-agent", model).memory(store).tool(addTool).build();
+
+    await agent.session("session_1").prompt("add").send();
+
+    expect(store.appendCalls.map((call) => call.messages.map((message) => message.role))).toEqual([
+      ["user"],
+      ["assistant"],
+      ["tool"],
+      ["assistant"],
+    ]);
+    await expect(agent.session("session_1").messages()).resolves.toHaveLength(4);
+  });
+
+  it("records failed runs after preserving completed messages", async () => {
+    const store = new RecordingMemoryStore();
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "add", { x: 2, y: 5 })]),
+    ]);
+    const agent = new AgentBuilder("test-agent", model).memory(store).tool(addTool).build();
+
+    await expect(agent.session("session_1").prompt("add").send()).rejects.toThrow(
+      "No queued response",
+    );
+
+    expect(store.appendCalls.map((call) => call.messages.map((message) => message.role))).toEqual([
+      ["user"],
+      ["assistant"],
+      ["tool"],
+    ]);
+    expect(store.errorCalls).toHaveLength(1);
+    expect(store.errorCalls[0]?.messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+    ]);
+  });
+
+  it("supports turn save policy", async () => {
+    const store = new RecordingMemoryStore();
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "add", { x: 2, y: 5 })]),
+      response([AssistantContent.text("7")]),
+    ]);
+    const agent = new AgentBuilder("test-agent", model)
+      .memory(store, { savePolicy: "turn" })
+      .tool(addTool)
+      .build();
+
+    await agent.session("session_1").prompt("add").send();
+
+    expect(store.appendCalls.map((call) => call.messages.map((message) => message.role))).toEqual([
+      ["user", "assistant", "tool"],
+      ["assistant"],
+    ]);
+  });
+
+  it("supports run save policy", async () => {
+    const store = new RecordingMemoryStore();
+    const model = new QueueModel([response([AssistantContent.text("done")])]);
+    const agent = new AgentBuilder("test-agent", model)
+      .memory(store, { savePolicy: "run" })
+      .build();
+
+    await agent.session("session_1").prompt("hello").send();
+
+    expect(store.appendCalls.map((call) => call.messages.map((message) => message.role))).toEqual([
+      ["user", "assistant"],
+    ]);
+  });
+
+  it("rejects transcript input for session prompts", () => {
+    const store = new RecordingMemoryStore();
+    const model = new QueueModel([]);
+    const agent = new AgentBuilder("test-agent", model).memory(store).build();
+    const prompt = agent.session("session_1").prompt as unknown as (
+      input: MessageType[],
+    ) => unknown;
+
+    expect(() => prompt([Message.user("hello")])).toThrow("does not accept Message[]");
+  });
+});

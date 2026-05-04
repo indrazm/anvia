@@ -7,6 +7,7 @@ import type {
   Message as MessageType,
   ToolChoice,
 } from "../completion/index";
+import type { MemoryRegistration, SessionOptions } from "../memory";
 import type { AgentObserverRegistration } from "../observability";
 import { createTool } from "../tool/create-tool";
 import type { ToolSearchDocument } from "../tool/dynamic-tools";
@@ -34,6 +35,7 @@ export type AgentOptions<M extends CompletionModel = CompletionModel> = {
   observers?: AgentObserverRegistration[] | undefined;
   dynamicContexts?: DynamicContextRegistration[] | undefined;
   dynamicTools?: DynamicToolRegistration[] | undefined;
+  memory?: MemoryRegistration | undefined;
 };
 
 export const DEFAULT_MAX_TURNS = 20;
@@ -85,6 +87,7 @@ export class Agent<M extends CompletionModel = CompletionModel> {
   readonly observers: AgentObserverRegistration[];
   readonly dynamicContexts: DynamicContextRegistration[];
   readonly dynamicTools: DynamicToolRegistration[];
+  readonly memory: MemoryRegistration | undefined;
 
   constructor(options: AgentOptions<M>) {
     this.id = normalizeAgentId(options.id);
@@ -104,10 +107,26 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     this.observers = options.observers ?? [];
     this.dynamicContexts = options.dynamicContexts ?? [];
     this.dynamicTools = options.dynamicTools ?? [];
+    this.memory = options.memory;
   }
 
-  prompt(prompt: string | MessageType): PromptRequest<M> {
+  prompt(prompt: string | MessageType | MessageType[]): PromptRequest<M> {
     return PromptRequest.fromAgent(this, prompt);
+  }
+
+  session(sessionId: string, options: SessionOptions = {}): AgentSession<M> {
+    if (this.memory === undefined) {
+      throw new Error(`Agent "${this.id}" has no memory store configured.`);
+    }
+    const normalized = sessionId.trim();
+    if (normalized.length === 0) {
+      throw new TypeError("Session id must be a non-empty string.");
+    }
+    return new AgentSession(this, {
+      sessionId: normalized,
+      ...(options.userId === undefined ? {} : { userId: options.userId }),
+      ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
+    });
   }
 
   asTool(options: AgentToolOptions): Tool<{ prompt: string }, string> {
@@ -161,6 +180,40 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     }
 
     return this.toolSet.call(toolName, args);
+  }
+}
+
+export class AgentSession<M extends CompletionModel = CompletionModel> {
+  constructor(
+    private readonly agent: Agent<M>,
+    private readonly context: {
+      sessionId: string;
+      userId?: string | undefined;
+      metadata?: JsonObject | undefined;
+    },
+  ) {}
+
+  prompt(prompt: string | MessageType): PromptRequest<M> {
+    if (Array.isArray(prompt)) {
+      throw new TypeError("AgentSession.prompt does not accept Message[] transcripts.");
+    }
+    return PromptRequest.fromAgent(this.agent, prompt, { memoryContext: this.context });
+  }
+
+  async messages(): Promise<MessageType[]> {
+    const memory = this.agent.memory;
+    if (memory === undefined) {
+      throw new Error(`Agent "${this.agent.id}" has no memory store configured.`);
+    }
+    return memory.store.load(this.context);
+  }
+
+  async clear(): Promise<void> {
+    const memory = this.agent.memory;
+    if (memory === undefined) {
+      throw new Error(`Agent "${this.agent.id}" has no memory store configured.`);
+    }
+    await memory.store.clear(this.context);
   }
 }
 

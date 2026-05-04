@@ -197,11 +197,12 @@ console.log(response.output);
 Anvia history is a plain `Message[]`. Store it wherever your application stores conversations.
 
 ```ts
+import { Message } from "@anvia/core";
+
 const history = await conversations.loadMessages(conversationId);
 
 const response = await agent
-  .prompt(userInput)
-  .withHistory(history)
+  .prompt([...history, Message.user(userInput)])
   .send();
 
 await conversations.saveMessages(conversationId, [

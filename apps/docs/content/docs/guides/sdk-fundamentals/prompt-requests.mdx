@@ -46,12 +46,11 @@ Provider support for images and documents depends on the provider model you choo
 const history = await conversations.loadMessages(conversationId);
 
 const response = await agent
-  .prompt(userInput)
-  .withHistory(history)
+  .prompt([...history, Message.user(userInput)])
   .send();
 ```
 
-History is not global state inside Anvia. You load it from your application and pass it into the request.
+History is not global state inside stateless prompts. You load it from your application and pass an explicit transcript into the request.
 
 ## 3. Override Runtime Options Per Prompt
 
@@ -72,7 +71,7 @@ Use this when one request needs a tighter turn limit, different tool concurrency
 When you call `send()`, Anvia builds a normalized completion request in this order:
 
 1. Start with the current prompt.
-2. Add any history from `.withHistory(...)`.
+2. Add any earlier messages from `prompt(Message[])`.
 3. Add agent instructions.
 4. Add static context from `.context(...)`.
 5. Fetch dynamic context if retrieval is configured.
@@ -102,4 +101,4 @@ Streaming emits normalized events for text deltas, reasoning deltas, tool calls,
 
 ## Next
 
-Read [Messages and History](/docs/guides/core-concepts/messages-and-history) to understand the `Message[]` shape used by prompts, history, and responses.
+Read [Messages and History](/docs/guides/sdk-fundamentals/messages-and-history) to understand the `Message[]` shape used by prompts, history, and responses.

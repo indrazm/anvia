@@ -1,6 +1,6 @@
 {
   "name": "@anvia/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core runtime primitives for context-aware Anvia agents.",
   "author": "anvia",
   "maintainer": "Indra Zulfi",
@@ -48,6 +48,10 @@
       "types": "./dist/mcp/index.d.ts",
       "import": "./dist/mcp/index.js"
     },
+    "./memory": {
+      "types": "./dist/memory/index.d.ts",
+      "import": "./dist/memory/index.js"
+    },
     "./observability": {
       "types": "./dist/observability/index.d.ts",
       "import": "./dist/observability/index.js"
@@ -82,7 +86,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/agent/index.ts src/audio-generation/index.ts src/completion/index.ts src/embeddings/index.ts src/evals/index.ts src/image-generation/index.ts src/loaders/index.ts src/extractor/index.ts src/mcp/index.ts src/observability/index.ts src/pipeline/index.ts src/skills/index.ts src/streaming/index.ts src/tool/index.ts src/transcription/index.ts src/vector-store/index.ts --format esm --dts --sourcemap --clean",
+    "build": "tsup src/index.ts src/agent/index.ts src/audio-generation/index.ts src/completion/index.ts src/embeddings/index.ts src/evals/index.ts src/image-generation/index.ts src/loaders/index.ts src/extractor/index.ts src/mcp/index.ts src/memory/index.ts src/observability/index.ts src/pipeline/index.ts src/skills/index.ts src/streaming/index.ts src/tool/index.ts src/transcription/index.ts src/vector-store/index.ts --format esm --dts --sourcemap --clean",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

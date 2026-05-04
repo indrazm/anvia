@@ -33,10 +33,10 @@ By the end, you should have reviewed:
 
 ## Path
 
-1. Read [How Anvia Works](/docs/guides/core-concepts/runtime-boundaries) to confirm ownership is clear.
-2. Read [Errors and Cancellation](/docs/guides/core-concepts/errors) to plan failure handling.
+1. Read [How Anvia Works](/docs/guides/sdk-fundamentals/runtime-boundaries) to confirm ownership is clear.
+2. Read [Errors and Cancellation](/docs/guides/sdk-fundamentals/errors) to plan failure handling.
 3. Read [Human in the Loop](/docs/guides/human-in-the-loop) for guarded actions.
-4. Read [Messages and History](/docs/guides/core-concepts/messages-and-history) for persistence shape.
+4. Read [Messages and History](/docs/guides/sdk-fundamentals/messages-and-history) for persistence shape.
 5. Read [Output Validation](/docs/guides/structured-output/output-validation) for typed workflows.
 6. Read [Observers](/docs/guides/observability/observers) for runtime visibility.
 7. Read [Testing](/docs/guides/testing) for verification boundaries.
@@ -80,16 +80,17 @@ Put agent calls behind a small application-owned wrapper so logging, history, tr
 ```ts
 import {
   MaxTurnsError,
+  Message,
   PromptCancelledError,
   type Agent,
-  type Message,
+  type Message as MessageType,
 } from "@anvia/core";
 
 type RunSupportAgentOptions = {
   userId: string;
   conversationId: string;
   input: string;
-  history: Message[];
+  history: MessageType[];
 };
 
 export async function runSupportAgent(
@@ -98,8 +99,7 @@ export async function runSupportAgent(
 ) {
   try {
     const response = await agent
-      .prompt(options.input)
-      .withHistory(options.history)
+      .prompt([...options.history, Message.user(options.input)])
       .withTrace({
         name: "support-agent",
         userId: options.userId,

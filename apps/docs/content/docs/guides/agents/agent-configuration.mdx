@@ -58,9 +58,10 @@ const agent = new AgentBuilder("support", model)
 Use request-level methods when the setting belongs to one prompt.
 
 ```ts
+import { Message } from "@anvia/core";
+
 const response = await agent
-  .prompt(userInput)
-  .withHistory(history)
+  .prompt([...history, Message.user(userInput)])
   .maxTurns(1)
   .withTrace({ name: "support-chat", userId })
   .send();

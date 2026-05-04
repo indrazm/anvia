@@ -16,6 +16,7 @@
     "cookbook:basics:03": "pnpm --filter cookbook basics:03",
     "cookbook:basics:04": "pnpm --filter cookbook basics:04",
     "cookbook:basics:05": "pnpm --filter cookbook basics:05",
+    "cookbook:basics:06": "pnpm --filter cookbook basics:06",
     "cookbook:tools": "pnpm --filter cookbook tools",
     "cookbook:tools:01": "pnpm --filter cookbook tools:01",
     "cookbook:tools:02": "pnpm --filter cookbook tools:02",

@@ -12,8 +12,8 @@ It is designed for teams that want more structure than raw model calls without g
 
 | Primitive | What it does | Start here |
 | --- | --- | --- |
-| Client | Configures provider access, credentials, base URLs, and provider SDK wiring | [Provider Clients and Models](/docs/guides/core-concepts/clients-and-models) |
-| Model | Provides a reusable completion or embedding capability | [Provider Clients and Models](/docs/guides/core-concepts/clients-and-models) |
+| Client | Configures provider access, credentials, base URLs, and provider SDK wiring | [Provider Clients and Models](/docs/guides/sdk-fundamentals/clients-and-models) |
+| Model | Provides a reusable completion or embedding capability | [Provider Clients and Models](/docs/guides/sdk-fundamentals/clients-and-models) |
 | Agent | Runs prompts with instructions, context, tools, hooks, turn limits, and output schemas | [Creating Agents](/docs/guides/agents/creating-agents) |
 | Tool | Exposes typed application-owned behavior to agents | [Creating Tools](/docs/guides/tools/creating-tools) |
 | Extractor | Converts unstructured text into schema-shaped data | [Extractors](/docs/guides/structured-output/extractors) |
@@ -72,7 +72,7 @@ Read [Design Philosophy](/docs/guides/design-philosophy) to understand why Anvia
 | --- | --- | --- |
 | Agents | You need a promptable runtime with instructions, tools, context, and history | [Agents](/docs/guides/agents/creating-agents) |
 | Tools | The model needs to call application-owned behavior | [Tools](/docs/guides/tools/creating-tools) |
-| History | You need multi-turn conversation state | [Messages and History](/docs/guides/core-concepts/messages-and-history) |
+| History | You need multi-turn conversation state | [Messages and History](/docs/guides/sdk-fundamentals/messages-and-history) |
 | Structured Output | You need schema-shaped data instead of free-form text | [Structured Output](/docs/guides/structured-output/schemas) |
 | Pipelines | You need explicit workflow composition | [Pipelines](/docs/guides/pipelines/pipeline-builder) |
 | Retrieval | You need embeddings, vector search, or dynamic context | [Retrieval](/docs/guides/retrieval/embeddings) |
@@ -88,15 +88,15 @@ Choose the path that matches what you are building:
 | --- | --- | --- |
 | Run your first agent | [Getting Started](/docs/guides/getting-started) | [Build an Agent](/docs/guides/learning-paths/build-an-agent) |
 | Run examples locally | [Cookbook](/docs/guides/cookbook) | [Testing](/docs/guides/testing) |
-| Understand the SDK shape | [How Anvia Works](/docs/guides/core-concepts/runtime-boundaries) | [Provider Clients and Models](/docs/guides/core-concepts/clients-and-models) |
+| Understand the SDK shape | [How Anvia Works](/docs/guides/sdk-fundamentals/runtime-boundaries) | [Provider Clients and Models](/docs/guides/sdk-fundamentals/clients-and-models) |
 | Persist conversations | [Persist Conversations](/docs/guides/learning-paths/persist-conversations) | [Agent History](/docs/guides/agents/agent-history) |
-| Send images or documents | [Attachments](/docs/guides/core-concepts/attachments) | [Messages and History](/docs/guides/core-concepts/messages-and-history) |
+| Send images or documents | [Attachments](/docs/guides/sdk-fundamentals/attachments) | [Messages and History](/docs/guides/sdk-fundamentals/messages-and-history) |
 | Add application actions | [Add Tools](/docs/guides/learning-paths/add-tools) | [Agent Tools](/docs/guides/agents/agent-tools) |
 | Return typed data | [Return Structured Output](/docs/guides/learning-paths/return-structured-output) | [Agent Output](/docs/guides/structured-output/agent-output) |
 | Compose multi-step workflows | [Build a Pipeline](/docs/guides/learning-paths/build-a-pipeline) | [Parallel Branches](/docs/guides/pipelines/parallel-branches) |
 | Add retrieval | [Add Retrieval](/docs/guides/learning-paths/add-retrieval) | [RAG Context](/docs/guides/retrieval/rag-context) |
 | Add traces | [Add Observability](/docs/guides/learning-paths/add-observability) | [Tracing](/docs/guides/observability/tracing) |
 | Inspect agents locally | [Studio](/docs/studio/overview) | [Run Studio](/docs/studio/run-studio) |
-| Prepare to ship | [Prepare for Production](/docs/guides/learning-paths/prepare-for-production) | [Errors and Cancellation](/docs/guides/core-concepts/errors) |
+| Prepare to ship | [Prepare for Production](/docs/guides/learning-paths/prepare-for-production) | [Errors and Cancellation](/docs/guides/sdk-fundamentals/errors) |
 
 Continue with [Getting Started](/docs/guides/getting-started) for a runnable first agent.
