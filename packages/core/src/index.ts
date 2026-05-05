@@ -7,6 +7,7 @@ export * from "./extractor";
 export * from "./image-generation";
 export * from "./mcp";
 export * from "./memory";
+export * from "./model-listing";
 export * from "./observability";
 export * from "./pipeline";
 export type { ZodSchema } from "./schema";

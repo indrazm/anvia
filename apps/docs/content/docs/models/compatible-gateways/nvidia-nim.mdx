@@ -31,30 +31,19 @@ For NVIDIA-hosted endpoints, use the base URL and credentials from your NVIDIA A
 
 ## Get the Model List
 
-NIM exposes `GET /v1/models` for loaded and available inference models.
+NIM exposes `GET /v1/models` for loaded and available inference models. Configure `OpenAIClient` with your NIM base URL, then call `listModels()`.
 
 ```ts
 const baseUrl = process.env.NVIDIA_NIM_BASE_URL ?? "http://localhost:8000/v1";
 
-const response = await fetch(`${baseUrl}/models`, {
-  headers: {
-    Authorization: `Bearer ${process.env.NVIDIA_NIM_API_KEY ?? "local"}`,
-  },
+const client = new OpenAIClient({
+  baseUrl,
+  apiKey: process.env.NVIDIA_NIM_API_KEY ?? "local",
 });
 
-if (!response.ok) {
-  throw new Error(`NVIDIA NIM models request failed: ${response.status}`);
-}
+const models = await client.listModels();
 
-const body = (await response.json()) as {
-  data: Array<{
-    id: string;
-    object?: string;
-    owned_by?: string;
-  }>;
-};
-
-console.table(body.data.map((model) => ({ id: model.id, owner: model.owned_by })));
+console.table(models.data.map((model) => ({ id: model.id, owner: model.ownedBy })));
 ```
 
 ## Notes

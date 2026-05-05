@@ -37,6 +37,7 @@
     "providers:07": "tsx -r dotenv/config 04_providers_and_multimodal/07-openai-image-generation.ts dotenv_config_path=../../.env",
     "providers:08": "tsx -r dotenv/config 04_providers_and_multimodal/08-openai-audio-and-transcription.ts dotenv_config_path=../../.env",
     "providers:09": "tsx -r dotenv/config 04_providers_and_multimodal/09-gemini-image-and-transcription.ts dotenv_config_path=../../.env",
+    "providers:10": "tsx -r dotenv/config 04_providers_and_multimodal/10-list-models.ts dotenv_config_path=../../.env",
     "providers-and-multimodal": "tsx -r dotenv/config 04_providers_and_multimodal/01-gemini-text-call.ts dotenv_config_path=../../.env",
     "pipelines": "tsx -r dotenv/config 05_pipelines/01-step-transform.ts dotenv_config_path=../../.env",
     "pipelines:01": "tsx -r dotenv/config 05_pipelines/01-step-transform.ts dotenv_config_path=../../.env",

@@ -33,6 +33,35 @@ describe("GeminiClient", () => {
     expect(client.completionModel()).toBeInstanceOf(GeminiCompletionModel);
     expect(client.embeddingModel()).toBeInstanceOf(GeminiEmbeddingModel);
   });
+
+  it("lists models from the Gemini SDK", async () => {
+    const client = new GeminiClient({
+      client: {
+        models: {
+          list: async () =>
+            asyncIterable([
+              {
+                name: "models/gemini-2.5-flash",
+                displayName: "Gemini 2.5 Flash",
+                description: "Fast Gemini model.",
+                inputTokenLimit: 1_048_576,
+              },
+            ]),
+        },
+      } as never,
+    });
+
+    await expect(client.listModels()).resolves.toEqual({
+      data: [
+        {
+          id: "gemini-2.5-flash",
+          name: "Gemini 2.5 Flash",
+          description: "Fast Gemini model.",
+          contextLength: 1_048_576,
+        },
+      ],
+    });
+  });
 });
 
 function fakeSdk() {
@@ -43,4 +72,10 @@ function fakeSdk() {
       embedContent: async () => ({ embeddings: [] }),
     },
   };
+}
+
+async function* asyncIterable(items: unknown[]): AsyncIterable<unknown> {
+  for (const item of items) {
+    yield item;
+  }
 }

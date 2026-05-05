@@ -29,28 +29,12 @@ console.log(response.output);
 
 ## Get the Model List
 
-Novita AI documents model listing as part of its OpenAI-compatible LLM API.
+Novita AI documents model listing as part of its OpenAI-compatible LLM API. Because the client was created with `baseUrl`, `listModels()` calls Novita AI's configured models endpoint.
 
 ```ts
-const response = await fetch("https://api.novita.ai/openai/models", {
-  headers: {
-    Authorization: `Bearer ${process.env.NOVITA_API_KEY}`,
-  },
-});
+const models = await client.listModels();
 
-if (!response.ok) {
-  throw new Error(`Novita AI models request failed: ${response.status}`);
-}
-
-const body = (await response.json()) as {
-  data: Array<{
-    id: string;
-    object?: string;
-    owned_by?: string;
-  }>;
-};
-
-console.table(body.data.map((model) => ({ id: model.id, owner: model.owned_by })));
+console.table(models.data.map((model) => ({ id: model.id, owner: model.ownedBy })));
 ```
 
 ## Notes

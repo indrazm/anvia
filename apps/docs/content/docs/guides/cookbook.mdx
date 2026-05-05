@@ -13,7 +13,7 @@ Each level introduces one layer at a time:
 | Basics | Text calls, chat history, static context, streaming, and `ReadableStream` output |
 | Tools | Tool calls, streamed tool events, hooks, concurrency, conditional tools, application state, guarded tools, and dynamic tool selection |
 | Structured output | Extraction, output schemas, context, retries, and extraction with history |
-| Providers and multimodal | Provider adapters, model capabilities, reasoning streams, attachments, image generation, audio generation, and transcription |
+| Providers and multimodal | Provider adapters, model capabilities, model listing, reasoning streams, attachments, image generation, audio generation, and transcription |
 | Pipelines | Step transforms, composition, named parallel branches, batching, agents, extraction, and richer workflows |
 | Retrieval | Embeddings, vector search, metadata filters, RAG context, document loaders, vector stores, and embedding provider variants |
 | Multi-agent | Agents as tools and pipeline-backed parallel specialists |
@@ -99,6 +99,7 @@ Use the in-memory and Transformers examples when you do not need a separate vect
 | Add a tool | `tools:01` | [Add Tools](/docs/guides/learning-paths/add-tools) |
 | Return structured data | `structured-output:01`, `structured-output:02` | [Structured Output](/docs/guides/structured-output/schemas) |
 | Inspect model capabilities | `providers:03` | [Provider Clients and Models](/docs/guides/sdk-fundamentals/clients-and-models) |
+| List provider models | `providers:10` | [Model Listing](/docs/reference/core/model-listing) |
 | Stream agent events | `tools:02` | [Streaming Events](/docs/guides/streaming/streaming-events) |
 | Render reasoning summaries | `providers:04` | [Streaming Events](/docs/guides/streaming/streaming-events) |
 | Select dynamic tools | `tools:09` | [Tool Sets](/docs/guides/tools/tool-sets) |

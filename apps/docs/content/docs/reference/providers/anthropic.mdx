@@ -17,15 +17,16 @@ type AnthropicClientOptions = {
 class AnthropicClient {
   readonly client: Anthropic;
   constructor(options?: AnthropicClientOptions);
+  listModels(): Promise<ModelList>;
   completionModel(model?: string): AnthropicCompletionModel;
 }
 ```
 
-Purpose: factory for Anthropic completion models.
+Purpose: factory for Anthropic completion models and model listing.
 
-Return behavior: `completionModel(...)` returns a streaming Anvia completion model.
+Return behavior: `completionModel(...)` returns a streaming Anvia completion model. `listModels()` fetches Anthropic's model list and returns a normalized `ModelList`.
 
-Notable errors: constructor throws when neither `client` nor `apiKey` is supplied.
+Notable errors: constructor throws when neither `client` nor `apiKey` is supplied; `listModels()` rejects with `ModelListingError` when the provider request fails.
 
 ## AnthropicCompletionModel
 

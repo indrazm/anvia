@@ -17,16 +17,17 @@ type MistralClientOptions = {
 class MistralClient {
   readonly client: Mistral;
   constructor(options?: MistralClientOptions);
+  listModels(): Promise<ModelList>;
   completionModel(model?: string): MistralCompletionModel;
   embeddingModel(model?: string, options?: MistralEmbeddingModelOptions): MistralEmbeddingModel;
 }
 ```
 
-Purpose: factory for Mistral completion and embedding models.
+Purpose: factory for Mistral completion, embedding, and model listing.
 
-Return behavior: creates or uses a Mistral SDK client, then returns normalized Anvia model adapters.
+Return behavior: creates or uses a Mistral SDK client, then returns normalized Anvia model adapters. `listModels()` fetches Mistral's model list and returns a normalized `ModelList`.
 
-Notable errors: constructor throws when neither `client` nor `apiKey` is supplied.
+Notable errors: constructor throws when neither `client` nor `apiKey` is supplied; `listModels()` rejects with `ModelListingError` when the provider request fails.
 
 ## MistralCompletionModel
 

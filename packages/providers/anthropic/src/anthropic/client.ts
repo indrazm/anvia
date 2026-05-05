@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { type ModelList, type ModelListingClient, ModelListingError } from "@anvia/core";
 import { AnthropicCompletionModel } from "./completion";
 
 export type AnthropicClientOptions = {
@@ -7,7 +8,7 @@ export type AnthropicClientOptions = {
   client?: Anthropic | undefined;
 };
 
-export class AnthropicClient {
+export class AnthropicClient implements ModelListingClient {
   readonly client: Anthropic;
 
   constructor(options: AnthropicClientOptions = {}) {
@@ -22,6 +23,18 @@ export class AnthropicClient {
   completionModel(model = "claude-sonnet-4-20250514"): AnthropicCompletionModel {
     return new AnthropicCompletionModel(this.client, model);
   }
+
+  async listModels(): Promise<ModelList> {
+    try {
+      const response = await this.client.models.list();
+      const data = (await collectModelsFromResponse(response))
+        .map(toListedModel)
+        .filter(isListedModel);
+      return { data };
+    } catch (error) {
+      throw toModelListingError("Anthropic", error);
+    }
+  }
 }
 
 function requireApiKey(apiKey: string | undefined): string {
@@ -32,4 +45,103 @@ function requireApiKey(apiKey: string | undefined): string {
   }
 
   return apiKey;
+}
+
+async function collectModelsFromResponse(response: unknown): Promise<unknown[]> {
+  if (isAsyncIterable(response)) {
+    const models: unknown[] = [];
+    for await (const model of response) {
+      models.push(model);
+    }
+    return models;
+  }
+
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if (isObject(response) && Array.isArray(response.data)) {
+    return response.data;
+  }
+
+  return [];
+}
+
+function toListedModel(model: unknown): ModelList["data"][number] | undefined {
+  if (!isObject(model) || typeof model.id !== "string") {
+    return undefined;
+  }
+
+  const createdAt =
+    typeof model.created_at === "string"
+      ? secondsFromDateString(model.created_at)
+      : typeof model.created_at === "number"
+        ? model.created_at
+        : undefined;
+
+  return {
+    id: model.id,
+    ...(typeof model.display_name === "string" ? { name: model.display_name } : {}),
+    ...(typeof model.name === "string" ? { name: model.name } : {}),
+    ...(typeof model.description === "string" ? { description: model.description } : {}),
+    ...(typeof model.type === "string" ? { type: model.type } : {}),
+    ...(createdAt === undefined ? {} : { createdAt }),
+    ...(typeof model.owned_by === "string" ? { ownedBy: model.owned_by } : {}),
+    ...(typeof model.max_input_tokens === "number"
+      ? { contextLength: model.max_input_tokens }
+      : {}),
+    ...(typeof model.context_length === "number" ? { contextLength: model.context_length } : {}),
+  };
+}
+
+function secondsFromDateString(value: string): number | undefined {
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? undefined : Math.floor(time / 1000);
+}
+
+function isListedModel(
+  model: ModelList["data"][number] | undefined,
+): model is ModelList["data"][number] {
+  return model !== undefined;
+}
+
+function toModelListingError(provider: string, error: unknown): ModelListingError {
+  if (error instanceof ModelListingError) {
+    return error;
+  }
+
+  const statusCode = getStatusCode(error);
+  return new ModelListingError(`${provider} model listing failed: ${getErrorMessage(error)}`, {
+    provider,
+    ...(statusCode === undefined ? {} : { statusCode }),
+    cause: error,
+  });
+}
+
+function getStatusCode(error: unknown): number | undefined {
+  if (!isObject(error)) {
+    return undefined;
+  }
+
+  if (typeof error.status === "number") {
+    return error.status;
+  }
+
+  if (typeof error.statusCode === "number") {
+    return error.statusCode;
+  }
+
+  return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return isObject(value) && Symbol.asyncIterator in value;
 }

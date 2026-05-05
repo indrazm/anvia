@@ -31,28 +31,12 @@ Ollama does not require an API key for local use, but the OpenAI SDK expects one
 
 ## Get the Model List
 
-Use the OpenAI-compatible models endpoint:
+Use the OpenAI-compatible models endpoint through `listModels()`:
 
 ```ts
-const response = await fetch("http://localhost:11434/v1/models", {
-  headers: {
-    Authorization: "Bearer ollama",
-  },
-});
+const models = await client.listModels();
 
-if (!response.ok) {
-  throw new Error(`Ollama models request failed: ${response.status}`);
-}
-
-const body = (await response.json()) as {
-  data: Array<{
-    id: string;
-    object?: string;
-    owned_by?: string;
-  }>;
-};
-
-console.table(body.data.map((model) => ({ id: model.id, owner: model.owned_by })));
+console.table(models.data.map((model) => ({ id: model.id, owner: model.ownedBy })));
 ```
 
 ## Notes

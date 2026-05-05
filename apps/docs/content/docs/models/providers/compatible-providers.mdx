@@ -29,6 +29,14 @@ The compatible client can also create embedding models when the endpoint support
 const embeddings = client.embeddingModel("provider-embedding-model");
 ```
 
+The same client can list models when the endpoint exposes an OpenAI-compatible model-list endpoint.
+
+```ts
+const models = await client.listModels();
+```
+
+`listModels()` fetches from the configured endpoint, usually `GET {baseUrl}/models`, and returns provider-reported data only. Anvia does not add hidden model metadata or cache the result.
+
 Anvia does not need a package for every OpenAI-compatible provider. If the provider exposes OpenAI-compatible completion or embedding endpoints, use `@anvia/openai` and pass the endpoint directly.
 
 ## Anthropic-Compatible
@@ -55,6 +63,7 @@ const agent = new AgentBuilder("support", model)
 | --- | --- |
 | Completion | `client.completionModel(modelName)` |
 | Embeddings | `client.embeddingModel(modelName)` |
+| Model listing | `client.listModels()` |
 | Custom endpoint | `new OpenAIClient({ baseUrl, apiKey })` |
 
 Compatible APIs still differ in model names, attachments, streaming metadata, tool-call behavior, and provider-specific parameters. Treat compatible clients as a shared transport shape, not a guarantee that every model behaves the same.

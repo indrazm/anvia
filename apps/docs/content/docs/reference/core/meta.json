@@ -15,6 +15,7 @@
     "evals",
     "loaders",
     "embeddings",
+    "model-listing",
     "vector-store",
     "mcp",
     "observability",
