@@ -2,7 +2,10 @@ import { type ModelList, type ModelListingClient, ModelListingError } from "@anv
 import type { StreamingCompletionModel } from "@anvia/core/completion";
 import OpenAI from "openai";
 import { OpenAIAudioGenerationModel, TTS_1 } from "./audio-generation";
-import { OpenAIChatCompletionModel } from "./chat-completion";
+import {
+  OpenAIChatCompletionModel,
+  type OpenAIChatCompletionModelOptions,
+} from "./chat-completion";
 import { OpenAIEmbeddingModel, type ProviderEmbeddingModelOptions } from "./embedding";
 import { GPT_IMAGE_1, OpenAIImageGenerationModel } from "./image-generation";
 import { OpenAIResponsesCompletionModel } from "./responses";
@@ -13,16 +16,22 @@ export type OpenAIClientOptions = {
   baseUrl?: string | undefined;
   headers?: Record<string, string> | undefined;
   completionApi?: "responses" | "chat" | undefined;
+  preserveReasoningContent?: boolean | undefined;
   client?: OpenAI | undefined;
 };
 
 export class OpenAIClient implements ModelListingClient {
   readonly client: OpenAI;
   private readonly completionApi: "responses" | "chat";
+  private readonly chatCompletionOptions: OpenAIChatCompletionModelOptions;
 
   constructor(options: OpenAIClientOptions = {}) {
     this.completionApi =
       options.completionApi ?? (options.baseUrl === undefined ? "responses" : "chat");
+    this.chatCompletionOptions = {
+      preserveReasoningContent:
+        options.preserveReasoningContent ?? isMoonshotBaseUrl(options.baseUrl),
+    };
     this.client =
       options.client ??
       new OpenAI({
@@ -34,7 +43,7 @@ export class OpenAIClient implements ModelListingClient {
 
   completionModel(model = "gpt-5"): StreamingCompletionModel {
     return this.completionApi === "chat"
-      ? new OpenAIChatCompletionModel(this.client, model)
+      ? new OpenAIChatCompletionModel(this.client, model, this.chatCompletionOptions)
       : new OpenAIResponsesCompletionModel(this.client, model);
   }
 
@@ -76,6 +85,18 @@ function requireApiKey(apiKey: string | undefined): string {
   }
 
   return apiKey;
+}
+
+function isMoonshotBaseUrl(baseUrl: string | undefined): boolean {
+  if (baseUrl === undefined) {
+    return false;
+  }
+
+  try {
+    return new URL(baseUrl).hostname.endsWith("moonshot.ai");
+  } catch {
+    return baseUrl.includes("moonshot.ai");
+  }
 }
 
 async function collectModelsFromResponse(response: unknown): Promise<unknown[]> {

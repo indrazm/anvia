@@ -6,6 +6,7 @@ export {
   GPT_IMAGE_2,
   OpenAIAudioGenerationModel,
   OpenAIChatCompletionModel,
+  type OpenAIChatCompletionModelOptions,
   OpenAIClient,
   type OpenAIClientOptions,
   OpenAIEmbeddingModel,

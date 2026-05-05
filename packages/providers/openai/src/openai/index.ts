@@ -1,5 +1,8 @@
 export { OpenAIAudioGenerationModel, TTS_1, TTS_1_HD } from "./audio-generation";
-export { OpenAIChatCompletionModel } from "./chat-completion";
+export {
+  OpenAIChatCompletionModel,
+  type OpenAIChatCompletionModelOptions,
+} from "./chat-completion";
 export { OpenAIClient, type OpenAIClientOptions } from "./client";
 export { OpenAIEmbeddingModel, type ProviderEmbeddingModelOptions } from "./embedding";
 export {

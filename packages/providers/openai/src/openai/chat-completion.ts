@@ -23,6 +23,10 @@ import { isPlainObject, numberFrom, parseJsonValue, schemaName, stringFrom } fro
 type ChatCompletionParams = Record<string, unknown>;
 type ChatMessage = Record<string, unknown>;
 
+export type OpenAIChatCompletionModelOptions = {
+  preserveReasoningContent?: boolean | undefined;
+};
+
 export class OpenAIChatCompletionModel implements StreamingCompletionModel {
   readonly provider = "openai-chat";
   readonly capabilities: CompletionModelCapabilities = {
@@ -38,11 +42,12 @@ export class OpenAIChatCompletionModel implements StreamingCompletionModel {
   constructor(
     private readonly client: OpenAI,
     readonly defaultModel = "openai/gpt-5.2",
+    private readonly options: OpenAIChatCompletionModelOptions = {},
   ) {}
 
   async completion(request: CompletionRequest): Promise<CompletionResponse> {
     assertCompletionRequestSupported(this, request);
-    const params = toOpenAIChatCompletionParams(this.defaultModel, request);
+    const params = toOpenAIChatCompletionParams(this.defaultModel, request, this.options);
     const response = await this.client.chat.completions.create(params as never);
     return fromOpenAIChatCompletionResponse(response);
   }
@@ -50,7 +55,7 @@ export class OpenAIChatCompletionModel implements StreamingCompletionModel {
   async *streamCompletion(request: CompletionRequest): AsyncIterable<CompletionStreamEvent> {
     assertCompletionRequestSupported(this, request, { streaming: true });
     const params: ChatCompletionParams = {
-      ...toOpenAIChatCompletionParams(this.defaultModel, request),
+      ...toOpenAIChatCompletionParams(this.defaultModel, request, this.options),
       stream: true,
     };
     const streamOptions = isPlainObject(params.stream_options) ? params.stream_options : {};
@@ -67,10 +72,13 @@ export class OpenAIChatCompletionModel implements StreamingCompletionModel {
 export function toOpenAIChatCompletionParams(
   defaultModel: string,
   request: CompletionRequest,
+  options: OpenAIChatCompletionModelOptions = {},
 ): ChatCompletionParams {
   const params: ChatCompletionParams = {
     model: request.model ?? defaultModel,
-    messages: requestMessages(request).flatMap(messageToChatMessages),
+    messages: requestMessages(request).flatMap((message) =>
+      messageToChatMessages(message, options),
+    ),
   };
 
   if (request.tools.length > 0) {
@@ -117,6 +125,11 @@ export function fromOpenAIChatCompletionResponse(response: unknown): CompletionR
   const firstChoice = choices.find(isPlainObject);
   const message = isPlainObject(firstChoice?.message) ? firstChoice.message : {};
   const choice: AssistantContentType[] = [];
+
+  const reasoning = stringFrom(message.reasoning_content) ?? stringFrom(message.reasoning);
+  if (reasoning !== undefined && reasoning.length > 0) {
+    choice.push(AssistantContent.reasoning(reasoning));
+  }
 
   if (typeof message.content === "string" && message.content.length > 0) {
     choice.push(AssistantContent.text(message.content));
@@ -222,7 +235,10 @@ function usageFromOpenAIChatCompletion(usage: unknown): Usage {
   };
 }
 
-function messageToChatMessages(message: MessageType): ChatMessage[] {
+function messageToChatMessages(
+  message: MessageType,
+  options: OpenAIChatCompletionModelOptions = {},
+): ChatMessage[] {
   if (message.role === "system") {
     return [{ role: "system", content: message.content }];
   }
@@ -250,13 +266,18 @@ function messageToChatMessages(message: MessageType): ChatMessage[] {
   const text = message.content
     .flatMap((content) => (content.type === "text" ? [content.text] : []))
     .join("\n");
+  const reasoning = message.content
+    .flatMap((content) =>
+      content.type === "reasoning" && content.text.length > 0 ? [content.text] : [],
+    )
+    .join("\n");
   if (message.content.some((content) => content.type === "image")) {
     throw new Error("OpenAI chat completions does not support image content in assistant history");
   }
   const toolCalls = message.content
     .filter((content) => content.type === "tool_call")
     .map((content) => ({
-      id: content.id,
+      id: content.callId ?? content.id,
       type: "function",
       function: {
         name: content.function.name,
@@ -269,6 +290,9 @@ function messageToChatMessages(message: MessageType): ChatMessage[] {
   };
   if (text.length > 0) {
     chatMessage.content = text;
+  }
+  if (options.preserveReasoningContent === true && reasoning.length > 0) {
+    chatMessage.reasoning_content = reasoning;
   }
   if (toolCalls.length > 0) {
     chatMessage.tool_calls = toolCalls;
