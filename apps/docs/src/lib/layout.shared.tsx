@@ -9,6 +9,10 @@ const resourceLinks = [
   { text: "Reference", url: "/docs/reference" },
   { text: "Models", url: "/docs/models" },
 ];
+const agentLinks = [
+  { text: "llms.txt", url: "/llms.txt" },
+  { text: "llms-full.txt", url: "/llms-full.txt" },
+];
 
 function GitHubIcon() {
   return (
@@ -19,17 +23,31 @@ function GitHubIcon() {
 }
 
 function ResourcesDropdown() {
+  return <NavDropdown label="Resources" links={resourceLinks} />;
+}
+
+function AgentsDropdown() {
+  return <NavDropdown label="For agents" links={agentLinks} />;
+}
+
+function NavDropdown({
+  label,
+  links,
+}: {
+  label: string;
+  links: Array<{ text: string; url: string }>;
+}) {
   return (
     <li className="group relative list-none">
       <button
         className="inline-flex items-center gap-1 p-2 text-sm text-fd-muted-foreground transition-colors hover:text-fd-accent-foreground"
         type="button"
       >
-        Resources
+        {label}
         <ChevronDown className="size-3.5 transition-transform group-hover:rotate-180 group-focus-within:rotate-180" />
       </button>
       <div className="invisible absolute left-0 top-full z-50 min-w-44 border border-white/10 bg-[#050505] p-1 opacity-0 shadow-xl shadow-black/30 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-        {resourceLinks.map((item) => (
+        {links.map((item) => (
           <Link
             className="block px-3 py-2 text-sm text-zinc-400 transition hover:bg-white/[0.06] hover:text-white"
             key={item.url}
@@ -62,6 +80,11 @@ export const baseOptions: BaseLayoutProps = {
     {
       type: "custom",
       children: <ResourcesDropdown />,
+      on: "nav",
+    },
+    {
+      type: "custom",
+      children: <AgentsDropdown />,
       on: "nav",
     },
     {
