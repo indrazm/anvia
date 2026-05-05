@@ -14,6 +14,42 @@ describe("MistralClient", () => {
     expect(client.completionModel()).toBeInstanceOf(MistralCompletionModel);
     expect(client.embeddingModel()).toBeInstanceOf(MistralEmbeddingModel);
   });
+
+  it("lists models from the Mistral SDK", async () => {
+    const client = new MistralClient({
+      client: {
+        models: {
+          list: async () => ({
+            data: [
+              {
+                id: "mistral-large-latest",
+                name: "Mistral Large",
+                description: "Large model.",
+                created: 1_700_000_000,
+                ownedBy: "mistralai",
+                maxContextLength: 128_000,
+                type: "base",
+              },
+            ],
+          }),
+        },
+      } as never,
+    });
+
+    await expect(client.listModels()).resolves.toEqual({
+      data: [
+        {
+          id: "mistral-large-latest",
+          name: "Mistral Large",
+          description: "Large model.",
+          type: "base",
+          createdAt: 1_700_000_000,
+          ownedBy: "mistralai",
+          contextLength: 128_000,
+        },
+      ],
+    });
+  });
 });
 
 function fakeSdk() {

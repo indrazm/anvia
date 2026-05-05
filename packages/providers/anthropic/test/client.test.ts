@@ -37,4 +37,41 @@ describe("Anthropic client", () => {
       },
     ]);
   });
+
+  it("lists models from the Anthropic SDK", async () => {
+    const client = {
+      models: {
+        list: async () =>
+          asyncIterable([
+            {
+              id: "claude-sonnet-4-20250514",
+              display_name: "Claude Sonnet 4",
+              created_at: "2025-05-14T00:00:00Z",
+              max_input_tokens: 200_000,
+              type: "model",
+            },
+          ]),
+      },
+    };
+
+    const anthropic = new AnthropicClient({ client: client as never });
+
+    await expect(anthropic.listModels()).resolves.toEqual({
+      data: [
+        {
+          id: "claude-sonnet-4-20250514",
+          name: "Claude Sonnet 4",
+          type: "model",
+          createdAt: 1_747_180_800,
+          contextLength: 200_000,
+        },
+      ],
+    });
+  });
 });
+
+async function* asyncIterable(items: unknown[]): AsyncIterable<unknown> {
+  for (const item of items) {
+    yield item;
+  }
+}

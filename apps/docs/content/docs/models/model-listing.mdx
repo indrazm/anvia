@@ -1,0 +1,83 @@
+---
+title: Model Listing
+description: List available provider models through Anvia clients.
+---
+
+Provider clients can list models through the normalized `listModels()` method.
+
+```ts
+import { OpenAIClient } from "@anvia/openai";
+
+const client = new OpenAIClient({ apiKey });
+const models = await client.listModels();
+
+for (const model of models.data) {
+  console.log(model.id, model.contextLength);
+}
+```
+
+`listModels()` returns a `ModelList` from `@anvia/core/model-listing`.
+
+```ts
+type ListedModel = {
+  id: string;
+  name?: string;
+  description?: string;
+  type?: string;
+  createdAt?: number;
+  ownedBy?: string;
+  contextLength?: number;
+};
+
+type ModelList = {
+  data: ListedModel[];
+};
+```
+
+Only `id` is guaranteed. Providers and compatible gateways expose different metadata, so unknown fields remain omitted.
+
+## Supported Clients
+
+```ts
+await new OpenAIClient({ apiKey }).listModels();
+await new AnthropicClient({ apiKey }).listModels();
+await new GeminiClient({ apiKey }).listModels();
+await new MistralClient({ apiKey }).listModels();
+```
+
+Each client fetches live provider data. Anvia does not add hidden model metadata, cache the result, or include beta/private model ids that the provider does not return.
+
+## Compatible Gateways
+
+OpenAI-compatible gateways use the same `OpenAIClient` path.
+
+```ts
+const client = new OpenAIClient({
+  baseUrl: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
+
+const models = await client.listModels();
+```
+
+The request goes to the configured gateway models endpoint, usually `GET {baseUrl}/models`. If the gateway returns sparse OpenAI-shaped data, Anvia normalizes fields such as `id`, `createdAt`, and `ownedBy`. If the gateway returns richer fields such as `name` or `context_length`, Anvia includes those as `name` and `contextLength`.
+
+If the gateway does not expose a compatible model-list endpoint, `listModels()` rejects with `ModelListingError`.
+
+## Unlisted Models
+
+You can still use a known beta or private model id directly:
+
+```ts
+const model = client.completionModel("provider/beta-model");
+```
+
+That model will not appear in `listModels()` unless the provider includes it in the model-list response.
+
+## Cookbook
+
+Run the model-listing cookbook example:
+
+```sh
+pnpm cookbook:providers:10
+```

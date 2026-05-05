@@ -15,6 +15,7 @@ type GeminiClientOptions =
 class GeminiClient {
   readonly client: GoogleGenAI;
   constructor(options?: GeminiClientOptions);
+  listModels(): Promise<ModelList>;
   completionModel(model?: string): GeminiCompletionModel;
   embeddingModel(model?: string, options?: GeminiEmbeddingModelOptions): GeminiEmbeddingModel;
   imageGenerationModel(model?: string): GeminiImageGenerationModel;
@@ -23,11 +24,11 @@ class GeminiClient {
 }
 ```
 
-Purpose: factory for Gemini API or Vertex AI-backed completion, embedding, image generation, and transcription models.
+Purpose: factory for Gemini API or Vertex AI-backed completion, embedding, image generation, transcription, and model listing.
 
-Return behavior: creates or uses a `GoogleGenAI` client, then returns Gemini completion and embedding models.
+Return behavior: creates or uses a `GoogleGenAI` client, then returns Gemini completion and embedding models. `listModels()` fetches the Gemini model list and returns a normalized `ModelList`.
 
-Notable errors: underlying SDK calls can fail for missing credentials, invalid project/location, or API errors.
+Notable errors: underlying SDK calls can fail for missing credentials, invalid project/location, or API errors; `listModels()` rejects with `ModelListingError` when the provider request fails.
 
 ## Multimodal Models
 

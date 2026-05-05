@@ -40,30 +40,17 @@ const model = client.completionModel("opencode-zen");
 
 ## Get the Model List
 
-If your OpenCode endpoint exposes an OpenAI-compatible model list, query `/models` from the configured base URL.
+If your OpenCode endpoint exposes an OpenAI-compatible model list, call `listModels()` on the client configured with that base URL.
 
 ```ts
-const baseUrl = "https://opencode.ai/zen/go/v1";
-
-const response = await fetch(`${baseUrl}/models`, {
-  headers: {
-    Authorization: `Bearer ${process.env.OPENCODE_API_KEY}`,
-  },
+const client = new OpenAIClient({
+  baseUrl: "https://opencode.ai/zen/go/v1",
+  apiKey: process.env.OPENCODE_API_KEY,
 });
 
-if (!response.ok) {
-  throw new Error(`OpenCode models request failed: ${response.status}`);
-}
+const models = await client.listModels();
 
-const body = (await response.json()) as {
-  data: Array<{
-    id: string;
-    object?: string;
-    owned_by?: string;
-  }>;
-};
-
-console.table(body.data.map((model) => ({ id: model.id, owner: model.owned_by })));
+console.table(models.data.map((model) => ({ id: model.id, owner: model.ownedBy })));
 ```
 
 ## Notes

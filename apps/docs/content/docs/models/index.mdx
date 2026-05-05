@@ -25,6 +25,7 @@ const agent = new AgentBuilder("support", model)
 | --- | --- |
 | Completion | Agents, extractors, prompt steps, streaming, and tool calls |
 | Embeddings | Retrieval, document search, semantic routing, and vector stores |
+| Model listing | Discovering provider-returned model ids and metadata |
 | Compatible gateways | OpenAI-compatible gateways, hosted model APIs, and local model backends |
 | Compatible providers | OpenAI-compatible APIs through `OpenAIClient({ baseUrl, apiKey })` |
 | Vertex AI | Gemini through `GeminiClient({ vertexai: true, project, location })` |
@@ -49,6 +50,18 @@ const client = new OpenAIClient({
 ```
 
 Create clients and models once per application runtime when practical. Agents, extractors, pipelines, and retrieval code can reuse the model instances.
+
+## Model Listing
+
+Use `listModels()` when you need provider-returned model ids or metadata for configuration screens, diagnostics, or model selection.
+
+```ts
+const models = await client.listModels();
+```
+
+Model listing fetches live provider data. Anvia does not cache results or add hidden metadata. Beta or private model ids can still be passed directly to `completionModel(...)`, but they only appear in `listModels()` when the provider returns them.
+
+See [Model Listing](/docs/models/model-listing) for the normalized response shape and compatible-gateway behavior.
 
 ## Compatible Gateways
 
