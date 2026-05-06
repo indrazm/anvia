@@ -28,19 +28,20 @@ class Agent<M extends CompletionModel = CompletionModel> {
   readonly dynamicTools: DynamicToolRegistration[];
   readonly toolMiddlewares: ToolMiddleware[];
   readonly memory?: MemoryRegistration;
+  readonly eventStore?: AgentEventStoreRegistration;
 
   constructor(options: AgentOptions<M>);
   prompt(prompt: string | Message | Message[]): PromptRequest<M>;
   session(sessionId: string, options?: SessionOptions): AgentSession<M>;
   asTool(options: AgentToolOptions): Tool<{ prompt: string }, string>;
   getTool(toolName: string): Tool | undefined;
-  callTool(toolName: string, args: string): Promise<string>;
+  callTool(toolName: string, args: string, context?: ToolCallContext): Promise<string>;
 }
 ```
 
 Purpose: immutable runnable agent configuration around one completion model.
 
-Return behavior: `prompt(...)` creates a mutable `PromptRequest`; `prompt(Message[])` treats the last message as the active prompt and earlier messages as stateless history; `session(...)` creates a durable memory-backed session; `asTool(...)` exposes the agent as a tool that returns the nested agent output string.
+Return behavior: `prompt(...)` creates a mutable `PromptRequest`; `prompt(Message[])` treats the last message as the active prompt and earlier messages as stateless history; `session(...)` creates a durable memory-backed session; `asTool(...)` exposes the agent as a tool that returns the nested agent output string. `asTool({ stream: true })` forwards child stream events when the parent run uses `.stream()`.
 
 Notable errors: the constructor throws `TypeError` when `id` is not a non-empty string. `asTool(...)` forwards errors from the nested prompt run.
 
@@ -67,6 +68,7 @@ type AgentOptions<M extends CompletionModel = CompletionModel> = {
   dynamicTools?: DynamicToolRegistration[];
   toolMiddlewares?: ToolMiddleware[];
   memory?: MemoryRegistration;
+  eventStore?: AgentEventStoreRegistration;
 };
 ```
 
@@ -102,6 +104,7 @@ class AgentBuilder<M extends CompletionModel = CompletionModel> {
   toolMiddlewares(middlewares: ToolMiddleware[]): this;
   observe(observer: AgentObserver, options?: ObserveOptions): this;
   memory(store: MemoryStore, options?: MemoryOptions): this;
+  eventStore(store: AgentEventStore, options?: AgentEventStoreOptions): this;
   outputSchema(schema: ZodSchema): this;
   build(): Agent<M>;
 }
@@ -165,6 +168,35 @@ type MemoryOptions = {
 Purpose: configure durable conversation storage for `agent.session(...)`.
 
 Return behavior: `savePolicy` defaults to `"message"`. Core provides the interface; applications provide the storage implementation.
+
+## AgentEventStore
+
+```ts
+interface AgentEventStore {
+  append(input: AgentEventAppendInput): Promise<void>;
+  load(runId: string): Promise<AgentEventRecord[]>;
+  clear?(runId: string): Promise<void>;
+}
+
+type AgentEventStoreOptions = {
+  include?: "all" | "agent_tool_events";
+};
+
+type AgentEventAppendInput = {
+  runId: string;
+  agentId: string;
+  agentName?: string;
+  turn?: number;
+  toolName?: string;
+  toolCallId?: string;
+  internalCallId?: string;
+  event: unknown;
+};
+```
+
+Purpose: persist runtime stream events for replay, debugging, or local inspection.
+
+Return behavior: `include: "all"` stores parent and child stream events. `include: "agent_tool_events"` stores only nested child-agent events from streaming agent-tools. Event storage is separate from `MemoryStore`, which remains transcript-oriented.
 
 ## Dynamic Tools
 
@@ -234,20 +266,23 @@ Notable errors: none directly.
 ## AgentStreamEvent
 
 ```ts
+type AgentChildStreamEvent = Exclude<AgentStreamEvent, { type: "agent_tool_event" }>;
+
 type AgentStreamEvent =
   | { type: "turn_start"; turn: number; prompt: Message; history: Message[] }
   | { type: "text_delta"; turn: number; delta: string }
   | { type: "reasoning_delta"; turn: number; delta: string; id?: string; contentType?: "text" | "summary" | "encrypted" | "redacted"; signature?: string }
   | { type: "tool_call"; turn: number; toolCall: ToolCall }
   | { type: "tool_result"; turn: number; toolName: string; toolCallId?: string; internalCallId: string; args: string; result: string }
+  | { type: "agent_tool_event"; turn: number; toolName: string; toolCallId?: string; internalCallId: string; agentId: string; agentName?: string; event: AgentChildStreamEvent }
   | { type: "turn_end"; turn: number; response: CompletionResponse }
-  | { type: "final"; output: string; usage: Usage; messages: Message[]; trace?: AgentTraceInfo }
+  | { type: "final"; runId: string; output: string; usage: Usage; messages: Message[]; trace?: AgentTraceInfo }
   | { type: "error"; error: unknown };
 ```
 
 Purpose: streaming event union for observing agent execution.
 
-Return behavior: emitted by `PromptRequest.stream()` and `readableStream()`.
+Return behavior: emitted by `PromptRequest.stream()` and `readableStream()`. `agent_tool_event` appears when a child agent is exposed with `asTool({ stream: true })`. The terminal `final` event includes `runId`, which can be used with `AgentEventStore.load(...)`.
 
 Notable errors: terminal failures are yielded as `{ type: "error" }` and also originate from the same conditions as `send()`.
 
@@ -346,6 +381,7 @@ type AgentToolOptions = {
   name: string;
   description?: string;
   maxTurns?: number;
+  stream?: boolean;
 };
 
 type DynamicContextOptions<T = unknown> = {

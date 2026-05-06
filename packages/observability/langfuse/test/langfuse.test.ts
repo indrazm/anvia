@@ -220,6 +220,170 @@ describe("langfuse", () => {
     expect(root.end).toHaveBeenCalledOnce();
   });
 
+  it("nests streamed child agent observations under the parent tool observation", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const parentTool = fakeObservation("parent-tool", "trace-1", "obs-parent-tool");
+    const childAgent = fakeObservation("child-agent", "trace-1", "obs-child-agent");
+    const childGeneration = fakeObservation("child-generation", "trace-1", "obs-child-generation");
+    const childTool = fakeObservation("child-tool", "trace-1", "obs-child-tool");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(parentTool);
+    parentTool.startObservation.mockReturnValueOnce(childAgent);
+    childAgent.startObservation.mockReturnValueOnce(childGeneration).mockReturnValueOnce(childTool);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "public", secretKey: "secret" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("delegate"),
+      history: [],
+      maxTurns: 2,
+    })) as AgentRunObserver;
+    const parentToolCall = AssistantContent.toolCall("call-child", "ask_child", {
+      prompt: "inspect",
+    });
+    const tool = await run.startTool?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: { type: "turn_start", turn: 1, prompt: userMessage("inspect"), history: [] },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "tool_call",
+          turn: 1,
+          toolCall: AssistantContent.toolCall("call-add", "add", { x: 2, y: 5 }),
+        },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "tool_result",
+          turn: 1,
+          toolName: "add",
+          toolCallId: "call-add",
+          internalCallId: "internal-add",
+          args: '{"x":2,"y":5}',
+          result: "7",
+        },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "turn_end",
+          turn: 1,
+          response: {
+            messageId: "msg-child",
+            choice: [AssistantContent.text("7")],
+            usage: usage(2, 1),
+            rawResponse: {},
+          },
+        },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "final",
+          runId: "child-run",
+          output: "7",
+          usage: usage(2, 1),
+          messages: [],
+        },
+      },
+    });
+    await tool?.end({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      result: "7",
+      skipped: false,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    expect(parentTool.startObservation).toHaveBeenCalledWith(
+      "Child_Agent.run",
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          source: "agent_tool_event",
+          childAgentId: "child",
+          parentToolName: "ask_child",
+        }),
+      }),
+      { asType: "agent" },
+    );
+    expect(childAgent.startObservation).toHaveBeenCalledWith(
+      "Child_Agent.model.turn.1",
+      expect.any(Object),
+      { asType: "generation" },
+    );
+    expect(childAgent.startObservation).toHaveBeenCalledWith(
+      "Child_Agent.add",
+      expect.any(Object),
+      { asType: "tool" },
+    );
+    expect(childTool.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: "7",
+        metadata: expect.objectContaining({ parentToolName: "ask_child" }),
+      }),
+    );
+  });
+
   it("scores traces through the Langfuse public API", async () => {
     const tracing = langfuse.create({
       publicKey: "public",

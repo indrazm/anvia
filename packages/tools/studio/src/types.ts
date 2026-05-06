@@ -77,9 +77,34 @@ export type StudioTranscriptToolEntry = {
   callId?: string;
   args?: string;
   result?: string;
+  childEvents?: StudioTranscriptChildAgentEvent[];
   approval?: StudioToolApprovalTranscript;
   question?: StudioToolQuestionTranscript;
 };
+
+export type StudioTranscriptChildAgentEvent =
+  | {
+      kind: "message";
+      agentId: string;
+      agentName?: string;
+      text: string;
+    }
+  | {
+      kind: "reasoning";
+      agentId: string;
+      agentName?: string;
+      reasoningId?: string;
+      text: string;
+    }
+  | {
+      kind: "tool";
+      agentId: string;
+      agentName?: string;
+      toolName: string;
+      callId?: string;
+      args?: string;
+      result?: string;
+    };
 
 export type StudioTranscriptEntry =
   | StudioTranscriptChatEntry
@@ -141,10 +166,11 @@ export type StudioSessionStore = MemoryStore & {
 
 export type StudioTraceStatus = "running" | "success" | "error";
 
-export type StudioTraceObservationKind = "generation" | "tool";
+export type StudioTraceObservationKind = "agent" | "generation" | "tool";
 
 export type StudioTraceObservation = {
   id: string;
+  parentObservationId?: string;
   kind: StudioTraceObservationKind;
   name: string;
   status: StudioTraceStatus;

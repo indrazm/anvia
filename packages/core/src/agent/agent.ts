@@ -13,11 +13,12 @@ import { createTool } from "../tool/create-tool";
 import type { ToolSearchDocument } from "../tool/dynamic-tools";
 import type { ToolMiddleware } from "../tool/middleware";
 import { isSkillTool } from "../tool/skill-tool-marker";
-import type { AnyTool, Tool } from "../tool/tool";
+import type { AnyTool, Tool, ToolCallContext } from "../tool/tool";
 import { ToolSet } from "../tool/tool-set";
 import type { VectorFilter, VectorSearchIndex, VectorSearchResult } from "../vector-store";
 import type { PromptHook } from "./hooks";
 import { PromptRequest } from "./request";
+import { isStreamingCompletionModel } from "./utils";
 
 export type AgentOptions<M extends CompletionModel = CompletionModel> = {
   id: string;
@@ -39,6 +40,7 @@ export type AgentOptions<M extends CompletionModel = CompletionModel> = {
   dynamicTools?: DynamicToolRegistration[] | undefined;
   toolMiddlewares?: ToolMiddleware[] | undefined;
   memory?: MemoryRegistration | undefined;
+  eventStore?: AgentEventStoreRegistration | undefined;
 };
 
 export const DEFAULT_MAX_TURNS = 20;
@@ -47,6 +49,39 @@ export type AgentToolOptions = {
   name: string;
   description?: string | undefined;
   maxTurns?: number | undefined;
+  stream?: boolean | undefined;
+};
+
+export type AgentEventStoreInclude = "all" | "agent_tool_events";
+
+export type AgentEventStoreOptions = {
+  include?: AgentEventStoreInclude | undefined;
+};
+
+export type AgentEventAppendInput = {
+  runId: string;
+  agentId: string;
+  agentName?: string | undefined;
+  turn?: number | undefined;
+  toolName?: string | undefined;
+  toolCallId?: string | undefined;
+  internalCallId?: string | undefined;
+  event: unknown;
+};
+
+export type AgentEventRecord = AgentEventAppendInput & {
+  createdAt?: Date | undefined;
+};
+
+export interface AgentEventStore {
+  append(input: AgentEventAppendInput): Promise<void>;
+  load(runId: string): Promise<AgentEventRecord[]>;
+  clear?(runId: string): Promise<void>;
+}
+
+export type AgentEventStoreRegistration = {
+  store: AgentEventStore;
+  options: Required<AgentEventStoreOptions>;
 };
 
 export type DynamicContextOptions<T = unknown> = {
@@ -92,6 +127,7 @@ export class Agent<M extends CompletionModel = CompletionModel> {
   readonly dynamicTools: DynamicToolRegistration[];
   readonly toolMiddlewares: ToolMiddleware[];
   readonly memory: MemoryRegistration | undefined;
+  readonly eventStore: AgentEventStoreRegistration | undefined;
 
   constructor(options: AgentOptions<M>) {
     this.id = normalizeAgentId(options.id);
@@ -113,6 +149,7 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     this.dynamicTools = options.dynamicTools ?? [];
     this.toolMiddlewares = options.toolMiddlewares ?? [];
     this.memory = options.memory;
+    this.eventStore = options.eventStore;
   }
 
   prompt(prompt: string | MessageType | MessageType[]): PromptRequest<M> {
@@ -145,12 +182,30 @@ export class Agent<M extends CompletionModel = CompletionModel> {
         prompt: z.string().describe("The prompt to send to the agent."),
       }),
       output: z.string(),
-      execute: async ({ prompt }) => {
+      execute: async ({ prompt }, context: ToolCallContext) => {
         const request = this.prompt(prompt);
-        const response =
-          options.maxTurns === undefined
-            ? await request.send()
-            : await request.maxTurns(options.maxTurns).send();
+        const childRequest =
+          options.maxTurns === undefined ? request : request.maxTurns(options.maxTurns);
+        if (
+          options.stream === true &&
+          context.emitStreamEvent !== undefined &&
+          this.model.capabilities.streaming &&
+          isStreamingCompletionModel(this.model)
+        ) {
+          let output = "";
+          for await (const event of childRequest.stream()) {
+            await context.emitStreamEvent({
+              agentId: this.id,
+              ...(this.name === undefined ? {} : { agentName: this.name }),
+              event,
+            });
+            if (event.type === "final") {
+              output = event.output;
+            }
+          }
+          return output;
+        }
+        const response = await childRequest.send();
         return response.output;
       },
     });
@@ -172,19 +227,19 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     return undefined;
   }
 
-  async callTool(toolName: string, args: string): Promise<string> {
+  async callTool(toolName: string, args: string, context?: ToolCallContext): Promise<string> {
     if (this.toolSet.contains(toolName)) {
-      return this.toolSet.call(toolName, args);
+      return this.toolSet.call(toolName, args, context);
     }
 
     for (const registration of this.dynamicTools) {
       const toolSet = dynamicToolSetFromIndex(registration.index);
       if (toolSet?.contains(toolName)) {
-        return toolSet.call(toolName, args);
+        return toolSet.call(toolName, args, context);
       }
     }
 
-    return this.toolSet.call(toolName, args);
+    return this.toolSet.call(toolName, args, context);
   }
 
   shouldApplyToolMiddleware(toolName: string): boolean {

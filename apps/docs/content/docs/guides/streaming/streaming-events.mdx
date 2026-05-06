@@ -31,6 +31,9 @@ for await (const event of agent.prompt("Where is order A-100?").stream()) {
     case "tool_result":
       console.log("tool_result", event.toolName, event.result);
       break;
+    case "agent_tool_event":
+      console.log("child agent", event.agentId, event.event.type);
+      break;
     case "final":
       console.log("done", event.output);
       break;
@@ -63,6 +66,24 @@ turn_end
 final
 ```
 
+Streaming agent-tools add nested child events between the parent `turn_end` and final parent `tool_result`:
+
+```txt
+turn_start
+tool_call
+turn_end
+agent_tool_event turn_start
+agent_tool_event text_delta
+agent_tool_event tool_call
+agent_tool_event tool_result
+agent_tool_event final
+tool_result
+turn_start
+text_delta
+turn_end
+final
+```
+
 ## 4. Event Types
 
 | Event | Meaning |
@@ -72,6 +93,7 @@ final
 | `reasoning_delta` | Reasoning text or summary arrived from a provider that exposes it |
 | `tool_call` | The model requested a tool |
 | `tool_result` | Anvia ran a tool and produced a result |
+| `agent_tool_event` | A child agent exposed through `asTool({ stream: true })` emitted a stream event |
 | `turn_end` | A model turn ended |
 | `final` | The agent run completed |
 | `error` | The stream failed |
@@ -79,3 +101,7 @@ final
 The `final` event contains the same important data as `.send()`: `output`, `usage`, `messages`, and optional `trace`.
 
 `reasoning_delta` may include `contentType` and `signature` metadata. Render summaries or your own internal debug UI deliberately; encrypted and redacted blocks are opaque provider state for history continuity.
+
+`agent_tool_event` wraps the child event with `toolName`, `internalCallId`, optional provider `toolCallId`, and the child `agentId`/`agentName`. Use those fields to group nested progress in UIs. The parent model still receives only the final child output as the normal `tool_result`.
+
+The `final` event includes `runId`. Use it with [Event Store](/docs/guides/agents/event-store) when you need to load the persisted event log after the stream ends.

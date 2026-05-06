@@ -313,29 +313,15 @@ function TracePanel(props: {
                       subtitle={formatDuration(turn.durationMs)}
                       onSelect={() => selectTimelineItem(trace.id, `turn:${turn.turn}`)}
                     />
-                    {turn.observations.map((observation) => {
-                      const usageText = observationUsageText(observation);
-                      return (
-                        <TraceTreeRow
-                          active={traceActive && activeKey === `observation:${observation.id}`}
-                          ancestorLevels={turn.turn === traceTurnItems.at(-1)?.turn ? [] : [1]}
-                          hasChildren={false}
-                          isLastSibling={observation.id === turn.observations.at(-1)?.id}
-                          level={3}
-                          tone={observation.kind}
-                          title={traceObservationLabel(observation)}
-                          subtitle={
-                            usageText.length > 0
-                              ? `${formatDuration(observation.durationMs)} · ${usageText}`
-                              : formatDuration(observation.durationMs)
-                          }
-                          onSelect={() =>
-                            selectTimelineItem(trace.id, `observation:${observation.id}`)
-                          }
-                          key={observation.id}
-                        />
-                      );
-                    })}
+                    <TraceObservationRows
+                      activeKey={activeKey}
+                      isLastTurn={turn.turn === traceTurnItems.at(-1)?.turn}
+                      observations={turn.observations}
+                      onSelect={(observationId) =>
+                        selectTimelineItem(trace.id, `observation:${observationId}`)
+                      }
+                      traceActive={traceActive}
+                    />
                   </div>
                 ))}
               </div>
@@ -448,6 +434,78 @@ function TraceTreeRow(props: {
         </span>
       </span>
     </Button>
+  );
+}
+
+function TraceObservationRows(props: {
+  activeKey: TraceInspectorKey;
+  isLastTurn: boolean;
+  observations: TraceObservationItem[];
+  traceActive: boolean;
+  onSelect: (observationId: string) => void;
+}) {
+  const roots = traceObservationTree(props.observations);
+  return (
+    <>
+      {roots.map((node, index) => (
+        <TraceObservationNodeRow
+          activeKey={props.activeKey}
+          ancestorLevels={props.isLastTurn ? [] : [1]}
+          isLastSibling={index === roots.length - 1}
+          key={node.observation.id}
+          level={3}
+          node={node}
+          onSelect={props.onSelect}
+          traceActive={props.traceActive}
+        />
+      ))}
+    </>
+  );
+}
+
+function TraceObservationNodeRow(props: {
+  activeKey: TraceInspectorKey;
+  ancestorLevels: number[];
+  isLastSibling: boolean;
+  level: number;
+  node: TraceObservationNode;
+  traceActive: boolean;
+  onSelect: (observationId: string) => void;
+}) {
+  const usageText = observationUsageText(props.node.observation);
+  const childAncestorLevels = props.isLastSibling
+    ? props.ancestorLevels
+    : [...props.ancestorLevels, props.level];
+  return (
+    <>
+      <TraceTreeRow
+        active={props.traceActive && props.activeKey === `observation:${props.node.observation.id}`}
+        ancestorLevels={props.ancestorLevels}
+        hasChildren={props.node.children.length > 0}
+        isLastSibling={props.isLastSibling}
+        level={props.level}
+        tone={props.node.observation.kind}
+        title={traceObservationLabel(props.node.observation)}
+        subtitle={
+          usageText.length > 0
+            ? `${formatDuration(props.node.observation.durationMs)} · ${usageText}`
+            : formatDuration(props.node.observation.durationMs)
+        }
+        onSelect={() => props.onSelect(props.node.observation.id)}
+      />
+      {props.node.children.map((child, index) => (
+        <TraceObservationNodeRow
+          activeKey={props.activeKey}
+          ancestorLevels={childAncestorLevels}
+          isLastSibling={index === props.node.children.length - 1}
+          key={child.observation.id}
+          level={props.level + 1}
+          node={child}
+          onSelect={props.onSelect}
+          traceActive={props.traceActive}
+        />
+      ))}
+    </>
   );
 }
 
@@ -698,6 +756,34 @@ function traceTurns(trace: StudioTrace): Array<{
     }));
 }
 
+type TraceObservationNode = {
+  observation: TraceObservationItem;
+  children: TraceObservationNode[];
+};
+
+function traceObservationTree(observations: TraceObservationItem[]): TraceObservationNode[] {
+  const nodes = new Map<string, TraceObservationNode>();
+  for (const observation of observations) {
+    nodes.set(observation.id, { observation, children: [] });
+  }
+
+  const roots: TraceObservationNode[] = [];
+  for (const observation of observations) {
+    const node = nodes.get(observation.id);
+    if (node === undefined) {
+      continue;
+    }
+    const parentId = observation.parentObservationId;
+    const parent = parentId === undefined ? undefined : nodes.get(parentId);
+    if (parent === undefined) {
+      roots.push(node);
+    } else {
+      parent.children.push(node);
+    }
+  }
+  return roots;
+}
+
 function selectedTraceDetail(
   trace: StudioTrace,
   turns: Array<{ turn: number; observations: TraceObservationItem[]; durationMs?: number }>,
@@ -762,6 +848,7 @@ function selectedTraceDetail(
         error: observation.error,
         metadata: {
           status: observation.status,
+          parentObservationId: observation.parentObservationId ?? null,
           turn: observation.turn,
           startedAt: observation.startedAt,
           endedAt: observation.endedAt ?? null,
@@ -785,6 +872,9 @@ function selectedTraceDetail(
 }
 
 function traceObservationLabel(observation: TraceObservationItem): string {
+  if (observation.kind === "agent") {
+    return observation.name;
+  }
   return observation.kind === "tool" ? `tool.${observation.name}` : observation.name;
 }
 

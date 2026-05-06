@@ -10,6 +10,7 @@
     "agent-tools",
     "agent-history",
     "multi-agent-workflows",
+    "event-store",
     "run-lifecycle",
     "runtime-hooks",
     "run-limits"

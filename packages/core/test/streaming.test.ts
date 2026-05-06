@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   AgentBuilder,
+  type AgentEventAppendInput,
+  type AgentEventRecord,
+  type AgentEventStore,
   type AgentStreamEvent,
   AssistantContent,
   type CompletionRequest,
@@ -41,6 +44,24 @@ class StreamingQueueModel implements StreamingCompletionModel {
       throw new Error("No queued response");
     }
     yield* response;
+  }
+}
+
+class RecordingEventStore implements AgentEventStore {
+  readonly appendCalls: AgentEventAppendInput[] = [];
+
+  async append(input: AgentEventAppendInput): Promise<void> {
+    this.appendCalls.push(input);
+  }
+
+  async load(runId: string): Promise<AgentEventRecord[]> {
+    return this.appendCalls.filter((call) => call.runId === runId);
+  }
+
+  async clear(runId: string): Promise<void> {
+    const remaining = this.appendCalls.filter((call) => call.runId !== runId);
+    this.appendCalls.length = 0;
+    this.appendCalls.push(...remaining);
   }
 }
 
@@ -292,6 +313,178 @@ describe("PromptRequest streaming", () => {
     );
   });
 
+  it("streams child agent events from streaming agent tools", async () => {
+    const parentModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_child", "ask_child", { prompt: "inspect" }),
+        },
+      ],
+      [{ type: "text_delta", delta: "parent done" }],
+    ]);
+    const childModel = new StreamingQueueModel([
+      [
+        { type: "text_delta", delta: "child " },
+        { type: "text_delta", delta: "done" },
+      ],
+    ]);
+    const childAgent = new AgentBuilder("child", childModel).name("Child Agent").build();
+    const parentAgent = new AgentBuilder("parent", parentModel)
+      .tool(childAgent.asTool({ name: "ask_child", stream: true }))
+      .build();
+
+    const events = await collect(parentAgent.prompt("delegate").stream());
+    const childEvents = events.filter((event) => event.type === "agent_tool_event");
+
+    expect(childEvents.map((event) => event.event.type)).toEqual([
+      "turn_start",
+      "text_delta",
+      "text_delta",
+      "turn_end",
+      "final",
+    ]);
+    expect(childEvents).toContainEqual(
+      expect.objectContaining({
+        type: "agent_tool_event",
+        turn: 1,
+        toolName: "ask_child",
+        internalCallId: expect.any(String),
+        agentId: "child",
+        agentName: "Child Agent",
+        event: expect.objectContaining({ type: "text_delta", delta: "child " }),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool_result",
+        toolName: "ask_child",
+        result: "child done",
+      }),
+    );
+    expect(events.at(-1)).toMatchObject({ type: "final", output: "parent done" });
+  });
+
+  it("streams child tool calls and child tool results from streaming agent tools", async () => {
+    const parentModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_child", "ask_child", { prompt: "add" }),
+        },
+      ],
+      [{ type: "text_delta", delta: "parent done" }],
+    ]);
+    const childModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_add", "add", { x: 2, y: 5 }),
+        },
+      ],
+      [{ type: "text_delta", delta: "7" }],
+    ]);
+    const childAgent = new AgentBuilder("child", childModel)
+      .tool(addTool)
+      .defaultMaxTurns(2)
+      .build();
+    const parentAgent = new AgentBuilder("parent", parentModel)
+      .tool(childAgent.asTool({ name: "ask_child", stream: true }))
+      .build();
+
+    const events = await collect(parentAgent.prompt("delegate").stream());
+    const childEvents = events.filter((event) => event.type === "agent_tool_event");
+
+    expect(childEvents).toContainEqual(
+      expect.objectContaining({
+        type: "agent_tool_event",
+        event: expect.objectContaining({
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_add", "add", { x: 2, y: 5 }),
+        }),
+      }),
+    );
+    expect(childEvents).toContainEqual(
+      expect.objectContaining({
+        type: "agent_tool_event",
+        event: expect.objectContaining({
+          type: "tool_result",
+          toolName: "add",
+          result: "7",
+        }),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool_result",
+        toolName: "ask_child",
+        result: "7",
+      }),
+    );
+  });
+
+  it("persists streamed parent and child agent events to the event store", async () => {
+    const eventStore = new RecordingEventStore();
+    const parentModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_child", "ask_child", { prompt: "inspect" }),
+        },
+      ],
+      [{ type: "text_delta", delta: "parent done" }],
+    ]);
+    const childModel = new StreamingQueueModel([[{ type: "text_delta", delta: "child done" }]]);
+    const childAgent = new AgentBuilder("child", childModel).build();
+    const parentAgent = new AgentBuilder("parent", parentModel)
+      .tool(childAgent.asTool({ name: "ask_child", stream: true }))
+      .eventStore(eventStore, { include: "all" })
+      .build();
+
+    const events = await collect(parentAgent.prompt("delegate").stream());
+    const finalEvent = events.find(
+      (event): event is Extract<AgentStreamEvent, { type: "final" }> => event.type === "final",
+    );
+
+    expect(eventStore.appendCalls).toHaveLength(events.length);
+    expect(finalEvent).toMatchObject({ type: "final", runId: expect.any(String) });
+    expect(eventStore.appendCalls.every((call) => call.runId === finalEvent?.runId)).toBe(true);
+    expect(eventStore.appendCalls.some((call) => eventType(call.event) === "turn_start")).toBe(
+      true,
+    );
+    expect(
+      eventStore.appendCalls.some(
+        (call) => eventType(call.event) === "agent_tool_event" && call.agentId === "child",
+      ),
+    ).toBe(true);
+  });
+
+  it("can persist only streamed child agent tool events", async () => {
+    const eventStore = new RecordingEventStore();
+    const parentModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_child", "ask_child", { prompt: "inspect" }),
+        },
+      ],
+      [{ type: "text_delta", delta: "parent done" }],
+    ]);
+    const childModel = new StreamingQueueModel([[{ type: "text_delta", delta: "child done" }]]);
+    const childAgent = new AgentBuilder("child", childModel).build();
+    const parentAgent = new AgentBuilder("parent", parentModel)
+      .tool(childAgent.asTool({ name: "ask_child", stream: true }))
+      .eventStore(eventStore, { include: "agent_tool_events" })
+      .build();
+
+    await collect(parentAgent.prompt("delegate").stream());
+
+    expect(eventStore.appendCalls.length).toBeGreaterThan(0);
+    expect(
+      eventStore.appendCalls.every((call) => eventType(call.event) === "agent_tool_event"),
+    ).toBe(true);
+  });
+
   it("buffers reasoning deltas without ids into one reasoning message", async () => {
     const model = new StreamingQueueModel([
       [
@@ -507,6 +700,12 @@ function rejectAfter<T>(ms: number, message: string): Promise<T> {
   return new Promise((_, reject) => {
     setTimeout(() => reject(new Error(message)), ms);
   });
+}
+
+function eventType(event: unknown): string | undefined {
+  return typeof event === "object" && event !== null && "type" in event
+    ? String(event.type)
+    : undefined;
 }
 
 async function readAll(readable: ReadableStream<Uint8Array>): Promise<string> {

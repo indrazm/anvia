@@ -53,6 +53,27 @@ const coordinator = new AgentBuilder("coordinator", model)
 
 When the coordinator calls the tool, Anvia prompts the specialist agent and returns the specialist's final text as the tool result.
 
+By default, a specialist exposed with `asTool(...)` is opaque while it runs. The parent stream shows the parent `tool_call` and final `tool_result`, but not the child agent's intermediate turns.
+
+Enable nested streaming when your UI should show specialist progress:
+
+```ts
+const coordinator = new AgentBuilder("coordinator", model)
+  .tools([
+    supportAgent.asTool({ name: "ask_support_agent", stream: true }),
+    engineeringAgent.asTool({ name: "ask_engineering_agent", stream: true }),
+  ])
+  .build();
+```
+
+When the parent runs with `.stream()`, child agent events arrive as `agent_tool_event` values. The parent model still receives only the final specialist output as the normal tool result.
+
+Nested progress is best-effort: the parent agent and child agent models must both support streaming. If nested streaming is unavailable, the agent-tool still behaves like a normal opaque `asTool(...)` call and returns the specialist's final output.
+
+Add an [event store](/docs/guides/agents/event-store) when you need to replay or inspect nested child-agent progress after the run.
+
+For memory boundaries in coordinator/specialist systems, see [Multi-Agent Memory](/docs/guides/memory/multi-agent).
+
 ## Run With Tool Concurrency
 
 ```ts
@@ -70,8 +91,9 @@ Use `.withToolConcurrency(...)` when independent specialist tools can run at the
 
 | Pattern | Use it when |
 | --- | --- |
-| `agent.asTool(...)` | A coordinator should decide which specialists to call during a prompt run |
+| `agent.asTool(...)` | A coordinator should decide which specialists to call during a prompt run and child progress can remain hidden |
+| `agent.asTool({ stream: true })` | A coordinator should decide which specialists to call and the caller should see child progress during streaming |
 | Parallel pipelines | You already know every branch should run |
 | Studio multiple agents | You want several agents available in one local UI |
 
-For runnable examples, see `examples/cookbook/07_multi_agent/01-agent-as-tool.ts` and `examples/cookbook/07_multi_agent/02-parallel-specialists.ts`.
+For runnable examples, see `examples/cookbook/07_multi_agent/01-agent-as-tool.ts`, `examples/cookbook/07_multi_agent/03-streaming-agent-tools.ts`, and `examples/cookbook/07_multi_agent/04-agent-event-store.ts`.

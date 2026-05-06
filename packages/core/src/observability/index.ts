@@ -13,6 +13,7 @@ export type {
   AgentToolErrorArgs,
   AgentToolObserver,
   AgentToolStartArgs,
+  AgentToolStreamEventArgs,
   AgentTraceInfo,
   AgentTraceOptions,
   ObserveOptions,
