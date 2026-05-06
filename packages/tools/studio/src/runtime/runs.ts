@@ -6,6 +6,7 @@ import type {
   AgentRunStreamEvent,
   StudioSession,
   StudioSessionStore,
+  StudioTranscriptChildAgentEvent,
   StudioTranscriptEntry,
 } from "../types";
 import {
@@ -235,6 +236,22 @@ function acceptTranscriptStreamEvent(
     matched.args = matched.args ?? event.args;
     matched.result = event.result;
   }
+  if (event.type === "agent_tool_event") {
+    const matched = findTranscriptToolEntry(transcript, event.toolName, event.toolCallId);
+    if (matched === undefined) {
+      transcript.push({
+        entryId: transcript.length,
+        kind: "tool",
+        toolName: event.toolName,
+        ...(event.toolCallId === undefined ? {} : { callId: event.toolCallId }),
+        childEvents: [childAgentTranscriptEvent(event)].filter(
+          (childEvent): childEvent is StudioTranscriptChildAgentEvent => childEvent !== undefined,
+        ),
+      });
+      return;
+    }
+    appendChildAgentTranscriptEvent(matched, event);
+  }
   if (event.type === "tool_approval_request") {
     const matched = findTranscriptToolEntry(
       transcript,
@@ -312,6 +329,135 @@ function approvalCallId(approval: { callId?: string; toolCallId?: string }): str
 
 function questionCallId(question: { callId?: string; toolCallId?: string }): string | undefined {
   return question.callId ?? question.toolCallId;
+}
+
+function appendChildAgentTranscriptEvent(
+  entry: Extract<StudioTranscriptEntry, { kind: "tool" }>,
+  event: Extract<AgentRunStreamEvent, { type: "agent_tool_event" }>,
+): void {
+  const childEvent = childAgentTranscriptEvent(event);
+  if (childEvent === undefined) {
+    return;
+  }
+  const childEvents = entry.childEvents ?? [];
+  if (childEvent.kind === "message") {
+    const last = childEvents.at(-1);
+    if (last?.kind === "message" && last.agentId === childEvent.agentId) {
+      last.text = `${last.text}${childEvent.text}`;
+    } else {
+      childEvents.push(childEvent);
+    }
+  } else if (childEvent.kind === "reasoning") {
+    const last = childEvents.at(-1);
+    if (
+      last?.kind === "reasoning" &&
+      last.agentId === childEvent.agentId &&
+      (last.reasoningId ?? "") === (childEvent.reasoningId ?? "")
+    ) {
+      last.text = `${last.text}${childEvent.text}`;
+    } else {
+      childEvents.push(childEvent);
+    }
+  } else {
+    const matched = findChildAgentToolEvent(childEvents, childEvent);
+    if (matched === undefined) {
+      childEvents.push(childEvent);
+    } else {
+      if (matched.args === undefined && childEvent.args !== undefined) {
+        matched.args = childEvent.args;
+      }
+      if (childEvent.result !== undefined) {
+        matched.result = childEvent.result;
+      }
+    }
+  }
+  entry.childEvents = childEvents;
+}
+
+function childAgentTranscriptEvent(
+  event: Extract<AgentRunStreamEvent, { type: "agent_tool_event" }>,
+): StudioTranscriptChildAgentEvent | undefined {
+  const child = event.event;
+  if (child.type === "text_delta") {
+    return {
+      kind: "message",
+      agentId: event.agentId,
+      ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+      text: child.delta,
+    };
+  }
+  if (child.type === "reasoning_delta") {
+    return {
+      kind: "reasoning",
+      agentId: event.agentId,
+      ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+      ...(child.id === undefined ? {} : { reasoningId: child.id }),
+      text: child.delta,
+    };
+  }
+  if (child.type === "tool_call") {
+    return {
+      kind: "tool",
+      agentId: event.agentId,
+      ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+      toolName: child.toolCall.function.name,
+      ...(child.toolCall.callId === undefined && child.toolCall.id === undefined
+        ? {}
+        : { callId: child.toolCall.callId ?? child.toolCall.id }),
+      args: formatJson(child.toolCall.function.arguments),
+    };
+  }
+  if (child.type === "tool_result") {
+    return {
+      kind: "tool",
+      agentId: event.agentId,
+      ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+      toolName: child.toolName,
+      ...(child.toolCallId === undefined ? {} : { callId: child.toolCallId }),
+      args: child.args,
+      result: child.result,
+    };
+  }
+  if (child.type === "error") {
+    return {
+      kind: "message",
+      agentId: event.agentId,
+      ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+      text: `Error: ${errorText(child.error)}`,
+    };
+  }
+  return undefined;
+}
+
+function errorText(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return JSON.stringify(serializeError(error));
+}
+
+function findChildAgentToolEvent(
+  childEvents: StudioTranscriptChildAgentEvent[],
+  event: Extract<StudioTranscriptChildAgentEvent, { kind: "tool" }>,
+): Extract<StudioTranscriptChildAgentEvent, { kind: "tool" }> | undefined {
+  for (let index = childEvents.length - 1; index >= 0; index -= 1) {
+    const childEvent = childEvents[index];
+    if (
+      childEvent?.kind !== "tool" ||
+      childEvent.agentId !== event.agentId ||
+      childEvent.toolName !== event.toolName ||
+      childEvent.result !== undefined
+    ) {
+      continue;
+    }
+    if (event.callId === undefined || childEvent.callId === event.callId) {
+      return childEvent;
+    }
+  }
+  return undefined;
 }
 
 export function transcriptFromMessages(messages: Message[]): StudioTranscriptEntry[] {

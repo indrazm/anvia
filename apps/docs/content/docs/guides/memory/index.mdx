@@ -24,6 +24,8 @@ Use `agent.prompt([...messages])` when your application already owns an explicit
 
 Use `agent.session(id).prompt("...")` when Anvia should load and save durable conversation messages through the configured memory store.
 
+Memory stores model transcript messages for future context. It does not store runtime stream events such as text deltas, tool progress, or child-agent events from `asTool({ stream: true })`. Use [Event Store](/docs/guides/agents/event-store) when you need replay/debug history for runtime events.
+
 ## Public API
 
 ```ts
@@ -79,6 +81,8 @@ Memory defaults to `savePolicy: "message"`.
 | `"run"` | Save only after a successful final response. |
 
 On failure, stores that implement `recordError(...)` receive the error and partial run messages.
+
+For delegation-specific behavior, read [Multi-Agent Memory](/docs/guides/memory/multi-agent).
 
 ## Adapter Examples
 

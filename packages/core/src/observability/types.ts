@@ -5,6 +5,7 @@ import type {
   ToolCall,
   Usage,
 } from "../completion";
+import type { ToolCallStreamEvent } from "../tool";
 
 export type AgentTraceInfo = {
   traceId?: string | undefined;
@@ -78,12 +79,17 @@ export type AgentToolErrorArgs = AgentToolStartArgs & {
   error: unknown;
 };
 
+export type AgentToolStreamEventArgs = AgentToolStartArgs & {
+  event: ToolCallStreamEvent;
+};
+
 export interface AgentGenerationObserver {
   end(args: AgentGenerationEndArgs): void | Promise<void>;
   error?(args: AgentGenerationErrorArgs): void | Promise<void>;
 }
 
 export interface AgentToolObserver {
+  streamEvent?(args: AgentToolStreamEventArgs): void | Promise<void>;
   end(args: AgentToolEndArgs): void | Promise<void>;
   error?(args: AgentToolErrorArgs): void | Promise<void>;
 }

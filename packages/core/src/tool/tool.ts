@@ -22,11 +22,21 @@ export type ToolApprovalPolicy<Args = unknown> = {
   rejectMessage?: string | ((ctx: ToolApprovalContext<Args>) => string | Promise<string>);
 };
 
+export type ToolCallStreamEvent = {
+  agentId: string;
+  agentName?: string | undefined;
+  event: unknown;
+};
+
+export type ToolCallContext = {
+  emitStreamEvent?(event: ToolCallStreamEvent): void | Promise<void>;
+};
+
 export interface Tool<Args = unknown, Output = unknown> {
   readonly name: string;
   readonly approval?: ToolApprovalPolicy<Args>;
   definition(prompt: string): ToolDefinition | Promise<ToolDefinition>;
-  call(args: Args): Output | Promise<Output>;
+  call(args: Args, context?: ToolCallContext): Output | Promise<Output>;
   parseApprovalArgs?(args: unknown): Args;
 }
 

@@ -12,6 +12,7 @@ import {
   type AgentToolErrorArgs,
   type AgentToolObserver,
   type AgentToolStartArgs,
+  type AgentToolStreamEventArgs,
   type AgentTraceInfo,
   type EvalOutcome,
   type EvalReportArgs,
@@ -451,9 +452,146 @@ class LangfuseGenerationObserver implements AgentGenerationObserver {
 }
 
 class LangfuseToolObserver implements AgentToolObserver {
+  private readonly childAgents = new Map<string, LangfuseAgent>();
+  private readonly childGenerations = new Map<string, LangfuseGeneration>();
+  private readonly childTools: Array<{
+    agentId: string;
+    toolName: string;
+    toolCallId?: string;
+    tool: LangfuseTool;
+    ended: boolean;
+  }> = [];
+
   constructor(private readonly tool: LangfuseTool) {}
 
+  streamEvent(args: AgentToolStreamEventArgs): void {
+    const wrapper = args.event;
+    const child = isRecord(wrapper.event) ? wrapper.event : undefined;
+    if (child === undefined) {
+      return;
+    }
+
+    const agentId = wrapper.agentId;
+    const agentName = wrapper.agentName;
+    const childTurn = typeof child.turn === "number" ? child.turn : args.turn;
+    const agent = this.childAgent(agentId, agentName, args);
+
+    if (child.type === "turn_start") {
+      const generation = agent.startObservation(
+        `${agentLabel(agentId, agentName)}.model.turn.${childTurn}`,
+        {
+          input: {
+            prompt: child.prompt,
+            history: child.history,
+          },
+          metadata: childMetadata(args, agentId, agentName, childTurn),
+        },
+        { asType: "generation" },
+      );
+      this.childGenerations.set(generationKey(agentId, childTurn), generation);
+      return;
+    }
+
+    if (child.type === "turn_end") {
+      const generation = this.childGenerations.get(generationKey(agentId, childTurn));
+      if (generation !== undefined) {
+        generation
+          .update({
+            output: child.response,
+            ...(isRecord(child.response) && isRecord(child.response.usage)
+              ? { usageDetails: usageDetailsFromRecord(child.response.usage) }
+              : {}),
+            metadata: childMetadata(args, agentId, agentName, childTurn),
+          })
+          .end();
+        this.childGenerations.delete(generationKey(agentId, childTurn));
+      }
+      return;
+    }
+
+    if (child.type === "tool_call" && isRecord(child.toolCall)) {
+      const toolCall = child.toolCall;
+      const toolCallFunction = isRecord(toolCall.function) ? toolCall.function : undefined;
+      const toolName = typeof toolCallFunction?.name === "string" ? toolCallFunction.name : "tool";
+      const toolCallId =
+        typeof toolCall.callId === "string"
+          ? toolCall.callId
+          : typeof toolCall.id === "string"
+            ? toolCall.id
+            : undefined;
+      const childTool = agent.startObservation(
+        `${agentLabel(agentId, agentName)}.${toolName}`,
+        {
+          input: {
+            args: toolCallFunction?.arguments ?? {},
+            toolCall,
+          },
+          metadata: {
+            ...childMetadata(args, agentId, agentName, childTurn),
+            toolName,
+            toolCallId,
+          },
+        },
+        { asType: "tool" },
+      );
+      this.childTools.push({
+        agentId,
+        toolName,
+        ...(toolCallId === undefined ? {} : { toolCallId }),
+        tool: childTool,
+        ended: false,
+      });
+      return;
+    }
+
+    if (child.type === "tool_result") {
+      const toolName = typeof child.toolName === "string" ? child.toolName : "tool";
+      const toolCallId = typeof child.toolCallId === "string" ? child.toolCallId : undefined;
+      const childTool = this.findChildTool(agentId, toolName, toolCallId);
+      if (childTool !== undefined) {
+        childTool.ended = true;
+        childTool.tool
+          .update({
+            output: typeof child.result === "string" ? child.result : child,
+            metadata: {
+              ...childMetadata(args, agentId, agentName, childTurn),
+              toolName,
+              toolCallId,
+              internalCallId:
+                typeof child.internalCallId === "string" ? child.internalCallId : undefined,
+              args: typeof child.args === "string" ? child.args : undefined,
+            },
+          })
+          .end();
+      }
+      return;
+    }
+
+    if (child.type === "final") {
+      agent
+        .update({
+          output: child.output,
+          ...(isRecord(child.usage) ? { metadata: { usage: child.usage } } : {}),
+        })
+        .end();
+      this.childAgents.delete(agentId);
+      return;
+    }
+
+    if (child.type === "error") {
+      agent
+        .update({
+          level: "ERROR",
+          statusMessage: errorMessage(child.error),
+          output: { error: errorMessage(child.error) },
+        })
+        .end();
+      this.childAgents.delete(agentId);
+    }
+  }
+
   end(args: AgentToolEndArgs): void {
+    this.endOpenChildren();
     const attributes: Parameters<LangfuseTool["update"]>[0] = {
       output: args.result,
       metadata: {
@@ -471,6 +609,7 @@ class LangfuseToolObserver implements AgentToolObserver {
   }
 
   error(args: AgentToolErrorArgs): void {
+    this.endOpenChildren();
     this.tool
       .update({
         level: "ERROR",
@@ -483,6 +622,65 @@ class LangfuseToolObserver implements AgentToolObserver {
         },
       })
       .end();
+  }
+
+  private childAgent(
+    agentId: string,
+    agentName: string | undefined,
+    args: AgentToolStartArgs,
+  ): LangfuseAgent {
+    const existing = this.childAgents.get(agentId);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const agent = this.tool.startObservation(
+      `${agentLabel(agentId, agentName)}.run`,
+      {
+        metadata: childMetadata(args, agentId, agentName, args.turn),
+      },
+      { asType: "agent" },
+    );
+    this.childAgents.set(agentId, agent);
+    return agent;
+  }
+
+  private findChildTool(
+    agentId: string,
+    toolName: string,
+    toolCallId: string | undefined,
+  ): (typeof this.childTools)[number] | undefined {
+    for (let index = this.childTools.length - 1; index >= 0; index -= 1) {
+      const childTool = this.childTools[index];
+      if (
+        childTool === undefined ||
+        childTool.ended ||
+        childTool.agentId !== agentId ||
+        childTool.toolName !== toolName
+      ) {
+        continue;
+      }
+      if (toolCallId === undefined || childTool.toolCallId === toolCallId) {
+        return childTool;
+      }
+    }
+    return undefined;
+  }
+
+  private endOpenChildren(): void {
+    for (const generation of this.childGenerations.values()) {
+      generation.end();
+    }
+    this.childGenerations.clear();
+    for (const tool of this.childTools) {
+      if (!tool.ended) {
+        tool.tool.end();
+        tool.ended = true;
+      }
+    }
+    for (const agent of this.childAgents.values()) {
+      agent.end();
+    }
+    this.childAgents.clear();
   }
 }
 
@@ -507,6 +705,49 @@ function usageDetails(usage: AgentGenerationEndArgs["response"]["usage"]): Recor
     cachedInputTokens: usage.cachedInputTokens,
     cacheCreationInputTokens: usage.cacheCreationInputTokens,
   };
+}
+
+function usageDetailsFromRecord(usage: Record<string, unknown>): Record<string, number> {
+  return {
+    inputTokens: numberValue(usage.inputTokens) ?? 0,
+    outputTokens: numberValue(usage.outputTokens) ?? 0,
+    totalTokens:
+      numberValue(usage.totalTokens) ??
+      (numberValue(usage.inputTokens) ?? 0) + (numberValue(usage.outputTokens) ?? 0),
+  };
+}
+
+function childMetadata(
+  args: AgentToolStartArgs,
+  agentId: string,
+  agentName: string | undefined,
+  childTurn: number,
+): Record<string, unknown> {
+  return {
+    source: "agent_tool_event",
+    childAgentId: agentId,
+    childAgentName: agentName,
+    childTurn,
+    parentToolName: args.toolName,
+    parentInternalCallId: args.internalCallId,
+    parentToolCallId: args.toolCallId,
+  };
+}
+
+function generationKey(agentId: string, turn: number): string {
+  return `${agentId}:${turn}`;
+}
+
+function agentLabel(agentId: string, agentName: string | undefined): string {
+  return (agentName ?? agentId).replaceAll(/\s+/g, "_");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
 function emptyToUndefined(value: string | undefined): string | undefined {

@@ -12,18 +12,28 @@ interface Tool<Args = unknown, Output = unknown> {
   readonly name: string;
   readonly approval?: ToolApprovalPolicy<Args>;
   definition(prompt: string): ToolDefinition | Promise<ToolDefinition>;
-  call(args: Args): Output | Promise<Output>;
+  call(args: Args, context?: ToolCallContext): Output | Promise<Output>;
   parseApprovalArgs?(args: unknown): Args;
 }
 
 type AnyTool = Omit<Tool<unknown, unknown>, "approval"> & {
   readonly approval?: unknown;
 };
+
+type ToolCallStreamEvent = {
+  agentId: string;
+  agentName?: string;
+  event: unknown;
+};
+
+type ToolCallContext = {
+  emitStreamEvent?(event: ToolCallStreamEvent): void | Promise<void>;
+};
 ```
 
 Purpose: normalized callable tool contract.
 
-Return behavior: `definition(...)` exposes provider JSON schema; `call(...)` executes local logic. Approval metadata is passive and is not included in provider tool definitions.
+Return behavior: `definition(...)` exposes provider JSON schema; `call(...)` executes local logic. The optional context is used by runtime-managed tools such as streaming agent-tools. Approval metadata is passive and is not included in provider tool definitions.
 
 Notable errors: tool implementations can throw arbitrary errors.
 
@@ -36,7 +46,7 @@ type CreateToolOptions<InputSchema extends ZodSchema, OutputSchema extends ZodSc
   input: InputSchema;
   output?: OutputSchema;
   approval?: ToolApprovalPolicy<z.output<InputSchema>>;
-  execute(args: z.output<InputSchema>): unknown | Promise<unknown>;
+  execute(args: z.output<InputSchema>, context: ToolCallContext): unknown | Promise<unknown>;
 };
 
 function createTool<InputSchema extends ZodSchema, OutputSchema extends ZodSchema | undefined = undefined>(
@@ -120,7 +130,7 @@ class ToolSet {
   get(toolName: string): Tool | undefined;
   values(): Tool[];
   getToolDefinitions(prompt?: string): Promise<ToolDefinition[]>;
-  call(toolName: string, args: string): Promise<string>;
+  call(toolName: string, args: string, context?: ToolCallContext): Promise<string>;
 }
 ```
 

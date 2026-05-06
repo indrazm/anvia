@@ -16,6 +16,9 @@ import { ToolSet } from "../tool/tool-set";
 import type { VectorSearchIndex } from "../vector-store";
 import {
   Agent,
+  type AgentEventStore,
+  type AgentEventStoreOptions,
+  type AgentEventStoreRegistration,
   type DynamicContextOptions,
   type DynamicContextRegistration,
   type DynamicToolOptions,
@@ -42,6 +45,7 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
   private dynamicToolRegistrations: DynamicToolRegistration[] = [];
   private middlewareRegistrations: ToolMiddleware[] = [];
   private memoryRegistration: MemoryRegistration | undefined;
+  private eventStoreRegistration: AgentEventStoreRegistration | undefined;
   private activeToolSet = new ToolSet();
 
   constructor(
@@ -170,6 +174,16 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
     return this;
   }
 
+  eventStore(store: AgentEventStore, options: AgentEventStoreOptions = {}): this {
+    this.eventStoreRegistration = {
+      store,
+      options: {
+        include: options.include ?? "all",
+      },
+    };
+    return this;
+  }
+
   outputSchema(schema: ZodSchema): this {
     this.schema = toProviderJsonSchema(schema);
     return this;
@@ -196,6 +210,7 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
       dynamicTools: this.dynamicToolRegistrations,
       toolMiddlewares: this.middlewareRegistrations,
       memory: this.memoryRegistration,
+      eventStore: this.eventStoreRegistration,
     });
   }
 

@@ -14,8 +14,9 @@ const incident = [
   "Constraint: do not claim a root cause until engineering verifies it.",
 ].join("\n");
 
-const supportAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
-const supportAgent = new AgentBuilder("support", supportAgentModel)
+const model = client.completionModel("deepseek/deepseek-v4-pro");
+
+const supportAgent = new AgentBuilder("support", model)
   .name("Support Specialist")
   .instructions(
     [
@@ -25,8 +26,7 @@ const supportAgent = new AgentBuilder("support", supportAgentModel)
   )
   .build();
 
-const engineeringAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
-const engineeringAgent = new AgentBuilder("engineering", engineeringAgentModel)
+const engineeringAgent = new AgentBuilder("engineering", model)
   .name("Engineering Specialist")
   .instructions(
     [
@@ -36,8 +36,7 @@ const engineeringAgent = new AgentBuilder("engineering", engineeringAgentModel)
   )
   .build();
 
-const commsAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
-const commsAgent = new AgentBuilder("comms", commsAgentModel)
+const commsAgent = new AgentBuilder("comms", model)
   .name("Customer Comms Specialist")
   .instructions(
     [
@@ -47,8 +46,7 @@ const commsAgent = new AgentBuilder("comms", commsAgentModel)
   )
   .build();
 
-const synthesizerAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
-const synthesizerAgent = new AgentBuilder("synthesizer", synthesizerAgentModel)
+const synthesizerAgent = new AgentBuilder("synthesizer", model)
   .name("Incident Synthesizer")
   .instructions(
     [

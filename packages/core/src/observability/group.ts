@@ -12,6 +12,7 @@ import type {
   AgentToolErrorArgs,
   AgentToolObserver,
   AgentToolStartArgs,
+  AgentToolStreamEventArgs,
   AgentTraceInfo,
 } from "./types";
 
@@ -154,6 +155,19 @@ export class ActiveToolObservers {
     private readonly toolObservers: AgentToolObserver[],
     private readonly failOnObserverError: boolean,
   ) {}
+
+  async streamEvent(args: AgentToolStreamEventArgs): Promise<void> {
+    for (const observer of this.toolObservers) {
+      if (observer.streamEvent === undefined) {
+        continue;
+      }
+      try {
+        await observer.streamEvent(args);
+      } catch (error) {
+        this.handleError(error);
+      }
+    }
+  }
 
   async end(args: AgentToolEndArgs): Promise<void> {
     for (const observer of this.toolObservers) {

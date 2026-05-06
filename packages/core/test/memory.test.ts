@@ -6,6 +6,7 @@ import {
   type CompletionModel,
   type CompletionRequest,
   type CompletionResponse,
+  type CompletionStreamEvent,
   createTool,
   type MemoryAppendInput,
   type MemoryContext,
@@ -13,6 +14,7 @@ import {
   type MemoryStore,
   Message,
   type Message as MessageType,
+  type StreamingCompletionModel,
   Usage,
 } from "../src/index";
 
@@ -39,6 +41,36 @@ class QueueModel implements CompletionModel {
       throw new Error("No queued response");
     }
     return response;
+  }
+}
+
+class StreamingQueueModel implements StreamingCompletionModel {
+  readonly provider = "test";
+  readonly defaultModel = "test";
+  readonly capabilities = {
+    streaming: true,
+    tools: true,
+    toolChoice: true,
+    imageInput: true,
+    documentInput: true,
+    outputSchema: true,
+    reasoning: true,
+  };
+  readonly requests: CompletionRequest[] = [];
+
+  constructor(private readonly responses: CompletionStreamEvent[][]) {}
+
+  async completion(): Promise<CompletionResponse> {
+    throw new Error("completion should not be called");
+  }
+
+  async *streamCompletion(request: CompletionRequest): AsyncIterable<CompletionStreamEvent> {
+    this.requests.push(request);
+    const response = this.responses.shift();
+    if (response === undefined) {
+      throw new Error("No queued response");
+    }
+    yield* response;
   }
 }
 
@@ -201,6 +233,42 @@ describe("agent memory", () => {
     expect(store.appendCalls.map((call) => call.messages.map((message) => message.role))).toEqual([
       ["user", "assistant"],
     ]);
+  });
+
+  it("does not save nested streaming agent-tool events as memory messages", async () => {
+    const store = new RecordingMemoryStore();
+    const parentModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_child", "ask_child", { prompt: "inspect" }),
+        },
+      ],
+      [{ type: "text_delta", delta: "parent done" }],
+    ]);
+    const childModel = new StreamingQueueModel([
+      [
+        { type: "text_delta", delta: "child " },
+        { type: "text_delta", delta: "done" },
+      ],
+    ]);
+    const childAgent = new AgentBuilder("child", childModel).build();
+    const parentAgent = new AgentBuilder("parent", parentModel)
+      .memory(store)
+      .tool(childAgent.asTool({ name: "ask_child", stream: true }))
+      .build();
+
+    for await (const _event of parentAgent.session("session_1").prompt("delegate").stream()) {
+      // exhaust stream
+    }
+
+    expect(store.appendCalls.map((call) => call.messages.map((message) => message.role))).toEqual([
+      ["user"],
+      ["assistant"],
+      ["tool"],
+      ["assistant"],
+    ]);
+    await expect(parentAgent.session("session_1").messages()).resolves.toHaveLength(4);
   });
 
   it("rejects transcript input for session prompts", () => {

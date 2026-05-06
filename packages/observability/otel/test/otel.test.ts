@@ -1,7 +1,7 @@
 import {
   type AgentGenerationStartArgs,
   AssistantContent,
-  type Message,
+  Message,
   type ToolCall,
   type Usage,
 } from "@anvia/core";
@@ -216,6 +216,145 @@ describe("otel", () => {
       message: "run failed",
     });
     expect(tracer.spans.every((span) => span.ended)).toBe(true);
+  });
+
+  it("nests streamed child agent spans under the parent tool span", async () => {
+    const tracer = new FakeTracer();
+    const tracing = otel.create({ tracer: tracer.tracer });
+    const run = await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("delegate"),
+      history: [],
+      maxTurns: 2,
+    });
+    const parentToolCall = AssistantContent.toolCall("call-child", "ask_child", {
+      prompt: "inspect",
+    });
+    const tool = await run?.startTool?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: { type: "turn_start", turn: 1, prompt: userMessage("inspect"), history: [] },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "tool_call",
+          turn: 1,
+          toolCall: AssistantContent.toolCall("call-add", "add", { x: 2, y: 5 }),
+        },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "tool_result",
+          turn: 1,
+          toolName: "add",
+          toolCallId: "call-add",
+          internalCallId: "internal-add",
+          args: '{"x":2,"y":5}',
+          result: "7",
+        },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "turn_end",
+          turn: 1,
+          response: {
+            messageId: "msg-child",
+            choice: [AssistantContent.text("7")],
+            usage: usage(2, 1),
+            rawResponse: {},
+          },
+        },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "final",
+          runId: "child-run",
+          output: "7",
+          usage: usage(2, 1),
+          messages: [Message.assistant("7")],
+        },
+      },
+    });
+    await tool?.end({
+      turn: 1,
+      toolName: "ask_child",
+      args: '{"prompt":"inspect"}',
+      toolCall: parentToolCall,
+      result: "7",
+      skipped: false,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    const parentTool = tracer.spans.find((span) => span.name === "tool.ask_child");
+    const childAgent = tracer.spans.find((span) => span.name === "Child_Agent.run");
+    const childGeneration = tracer.spans.find((span) => span.name === "Child_Agent.model.turn.1");
+    const childTool = tracer.spans.find((span) => span.name === "Child_Agent.add");
+
+    expect(childAgent?.parentSpanId).toBe(parentTool?.spanContextValue.spanId);
+    expect(childGeneration?.parentSpanId).toBe(childAgent?.spanContextValue.spanId);
+    expect(childTool?.parentSpanId).toBe(childAgent?.spanContextValue.spanId);
+    expect(childTool?.attributes).toMatchObject({
+      "anvia.parent_tool.name": "ask_child",
+      "anvia.child_agent.id": "child",
+      "anvia.tool.result": "7",
+    });
   });
 
   it("joins valid incoming trace ids and ignores invalid ones", async () => {

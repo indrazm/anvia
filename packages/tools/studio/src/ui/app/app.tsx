@@ -15,6 +15,7 @@ import type {
   StudioSessionSummary,
   StudioTrace,
   StudioTraceSummary,
+  StudioTranscriptChildAgentEvent,
 } from "../../types";
 import { Button } from "./components/ui/button";
 import {
@@ -563,6 +564,10 @@ export function StudioConsole() {
       });
       return true;
     }
+    if (event.type === "agent_tool_event") {
+      appendAgentToolEvent(event);
+      return true;
+    }
     if (event.type === "tool_approval_request") {
       updateToolApproval(event.approval);
       return true;
@@ -822,6 +827,158 @@ export function StudioConsole() {
       });
       return next;
     });
+  }
+
+  function appendAgentToolEvent(event: Extract<AgentRunStreamEvent, { type: "agent_tool_event" }>) {
+    const childEvent = childAgentTranscriptEvent(event);
+    if (childEvent === undefined) {
+      return;
+    }
+    setMessages((current) => {
+      const next = [...current];
+      const matchedIndex = findMatchingToolIndex(next, event.toolName, event.toolCallId);
+      if (matchedIndex < 0) {
+        next.push({
+          entryId: nextTranscriptId(),
+          kind: "tool",
+          toolName: event.toolName,
+          ...(event.toolCallId === undefined ? {} : { callId: event.toolCallId }),
+          childEvents: [childEvent],
+        });
+        return next;
+      }
+
+      const existing = next[matchedIndex];
+      if (existing === undefined || existing.kind !== "tool") {
+        return next;
+      }
+      const childEvents = [...(existing.childEvents ?? [])];
+      appendChildAgentTranscriptEvent(childEvents, childEvent);
+      next[matchedIndex] = {
+        ...existing,
+        childEvents,
+      };
+      return next;
+    });
+  }
+
+  function childAgentTranscriptEvent(
+    event: Extract<AgentRunStreamEvent, { type: "agent_tool_event" }>,
+  ): StudioTranscriptChildAgentEvent | undefined {
+    const child = event.event;
+    if (child.type === "text_delta") {
+      return {
+        kind: "message",
+        agentId: event.agentId,
+        ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+        text: child.delta,
+      };
+    }
+    if (child.type === "reasoning_delta") {
+      return {
+        kind: "reasoning",
+        agentId: event.agentId,
+        ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+        ...(child.id === undefined ? {} : { reasoningId: child.id }),
+        text: child.delta,
+      };
+    }
+    if (child.type === "tool_call") {
+      return {
+        kind: "tool",
+        agentId: event.agentId,
+        ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+        toolName: child.toolCall.function.name,
+        ...(child.toolCall.callId === undefined && child.toolCall.id === undefined
+          ? {}
+          : { callId: child.toolCall.callId ?? child.toolCall.id }),
+        args: formatToolValue(child.toolCall.function.arguments),
+      };
+    }
+    if (child.type === "tool_result") {
+      return {
+        kind: "tool",
+        agentId: event.agentId,
+        ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+        toolName: child.toolName,
+        ...(child.toolCallId === undefined ? {} : { callId: child.toolCallId }),
+        args: child.args,
+        result: child.result,
+      };
+    }
+    if (child.type === "error") {
+      return {
+        kind: "message",
+        agentId: event.agentId,
+        ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+        text: `Error: ${errorMessage(child.error)}`,
+      };
+    }
+    return undefined;
+  }
+
+  function appendChildAgentTranscriptEvent(
+    childEvents: StudioTranscriptChildAgentEvent[],
+    childEvent: StudioTranscriptChildAgentEvent,
+  ) {
+    if (childEvent.kind === "message") {
+      const last = childEvents.at(-1);
+      if (last?.kind === "message" && last.agentId === childEvent.agentId) {
+        childEvents[childEvents.length - 1] = { ...last, text: `${last.text}${childEvent.text}` };
+      } else {
+        childEvents.push(childEvent);
+      }
+      return;
+    }
+    if (childEvent.kind === "reasoning") {
+      const last = childEvents.at(-1);
+      if (
+        last?.kind === "reasoning" &&
+        last.agentId === childEvent.agentId &&
+        (last.reasoningId ?? "") === (childEvent.reasoningId ?? "")
+      ) {
+        childEvents[childEvents.length - 1] = { ...last, text: `${last.text}${childEvent.text}` };
+      } else {
+        childEvents.push(childEvent);
+      }
+      return;
+    }
+    const matchedIndex = findChildAgentToolEventIndex(childEvents, childEvent);
+    if (matchedIndex < 0) {
+      childEvents.push(childEvent);
+      return;
+    }
+    const matched = childEvents[matchedIndex];
+    if (matched?.kind === "tool") {
+      childEvents[matchedIndex] = {
+        ...matched,
+        ...(matched.args !== undefined || childEvent.args === undefined
+          ? {}
+          : { args: childEvent.args }),
+        ...(childEvent.result === undefined ? {} : { result: childEvent.result }),
+      };
+    }
+  }
+
+  function findChildAgentToolEventIndex(
+    childEvents: StudioTranscriptChildAgentEvent[],
+    event: Extract<StudioTranscriptChildAgentEvent, { kind: "tool" }>,
+  ): number {
+    for (let index = childEvents.length - 1; index >= 0; index -= 1) {
+      const childEvent = childEvents[index];
+      if (
+        childEvent?.kind !== "tool" ||
+        childEvent.agentId !== event.agentId ||
+        childEvent.toolName !== event.toolName ||
+        childEvent.result !== undefined
+      ) {
+        continue;
+      }
+      if (event.callId === undefined || childEvent.callId === event.callId) {
+        return index;
+      }
+    }
+    return -1;
   }
 
   function updatePrompt(event: ChangeEvent<HTMLTextAreaElement>) {

@@ -86,9 +86,11 @@ function ToolEntry(props: {
   );
   const approval = props.entry.approval;
   const question = props.entry.question;
+  const childEvents = props.entry.childEvents ?? [];
   const hasPayload =
     props.entry.args !== undefined ||
     props.entry.result !== undefined ||
+    childEvents.length > 0 ||
     approval !== undefined ||
     question !== undefined;
   const pendingApproval = approval?.status === "pending";
@@ -172,12 +174,65 @@ function ToolEntry(props: {
           {question !== undefined || props.entry.args === undefined ? null : (
             <ToolPayload title="Input" value={props.entry.args} />
           )}
+          {childEvents.length === 0 ? null : <ChildAgentActivity events={childEvents} />}
           {question !== undefined || props.entry.result === undefined ? null : (
             <ToolPayload title="Output" value={props.entry.result} />
           )}
         </div>
       )}
     </article>
+  );
+}
+
+function ChildAgentActivity(props: { events: NonNullable<ToolMessage["childEvents"]> }) {
+  return (
+    <div className="rounded-sm border border-border bg-background">
+      <div className="border-b border-border px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        Subagent activity
+      </div>
+      <div className="grid gap-3 p-3">
+        {props.events.map((event) => {
+          const agentLabel = event.agentName ?? event.agentId;
+          if (event.kind === "message" || event.kind === "reasoning") {
+            return (
+              <div
+                className="grid gap-1 rounded-sm border border-border bg-card p-3"
+                key={`${event.kind}-${event.agentId}-${event.text}`}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <Badge className="rounded-sm border-border bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                    {event.kind === "reasoning" ? "Reasoning" : "Response"}
+                  </Badge>
+                  <span className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+                    {agentLabel}
+                  </span>
+                </div>
+                <MarkdownText text={event.text} />
+              </div>
+            );
+          }
+          return (
+            <div
+              className="grid gap-2 rounded-sm border border-border bg-card p-3"
+              key={`${event.kind}-${event.agentId}-${event.toolName}-${event.callId ?? event.args ?? event.result ?? ""}`}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <Badge className="rounded-sm border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase text-primary">
+                  Tool
+                </Badge>
+                <span className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
+                  {agentLabel} / {event.toolName}
+                </span>
+              </div>
+              {event.args === undefined ? null : <ToolPayload title="Input" value={event.args} />}
+              {event.result === undefined ? null : (
+                <ToolPayload title="Output" value={event.result} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

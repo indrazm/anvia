@@ -12,6 +12,7 @@ import type {
   AgentToolErrorArgs,
   AgentToolObserver,
   AgentToolStartArgs,
+  AgentToolStreamEventArgs,
   JsonObject,
   JsonValue,
 } from "@anvia/core";
@@ -104,34 +105,38 @@ class StudioRunTraceObserver implements AgentRunObserver {
 
   startTool(args: AgentToolStartArgs): AgentToolObserver {
     const startedAt = new Date();
+    const childTrace = new ChildAgentToolTraceAccumulator(args);
     return {
+      streamEvent: (streamArgs: AgentToolStreamEventArgs) => {
+        childTrace.accept(streamArgs);
+      },
       end: (endArgs: AgentToolEndArgs) => {
-        this.observations.push(
-          traceObservation({
-            kind: "tool",
-            name: args.toolName,
-            status: "success",
-            turn: args.turn,
-            startedAt,
-            input: parseOrString(args.args),
-            output: parseOrString(endArgs.result),
-            metadata: toolMetadata(args, endArgs.skipped),
-          }),
-        );
+        const parentObservation = traceObservation({
+          kind: "tool",
+          name: args.toolName,
+          status: "success",
+          turn: args.turn,
+          startedAt,
+          input: parseOrString(args.args),
+          output: parseOrString(endArgs.result),
+          metadata: toolMetadata(args, endArgs.skipped),
+        });
+        this.observations.push(parentObservation);
+        this.observations.push(...childTrace.observations(parentObservation.id));
       },
       error: (errorArgs: AgentToolErrorArgs) => {
-        this.observations.push(
-          traceObservation({
-            kind: "tool",
-            name: args.toolName,
-            status: "error",
-            turn: args.turn,
-            startedAt,
-            input: parseOrString(args.args),
-            error: serializeError(errorArgs.error),
-            metadata: toolMetadata(args, false),
-          }),
-        );
+        const parentObservation = traceObservation({
+          kind: "tool",
+          name: args.toolName,
+          status: "error",
+          turn: args.turn,
+          startedAt,
+          input: parseOrString(args.args),
+          error: serializeError(errorArgs.error),
+          metadata: toolMetadata(args, false),
+        });
+        this.observations.push(parentObservation);
+        this.observations.push(...childTrace.observations(parentObservation.id));
       },
     };
   }
@@ -197,20 +202,277 @@ class StudioRunTraceObserver implements AgentRunObserver {
   }
 }
 
+class ChildAgentToolTraceAccumulator {
+  private readonly agentStarts = new Map<
+    string,
+    {
+      startedAt: Date;
+      agentId: string;
+      agentName?: string;
+    }
+  >();
+  private readonly generationStarts = new Map<
+    string,
+    {
+      startedAt: Date;
+      input?: JsonValue;
+      agentId: string;
+      agentName?: string;
+      childTurn: number;
+    }
+  >();
+  private readonly toolStarts: Array<{
+    startedAt: Date;
+    agentId: string;
+    agentName?: string;
+    childTurn: number;
+    toolName: string;
+    toolCallId?: string;
+    internalCallId?: string;
+    input?: JsonValue;
+    completed: boolean;
+  }> = [];
+  private readonly completedObservations: StudioTraceObservation[] = [];
+
+  constructor(private readonly parent: AgentToolStartArgs) {}
+
+  accept(args: AgentToolStreamEventArgs): void {
+    const wrapper = args.event;
+    const child = isRecord(wrapper.event) ? wrapper.event : undefined;
+    if (child === undefined) {
+      return;
+    }
+
+    const agentId = wrapper.agentId;
+    const agentName = wrapper.agentName;
+    const childTurn = typeof child.turn === "number" ? child.turn : this.parent.turn;
+
+    if (!this.agentStarts.has(agentId)) {
+      this.agentStarts.set(agentId, {
+        startedAt: new Date(),
+        agentId,
+        ...(agentName === undefined ? {} : { agentName }),
+      });
+    }
+
+    if (child.type === "turn_start") {
+      this.generationStarts.set(generationKey(agentId, childTurn), {
+        startedAt: new Date(),
+        input: toJsonValue({
+          prompt: child.prompt,
+          history: child.history,
+        }),
+        agentId,
+        ...(agentName === undefined ? {} : { agentName }),
+        childTurn,
+      });
+      return;
+    }
+
+    if (child.type === "turn_end") {
+      const key = generationKey(agentId, childTurn);
+      const start = this.generationStarts.get(key);
+      this.generationStarts.delete(key);
+      this.completedObservations.push(
+        traceObservation({
+          kind: "generation",
+          name: `${agentLabel(agentId, agentName)}.model.turn.${childTurn}`,
+          status: "success",
+          turn: this.parent.turn,
+          startedAt: start?.startedAt ?? new Date(),
+          ...(start?.input === undefined ? {} : { input: start.input }),
+          output: toJsonValue(child.response),
+          metadata: this.childMetadata(agentId, agentName, childTurn),
+        }),
+      );
+      return;
+    }
+
+    if (child.type === "tool_call" && isRecord(child.toolCall)) {
+      const toolCall = child.toolCall;
+      const toolCallFunction = isRecord(toolCall.function) ? toolCall.function : undefined;
+      const toolName = typeof toolCallFunction?.name === "string" ? toolCallFunction.name : "tool";
+      const callId =
+        typeof toolCall.callId === "string"
+          ? toolCall.callId
+          : typeof toolCall.id === "string"
+            ? toolCall.id
+            : undefined;
+      this.toolStarts.push({
+        startedAt: new Date(),
+        agentId,
+        ...(agentName === undefined ? {} : { agentName }),
+        childTurn,
+        toolName,
+        ...(callId === undefined ? {} : { toolCallId: callId }),
+        input: toJsonValue(toolCallFunction?.arguments ?? {}),
+        completed: false,
+      });
+      return;
+    }
+
+    if (child.type === "tool_result") {
+      const toolName = typeof child.toolName === "string" ? child.toolName : "tool";
+      const toolCallId = typeof child.toolCallId === "string" ? child.toolCallId : undefined;
+      const internalCallId =
+        typeof child.internalCallId === "string" ? child.internalCallId : undefined;
+      const start = this.findToolStart(agentId, toolName, toolCallId);
+      const input =
+        start?.input ?? (typeof child.args === "string" ? parseOrString(child.args) : undefined);
+      if (start !== undefined) {
+        start.completed = true;
+      }
+      this.completedObservations.push(
+        traceObservation({
+          kind: "tool",
+          name: `${agentLabel(agentId, agentName)}.${toolName}`,
+          status: "success",
+          turn: this.parent.turn,
+          startedAt: start?.startedAt ?? new Date(),
+          ...(input === undefined ? {} : { input }),
+          ...(typeof child.result === "string" ? { output: parseOrString(child.result) } : {}),
+          metadata: {
+            ...this.childMetadata(agentId, agentName, childTurn),
+            ...(toolCallId === undefined ? {} : { toolCallId }),
+            ...(internalCallId === undefined ? {} : { internalCallId }),
+          },
+        }),
+      );
+      return;
+    }
+
+    if (child.type === "error") {
+      this.completedObservations.push(
+        traceObservation({
+          kind: "tool",
+          name: `${agentLabel(agentId, agentName)}.error`,
+          status: "error",
+          turn: this.parent.turn,
+          startedAt: new Date(),
+          error: serializeError(child.error),
+          metadata: this.childMetadata(agentId, agentName, childTurn),
+        }),
+      );
+    }
+  }
+
+  observations(parentObservationId: string): StudioTraceObservation[] {
+    const observations: StudioTraceObservation[] = [];
+    const agentObservationIds = new Map<string, string>();
+
+    for (const agentStart of this.agentStarts.values()) {
+      const agentChildren = this.completedObservations.filter(
+        (observation) =>
+          isRecord(observation.metadata) &&
+          observation.metadata.childAgentId === agentStart.agentId,
+      );
+      const childStartTimes = agentChildren.map((observation) => Date.parse(observation.startedAt));
+      const childEndTimes = agentChildren.map((observation) =>
+        Date.parse(observation.endedAt ?? observation.startedAt),
+      );
+      const startedAt =
+        childStartTimes.length === 0
+          ? agentStart.startedAt
+          : new Date(Math.min(agentStart.startedAt.getTime(), ...childStartTimes));
+      const endedAt =
+        childEndTimes.length === 0 ? new Date() : new Date(Math.max(...childEndTimes));
+      const agentObservation = traceObservation({
+        parentObservationId,
+        kind: "agent",
+        name: `${agentLabel(agentStart.agentId, agentStart.agentName)}.run`,
+        status: agentChildren.some((observation) => observation.status === "error")
+          ? "error"
+          : "success",
+        turn: this.parent.turn,
+        startedAt,
+        endedAt,
+        metadata: this.childMetadata(agentStart.agentId, agentStart.agentName, this.parent.turn),
+      });
+      observations.push(agentObservation);
+      agentObservationIds.set(agentStart.agentId, agentObservation.id);
+    }
+
+    for (const observation of this.completedObservations) {
+      const childAgentId = isRecord(observation.metadata)
+        ? stringValue(observation.metadata.childAgentId)
+        : undefined;
+      const childAgentObservationId =
+        childAgentId === undefined ? undefined : agentObservationIds.get(childAgentId);
+      observations.push({
+        ...observation,
+        parentObservationId: childAgentObservationId ?? parentObservationId,
+      });
+    }
+
+    return observations;
+  }
+
+  private findToolStart(
+    agentId: string,
+    toolName: string,
+    toolCallId: string | undefined,
+  ): (typeof this.toolStarts)[number] | undefined {
+    for (let index = this.toolStarts.length - 1; index >= 0; index -= 1) {
+      const start = this.toolStarts[index];
+      if (
+        start === undefined ||
+        start.completed ||
+        start.agentId !== agentId ||
+        start.toolName !== toolName
+      ) {
+        continue;
+      }
+      if (toolCallId === undefined || start.toolCallId === toolCallId) {
+        return start;
+      }
+    }
+    return undefined;
+  }
+
+  private childMetadata(
+    agentId: string,
+    agentName: string | undefined,
+    childTurn: number,
+  ): JsonObject {
+    return compactJsonObject({
+      source: "agent_tool_event",
+      childAgentId: agentId,
+      childAgentName: agentName,
+      childTurn,
+      parentToolName: this.parent.toolName,
+      parentInternalCallId: this.parent.internalCallId,
+      parentToolCallId: this.parent.toolCallId,
+    });
+  }
+}
+
+function generationKey(agentId: string, turn: number): string {
+  return `${agentId}:${turn}`;
+}
+
+function agentLabel(agentId: string, agentName: string | undefined): string {
+  return (agentName ?? agentId).replaceAll(/\s+/g, "_");
+}
+
 function traceObservation(props: {
+  parentObservationId?: string;
   kind: StudioTraceObservation["kind"];
   name: string;
   status: StudioTraceStatus;
   turn: number;
   startedAt: Date;
+  endedAt?: Date;
   input?: JsonValue;
   output?: JsonValue;
   error?: JsonValue;
   metadata?: JsonObject;
 }): StudioTraceObservation {
-  const endedAt = new Date();
+  const endedAt = props.endedAt ?? new Date();
   return {
     id: globalThis.crypto.randomUUID(),
+    ...(props.parentObservationId === undefined
+      ? {}
+      : { parentObservationId: props.parentObservationId }),
     kind: props.kind,
     name: props.name,
     status: props.status,
@@ -263,6 +525,14 @@ function parseOrString(value: string): JsonValue {
   } catch {
     return value;
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function serializeError(error: unknown): JsonValue {

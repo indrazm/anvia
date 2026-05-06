@@ -22,6 +22,7 @@ import {
 } from "../observability/group";
 import type { AgentTraceInfo, AgentTraceOptions } from "../observability/types";
 import { toReadableStream } from "../streaming";
+import type { ToolCallStreamEvent } from "../tool";
 import type { ToolMiddleware, ToolResultMiddlewareArgs } from "../tool/middleware";
 import type { Agent } from "./agent";
 import { MaxTurnsError, PromptCancelledError } from "./errors";
@@ -37,7 +38,7 @@ export type PromptResponse = {
   trace?: AgentTraceInfo | undefined;
 };
 
-export type AgentStreamEvent<RawResponse = unknown> =
+export type AgentChildStreamEvent<RawResponse = unknown> =
   | {
       type: "turn_start";
       turn: number;
@@ -78,6 +79,7 @@ export type AgentStreamEvent<RawResponse = unknown> =
     }
   | {
       type: "final";
+      runId: string;
       output: string;
       usage: Usage;
       messages: MessageType[];
@@ -86,6 +88,19 @@ export type AgentStreamEvent<RawResponse = unknown> =
   | {
       type: "error";
       error: unknown;
+    };
+
+export type AgentStreamEvent<RawResponse = unknown> =
+  | AgentChildStreamEvent<RawResponse>
+  | {
+      type: "agent_tool_event";
+      turn: number;
+      toolName: string;
+      toolCallId?: string;
+      internalCallId: string;
+      agentId: string;
+      agentName?: string;
+      event: AgentChildStreamEvent<RawResponse>;
     };
 
 export class PromptRequest<M extends CompletionModel = CompletionModel> {
@@ -216,10 +231,16 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           return result;
         }
 
-        const toolResults = await this.executeToolCalls(toolCalls, newMessages, undefined, {
-          turn: currentTurns,
-          runObservers,
-        });
+        const toolResults = await this.executeToolCalls(
+          toolCalls,
+          newMessages,
+          undefined,
+          undefined,
+          {
+            turn: currentTurns,
+            runObservers,
+          },
+        );
         const toolMessage = Message.tool(toolResults);
         newMessages.push(toolMessage);
         await this.commitMemoryMessages(runId, currentTurns, [toolMessage], pendingTurnMessages);
@@ -247,6 +268,10 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     let currentTurns = 0;
     let lastPrompt = this.promptMessage;
     const runObservers = await this.startRunObservers();
+    const emit = async (event: AgentStreamEvent): Promise<AgentStreamEvent> => {
+      await this.recordAgentEvent(runId, event);
+      return event;
+    };
 
     try {
       while (currentTurns <= this.maxTurnCount + 1) {
@@ -259,12 +284,12 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         currentTurns += 1;
 
         const historyForRequest = [...this.chatHistory, ...newMessages.slice(0, -1)];
-        yield {
+        yield await emit({
           type: "turn_start",
           turn: currentTurns,
           prompt,
           history: historyForRequest,
-        };
+        });
         await this.runCompletionCallHook(prompt, historyForRequest, newMessages);
 
         const ragText = extractRagText(prompt);
@@ -300,7 +325,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
               throw event.error;
             }
             if (mapped !== undefined) {
-              yield addTurn(currentTurns, mapped);
+              yield await emit(addTurn(currentTurns, mapped));
             }
           }
         } catch (error) {
@@ -329,9 +354,9 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           (item): item is ToolCall => item.type === "tool_call",
         );
         for (const toolCall of toolCalls) {
-          yield { type: "tool_call", turn: currentTurns, toolCall };
+          yield await emit({ type: "tool_call", turn: currentTurns, toolCall });
         }
-        yield { type: "turn_end", turn: currentTurns, response };
+        yield await emit({ type: "turn_end", turn: currentTurns, response });
 
         if (toolCalls.length === 0) {
           const output = textFromAssistantContent(response.choice);
@@ -341,23 +366,27 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             newMessages,
             pendingTurnMessages,
           );
-          yield {
+          yield await emit({
             type: "final",
+            runId,
             output,
             usage,
             messages: [...newMessages],
             trace: runObservers.trace,
-          };
+          });
           await runObservers.end({ output, usage, messages: [...newMessages] });
           return;
         }
 
-        const toolResultEvents = createAsyncQueue<ToolResultEventPayload>();
+        const toolResultEvents = createAsyncQueue<ToolExecutionEventPayload>();
         const toolResultsPromise = this.executeToolCalls(
           toolCalls,
           newMessages,
           (result) => {
             toolResultEvents.enqueue(result);
+          },
+          (event) => {
+            toolResultEvents.enqueue(event);
           },
           {
             turn: currentTurns,
@@ -369,7 +398,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           (error: unknown) => toolResultEvents.throw(error),
         );
         for await (const result of toolResultEvents) {
-          yield { type: "tool_result", turn: currentTurns, ...result };
+          yield await emit({ turn: currentTurns, ...result });
         }
         const toolResults = await toolResultsPromise;
         const toolMessage = Message.tool(toolResults);
@@ -382,7 +411,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     } catch (error) {
       await runObservers.error({ error, usage, messages: [...newMessages] });
       await this.recordMemoryError(runId, error, newMessages);
-      yield { type: "error", error };
+      yield await emit({ type: "error", error });
       throw error;
     }
   }
@@ -412,6 +441,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     toolCalls: ToolCall[],
     newMessages: MessageType[],
     onResult?: (result: ToolResultEventPayload) => void,
+    onStreamEvent?: (event: AgentToolEventPayload) => void,
     observation?: {
       turn: number;
       runObservers: ActiveAgentRunObservers;
@@ -461,7 +491,23 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         skipped = true;
       } else {
         try {
-          output = await this.agent.callTool(toolCall.function.name, args);
+          output = await this.agent.callTool(toolCall.function.name, args, {
+            emitStreamEvent: async (event) => {
+              await toolObservers?.streamEvent({
+                turn: observation?.turn ?? 0,
+                toolCall,
+                toolName: toolCall.function.name,
+                internalCallId,
+                args,
+                ...(toolCall.callId === undefined ? {} : { toolCallId: toolCall.callId }),
+                event,
+              });
+              const payload = agentToolEventPayload(toolCall, internalCallId, event);
+              if (payload !== undefined) {
+                onStreamEvent?.(payload);
+              }
+            },
+          });
         } catch (error) {
           output = error instanceof Error ? error.toString() : String(error);
         }
@@ -496,6 +542,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       }
 
       const resultPayload: ToolResultEventPayload = {
+        type: "tool_result",
         toolName: toolCall.function.name,
         internalCallId,
         args,
@@ -540,6 +587,34 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       },
       failOnObserverError,
     );
+  }
+
+  private async recordAgentEvent(runId: string, event: AgentStreamEvent): Promise<void> {
+    const registration = this.agent.eventStore;
+    if (registration === undefined) {
+      return;
+    }
+    if (registration.options.include === "agent_tool_events" && event.type !== "agent_tool_event") {
+      return;
+    }
+
+    const turn = "turn" in event ? event.turn : undefined;
+    const agentId = event.type === "agent_tool_event" ? event.agentId : this.agent.id;
+    const agentName = event.type === "agent_tool_event" ? event.agentName : this.agent.name;
+    await registration.store.append({
+      runId,
+      agentId,
+      ...(agentName === undefined ? {} : { agentName }),
+      ...(turn === undefined ? {} : { turn }),
+      ...(event.type === "agent_tool_event"
+        ? {
+            toolName: event.toolName,
+            ...(event.toolCallId === undefined ? {} : { toolCallId: event.toolCallId }),
+            internalCallId: event.internalCallId,
+          }
+        : {}),
+      event,
+    });
   }
 
   private async fetchDynamicContext(ragText: string | undefined): Promise<Document[]> {
@@ -793,12 +868,44 @@ function normalizePromptInput(prompt: string | MessageType | MessageType[]): {
 }
 
 type ToolResultEventPayload = {
+  type: "tool_result";
   toolName: string;
   toolCallId?: string;
   internalCallId: string;
   args: string;
   result: string;
 };
+
+type AgentToolEventPayload = {
+  type: "agent_tool_event";
+  toolName: string;
+  toolCallId?: string;
+  internalCallId: string;
+  agentId: string;
+  agentName?: string;
+  event: AgentChildStreamEvent;
+};
+
+type ToolExecutionEventPayload = ToolResultEventPayload | AgentToolEventPayload;
+
+function agentToolEventPayload(
+  toolCall: ToolCall,
+  internalCallId: string,
+  event: ToolCallStreamEvent,
+): AgentToolEventPayload | undefined {
+  if (typeof event.agentId !== "string" || event.agentId.length === 0) {
+    return undefined;
+  }
+  return {
+    type: "agent_tool_event",
+    toolName: toolCall.function.name,
+    ...(toolCall.callId === undefined ? {} : { toolCallId: toolCall.callId }),
+    internalCallId,
+    agentId: event.agentId,
+    ...(event.agentName === undefined ? {} : { agentName: event.agentName }),
+    event: event.event as AgentChildStreamEvent,
+  };
+}
 
 type AsyncQueueWaiter<T> = {
   resolve: (result: IteratorResult<T>) => void;

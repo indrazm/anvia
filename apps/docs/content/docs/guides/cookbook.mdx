@@ -16,9 +16,9 @@ Each level introduces one layer at a time:
 | Providers and multimodal | Provider adapters, model capabilities, model listing, reasoning streams, attachments, image generation, audio generation, and transcription |
 | Pipelines | Step transforms, composition, named parallel branches, batching, agents, extraction, and richer workflows |
 | Retrieval | Embeddings, vector search, metadata filters, RAG context, document loaders, vector stores, and embedding provider variants |
-| Multi-agent | Agents as tools and pipeline-backed parallel specialists |
+| Multi-agent | Basic agent-tools, pipeline-backed parallel specialists, streaming agent-tools, and event stores |
 | Evals | Deterministic metrics, semantic similarity, custom metrics, agent eval targets, and LLM judge/score |
-| Studio | Single-agent and multi-agent runners, tool approvals, questions, and Knowledge inspection |
+| Studio | Single-agent, multi-agent, and subagent runners, tool approvals, questions, and Knowledge inspection |
 | Integrations | MCP tools, local skills, Langfuse tracing, and Langfuse eval reporting |
 
 ## 1. Install Dependencies
@@ -72,7 +72,7 @@ Numbered scripts are available when you want to step through a level in order:
 pnpm cookbook:tools:01
 pnpm cookbook:pipelines:04
 pnpm cookbook:retrieval:05
-pnpm cookbook:studio:05
+pnpm cookbook:studio:06
 pnpm cookbook:integrations:04
 ```
 
@@ -107,6 +107,6 @@ Use the in-memory and Transformers examples when you do not need a separate vect
 | Add retrieval | `retrieval:01` through `retrieval:06` | [Add Retrieval](/docs/guides/learning-paths/add-retrieval) |
 | Run evals | `evals:01` through `evals:05`, `integrations:04` | [Evals](/docs/guides/testing/evals) |
 | Generate or transcribe media | `providers:07` through `providers:09` | [Image Generation](/docs/reference/core/image-generation) |
-| Inspect locally in Studio | `studio:01`, `studio:05` | [Run Studio](/docs/studio/run-studio) |
+| Inspect locally in Studio | `studio:01`, `studio:05`, `studio:06` | [Run Studio](/docs/studio/run-studio) |
 
 Before changing public APIs, add or update a cookbook example so behavior is easy to verify from the command line.

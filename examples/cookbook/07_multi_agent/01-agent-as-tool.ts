@@ -6,8 +6,9 @@ const client = new OpenAIClient({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const supportAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
-const supportAgent = new AgentBuilder("support", supportAgentModel)
+const model = client.completionModel("deepseek/deepseek-v4-pro");
+
+const supportAgent = new AgentBuilder("support", model)
   .name("Support Specialist")
   .description("Delegate support triage work to the support specialist agent.")
   .instructions(
@@ -21,8 +22,7 @@ const supportAgent = new AgentBuilder("support", supportAgentModel)
   )
   .build();
 
-const engineeringAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
-const engineeringAgent = new AgentBuilder("engineering", engineeringAgentModel)
+const engineeringAgent = new AgentBuilder("engineering", model)
   .name("Engineering Specialist")
   .description("Delegate technical investigation work to the engineering specialist agent.")
   .instructions(
@@ -36,8 +36,7 @@ const engineeringAgent = new AgentBuilder("engineering", engineeringAgentModel)
   )
   .build();
 
-const commsAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
-const commsAgent = new AgentBuilder("comms", commsAgentModel)
+const commsAgent = new AgentBuilder("comms", model)
   .name("Customer Comms Specialist")
   .description("Delegate customer update drafting to the customer communications specialist.")
   .instructions(
@@ -50,8 +49,7 @@ const commsAgent = new AgentBuilder("comms", commsAgentModel)
   )
   .build();
 
-const coordinatorModel = client.completionModel("deepseek/deepseek-v4-pro");
-const coordinator = new AgentBuilder("coordinator", coordinatorModel)
+const coordinator = new AgentBuilder("coordinator", model)
   .name("Incident Coordinator")
   .instructions(
     [

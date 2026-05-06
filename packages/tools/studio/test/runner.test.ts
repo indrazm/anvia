@@ -1400,6 +1400,155 @@ describe("Anvia studio", () => {
     });
   });
 
+  it("persists streaming subagent activity in tool transcript entries", async () => {
+    const parentModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_child", "ask_child", { prompt: "inspect" }),
+        },
+      ],
+      [{ type: "text_delta", delta: "done" }],
+    ]);
+    const childModel = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_add", "add", { x: 2, y: 5 }),
+        },
+      ],
+      [{ type: "text_delta", delta: "7" }],
+    ]);
+    const childAgent = new AgentBuilder("child", childModel)
+      .name("Child Agent")
+      .tool(addTool)
+      .defaultMaxTurns(2)
+      .build();
+    const parentAgent = new AgentBuilder("parent", parentModel)
+      .tool(childAgent.asTool({ name: "ask_child", stream: true }))
+      .defaultMaxTurns(2)
+      .build();
+    const runner = new Studio([parentAgent]);
+
+    const created = await runner.fetch(
+      new Request("http://runner.test/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentId: "parent" }),
+      }),
+    );
+    const session = (await created.json()) as { id: string };
+
+    const res = await runner.fetch(
+      new Request("http://runner.test/agents/parent/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: "delegate", sessionId: session.id, stream: true }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const events = await readJsonl(res);
+    expect(events).toContainEqual(expect.objectContaining({ type: "agent_tool_event" }));
+
+    const loaded = await runner.fetch(new Request(`http://runner.test/sessions/${session.id}`));
+    await expect(loaded.json()).resolves.toMatchObject({
+      transcript: [
+        { kind: "message", role: "user", text: "delegate" },
+        {
+          kind: "tool",
+          toolName: "ask_child",
+          result: "7",
+          childEvents: [
+            {
+              kind: "tool",
+              agentId: "child",
+              agentName: "Child Agent",
+              toolName: "add",
+              result: "7",
+            },
+            {
+              kind: "message",
+              agentId: "child",
+              agentName: "Child Agent",
+              text: "7",
+            },
+          ],
+        },
+        { kind: "message", role: "assistant", text: "done" },
+      ],
+    });
+
+    const traces = (await (
+      await runner.fetch(new Request(`http://runner.test/sessions/${session.id}/traces`))
+    ).json()) as { traces: Array<{ id: string }> };
+    const trace = await runner.fetch(
+      new Request(`http://runner.test/traces/${traces.traces[0]?.id}`),
+    );
+    const traceBody = (await trace.json()) as {
+      observations: Array<{
+        id: string;
+        parentObservationId?: string;
+        kind: string;
+        name: string;
+        status: string;
+        output?: unknown;
+        metadata?: Record<string, unknown>;
+      }>;
+    };
+    expect(traceBody).toMatchObject({
+      observations: [
+        { kind: "generation", name: "model.turn.1", status: "success" },
+        { kind: "tool", name: "ask_child", status: "success", output: 7 },
+        {
+          kind: "agent",
+          name: "Child_Agent.run",
+          status: "success",
+          metadata: expect.objectContaining({
+            source: "agent_tool_event",
+            childAgentId: "child",
+            parentToolName: "ask_child",
+          }),
+        },
+        {
+          kind: "generation",
+          name: "Child_Agent.model.turn.1",
+          status: "success",
+          metadata: expect.objectContaining({
+            source: "agent_tool_event",
+            childAgentId: "child",
+            parentToolName: "ask_child",
+          }),
+        },
+        {
+          kind: "tool",
+          name: "Child_Agent.add",
+          status: "success",
+          output: 7,
+          metadata: expect.objectContaining({
+            source: "agent_tool_event",
+            childAgentId: "child",
+            parentToolName: "ask_child",
+          }),
+        },
+        { kind: "generation", name: "Child_Agent.model.turn.2", status: "success" },
+        { kind: "generation", name: "model.turn.2", status: "success" },
+      ],
+    });
+
+    const parentToolObservation = traceBody.observations.find(
+      (observation) => observation.kind === "tool" && observation.name === "ask_child",
+    );
+    const childAgentObservation = traceBody.observations.find(
+      (observation) => observation.kind === "agent" && observation.name === "Child_Agent.run",
+    );
+    const childToolObservation = traceBody.observations.find(
+      (observation) => observation.kind === "tool" && observation.name === "Child_Agent.add",
+    );
+    expect(childAgentObservation?.parentObservationId).toBe(parentToolObservation?.id);
+    expect(childToolObservation?.parentObservationId).toBe(childAgentObservation?.id);
+  });
+
   it("validates session run requests", async () => {
     const agent = new AgentBuilder("support", new QueueModel([])).build();
     const runner = new Studio([agent]);

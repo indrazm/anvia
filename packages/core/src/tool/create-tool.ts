@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { toProviderJsonSchema, type ZodSchema } from "../schema/zod-schema";
-import type { Tool, ToolApprovalPolicy } from "./tool";
+import type { Tool, ToolApprovalPolicy, ToolCallContext } from "./tool";
 
 export type CreateToolOptions<
   InputSchema extends ZodSchema,
@@ -13,6 +13,7 @@ export type CreateToolOptions<
   approval?: ToolApprovalPolicy<z.output<InputSchema>>;
   execute(
     args: z.output<InputSchema>,
+    context: ToolCallContext,
   ): OutputSchema extends ZodSchema
     ? z.input<OutputSchema> | Promise<z.input<OutputSchema>>
     : unknown | Promise<unknown>;
@@ -40,9 +41,9 @@ export function createTool<
         parameters,
       };
     },
-    async call(args): Promise<ToolOutput<OutputSchema>> {
+    async call(args, context = {}): Promise<ToolOutput<OutputSchema>> {
       const parsedArgs = options.input.parse(args);
-      const result = await options.execute(parsedArgs);
+      const result = await options.execute(parsedArgs, context);
       return (
         options.output === undefined ? result : options.output.parse(result)
       ) as ToolOutput<OutputSchema>;
