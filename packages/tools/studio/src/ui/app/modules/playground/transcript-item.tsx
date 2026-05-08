@@ -1,4 +1,4 @@
-import { Wrench } from "lucide-react";
+import { Route, Wrench } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -58,13 +58,20 @@ export function TranscriptItem(props: {
       <MarkdownText text={props.entry.text} />
       {traceId !== undefined ? (
         <Button
-          className="mt-3 h-auto min-h-0 max-w-full rounded-sm border border-border bg-muted px-2 py-1 font-mono text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          className="group mt-3 h-auto min-h-0 max-w-full gap-2 rounded-sm border-0 bg-transparent px-0 py-1 font-mono text-xs font-semibold text-muted-foreground shadow-none transition duration-200 hover:bg-transparent hover:text-primary"
           type="button"
           variant="ghost"
           onClick={() => props.onOpenTrace(traceId)}
         >
-          <span className="font-sans">TraceID:</span>
-          <span className="min-w-0 truncate">{traceId}</span>
+          <span className="grid h-5 w-5 shrink-0 place-items-center bg-primary text-background [&_svg]:h-3 [&_svg]:w-3">
+            <Route aria-hidden="true" />
+          </span>
+          <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+            Trace
+          </span>
+          <span className="min-w-0 truncate border-l border-border/80 pl-2 text-muted-foreground transition-colors group-hover:text-primary">
+            {traceId}
+          </span>
         </Button>
       ) : null}
     </article>
