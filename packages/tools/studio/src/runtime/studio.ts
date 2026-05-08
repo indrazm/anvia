@@ -5,6 +5,7 @@ import {
   type HookAction,
   type JsonObject,
   Message,
+  Pipeline,
   type PromptHook,
   resolveMemoryOptions,
   type ToolCallHookAction,
@@ -19,8 +20,10 @@ import type {
   StudioAgent,
   StudioConfig,
   StudioOptions,
+  StudioPipeline,
   StudioServeOptions,
   StudioSessionStore,
+  StudioTarget,
   StudioTraceStore,
 } from "../types";
 import {
@@ -36,6 +39,7 @@ import {
 } from "./approvals";
 import { registerKnowledgeRoutes } from "./knowledge";
 import { registerMcpRoutes } from "./mcps";
+import { registerPipelineRoutes } from "./pipelines";
 import { createQuestionRuntime, registerQuestionRoutes } from "./questions";
 import {
   AsyncEventQueue,
@@ -63,6 +67,7 @@ import {
   buildConfig,
   errorResponse,
   normalizeAgents,
+  normalizePipelines,
   resolveStores,
   runnerId,
   type StudioRuntimeOptions,
@@ -84,8 +89,8 @@ export class Studio implements AnviaStudio {
   private server: ReturnType<typeof serve> | undefined;
   private sigintHandler: (() => void) | undefined;
 
-  constructor(agents: Agent[] = [], options: StudioOptions = {}) {
-    this.options = studioOptionsFromAgents(agents, options);
+  constructor(targets: StudioTarget[] = [], options: StudioOptions = {}) {
+    this.options = studioOptionsFromTargets(targets, options);
     this.studio = createStudioApp(this.options);
   }
 
@@ -149,9 +154,17 @@ export class Studio implements AnviaStudio {
   }
 }
 
-function studioOptionsFromAgents(agents: Agent[], options: StudioOptions): StudioRuntimeOptions {
+function studioOptionsFromTargets(
+  targets: StudioTarget[],
+  options: StudioOptions,
+): StudioRuntimeOptions {
+  const agents = targets.filter((target): target is Agent => target instanceof Agent);
+  const pipelines = targets.filter(
+    (target): target is Pipeline<unknown, unknown> => target instanceof Pipeline,
+  );
   return {
     agents: inferStudioAgents(agents, options.quickPrompts ?? {}),
+    pipelines: inferStudioPipelines(pipelines),
   };
 }
 
@@ -164,6 +177,20 @@ function inferStudioAgents(agents: Agent[], quickPrompts: Record<string, string[
       agent,
       quickPrompts: quickPrompts[id] ?? [],
       metadata: agentMetadata(agent),
+    };
+  });
+}
+
+function inferStudioPipelines(pipelines: Array<Pipeline<unknown, unknown>>): StudioPipeline[] {
+  const ids = new Set<string>();
+  return pipelines.map((pipeline) => {
+    const id = uniqueAgentId(pipeline.id || "pipeline", ids);
+    return {
+      id,
+      pipeline,
+      ...(pipeline.name === undefined ? {} : { name: pipeline.name }),
+      ...(pipeline.description === undefined ? {} : { description: pipeline.description }),
+      ...(pipeline.metadata === undefined ? {} : { metadata: pipeline.metadata }),
     };
   });
 }
@@ -197,7 +224,9 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   const agents = normalizeAgents(options.agents)
     .map((agent) => withStudioSessionMemory(agent, stores.sessions))
     .map((agent) => withStudioTraceObserver(agent, stores.traces));
+  const pipelines = normalizePipelines(options.pipelines);
   const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+  const pipelineMap = new Map(pipelines.map((pipeline) => [pipeline.id, pipeline]));
   const approvalRuntime = createApprovalRuntime();
   const questionRuntime = createQuestionRuntime();
   const app = new HonoApp();
@@ -222,7 +251,7 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
     }),
   );
 
-  app.get("/config", (c) => c.json(buildConfig(options, agents, stores)));
+  app.get("/config", (c) => c.json(buildConfig(options, agents, pipelines, stores)));
 
   app.get("/agents", (c) => c.json({ agents: agents.map(agentConfig) }));
 
@@ -242,6 +271,11 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   registerKnowledgeRoutes(app, {
     agents,
     ...(stores.traces === undefined ? {} : { traceStore: stores.traces }),
+  });
+  registerPipelineRoutes(app, {
+    pipelines,
+    pipelineMap,
+    ...(stores.pipelineLogs === undefined ? {} : { store: stores.pipelineLogs }),
   });
 
   app.post("/agents/:agentId/runs", async (c) => {
@@ -459,7 +493,7 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
       return app.fetch(request);
     },
     config(): StudioConfig {
-      return buildConfig(options, agents, stores);
+      return buildConfig(options, agents, pipelines, stores);
     },
     close() {},
     ...(stores.sessions === undefined ? {} : { sessionStore: stores.sessions }),

@@ -20,6 +20,7 @@ import {
   InMemoryVectorStore,
   type McpClient,
   Message,
+  PipelineBuilder,
   type StreamingCompletionModel,
   skipTool,
   type Tool,
@@ -366,6 +367,129 @@ describe("Anvia studio", () => {
       "support-triage-2": ["second"],
       "agent-3": ["fallback"],
     });
+  });
+
+  it("registers pipelines separately from agents", async () => {
+    const agent = new AgentBuilder("support", new QueueModel([])).name("Support").build();
+    const pipeline = new PipelineBuilder<string>({
+      id: "ticket-pipeline",
+      name: "Ticket Pipeline",
+      description: "Prepare support tickets",
+      metadata: { owner: "support" },
+    })
+      .step((input) => input.trim(), { id: "normalize", name: "Normalize" })
+      .step((input) => input.toUpperCase(), { id: "classify", name: "Classify" })
+      .build();
+    const runner = new Studio([agent, pipeline]);
+
+    expect(runner.config()).toMatchObject({
+      agents: [{ id: "support" }],
+      pipelines: [
+        {
+          id: "ticket-pipeline",
+          name: "Ticket Pipeline",
+          description: "Prepare support tickets",
+          metadata: { owner: "support" },
+          stageCount: 2,
+          edgeCount: 3,
+          hasParallelStages: false,
+        },
+      ],
+      capabilities: {
+        pipelines: { enabled: true },
+      },
+    });
+
+    const list = await runner.fetch(new Request("http://runner.test/pipelines"));
+    expect(list.status).toBe(200);
+    await expect(list.json()).resolves.toMatchObject({
+      pipelines: [{ id: "ticket-pipeline", stageCount: 2 }],
+    });
+
+    const detail = await runner.fetch(new Request("http://runner.test/pipelines/ticket-pipeline"));
+    expect(detail.status).toBe(200);
+    await expect(detail.json()).resolves.toMatchObject({
+      id: "ticket-pipeline",
+      graph: {
+        id: "ticket-pipeline",
+        nodes: [
+          { id: "input", kind: "input" },
+          { id: "normalize", kind: "step", label: "Normalize" },
+          { id: "classify", kind: "step", label: "Classify" },
+          { id: "output", kind: "output" },
+        ],
+      },
+    });
+  });
+
+  it("runs pipelines over HTTP and persists metadata-only pipeline logs", async () => {
+    const pipeline = new PipelineBuilder<string>({ id: "audit-pipeline" })
+      .step((input) => input.trim(), { id: "normalize", name: "Normalize" })
+      .step((input) => ({ reply: input.toUpperCase() }), { id: "shape", name: "Shape" })
+      .build();
+    const runner = new Studio([pipeline]);
+
+    const run = await runner.fetch(
+      new Request("http://runner.test/pipelines/audit-pipeline/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ input: " raw secret payload ", stream: true }),
+      }),
+    );
+
+    expect(run.status).toBe(200);
+    const events = await readJsonl(run);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "pipeline_log",
+        log: expect.objectContaining({ event: "pipeline.run_started" }),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "pipeline_log",
+        log: expect.objectContaining({ event: "step.started" }),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "pipeline_final",
+        output: { reply: "RAW SECRET PAYLOAD" },
+      }),
+    );
+
+    const firstPage = await runner.fetch(
+      new Request("http://runner.test/pipelines/audit-pipeline/logs?limit=2"),
+    );
+    expect(firstPage.status).toBe(200);
+    const firstBody = (await firstPage.json()) as {
+      logs: Array<{ event: string; sequence: number; metadata?: unknown }>;
+      nextCursor?: number;
+    };
+    expect(firstBody.logs).toHaveLength(2);
+    expect(firstBody.logs[0]).toMatchObject({
+      event: "pipeline.run_received",
+      sequence: 0,
+    });
+    expect(firstBody.logs[1]).toMatchObject({
+      event: "pipeline.run_started",
+      sequence: 1,
+    });
+    expect(firstBody.nextCursor).toBe(1);
+
+    const nextPage = await runner.fetch(
+      new Request(`http://runner.test/pipelines/audit-pipeline/logs?after=${firstBody.nextCursor}`),
+    );
+    expect(nextPage.status).toBe(200);
+    const nextBody = (await nextPage.json()) as {
+      logs: Array<{ event: string; sequence: number; metadata?: unknown }>;
+    };
+    expect(nextBody.logs[0]).toMatchObject({ event: "step.started", sequence: 2 });
+    expect(nextBody.logs.map((log) => log.event)).toContain("pipeline.run_completed");
+
+    const serializedLogs = JSON.stringify([...firstBody.logs, ...nextBody.logs]);
+    expect(serializedLogs).not.toContain("raw secret payload");
+    expect(serializedLogs).not.toContain("RAW SECRET PAYLOAD");
   });
 
   it("starts a served single-agent runner from a built agent", async () => {
@@ -1576,6 +1700,7 @@ describe("Anvia studio", () => {
       "/ui/sessions",
       "/ui/agents",
       "/ui/tools",
+      "/ui/pipelines",
       "/ui/mcps",
       "/ui/knowledge",
     ]) {

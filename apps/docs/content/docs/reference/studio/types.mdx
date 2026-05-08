@@ -14,6 +14,7 @@ type StudioCapability =
   | "knowledge"
   | "mcps"
   | "observability"
+  | "pipelines"
   | "sessions"
   | "tools"
   | "traces";
@@ -35,6 +36,32 @@ type StudioAgentConfig = {
   metadata?: JsonObject;
 };
 
+type StudioTarget = Agent | Pipeline<unknown, unknown>;
+
+type StudioPipeline = {
+  id: string;
+  pipeline: Pipeline<unknown, unknown>;
+  name?: string;
+  description?: string;
+  metadata?: JsonObject;
+};
+
+type StudioPipelineConfig = {
+  id: string;
+  name?: string;
+  description?: string;
+  metadata?: JsonObject;
+  stageCount: number;
+  edgeCount: number;
+  hasParallelStages: boolean;
+  agentCount: number;
+  extractorCount: number;
+};
+
+type StudioPipelineDetail = StudioPipelineConfig & {
+  graph: PipelineGraph;
+};
+
 type StudioCapabilityConfig = {
   enabled: boolean;
   reason?: string;
@@ -46,6 +73,7 @@ type StudioConfig = {
   description?: string;
   version?: string;
   agents: StudioAgentConfig[];
+  pipelines: StudioPipelineConfig[];
   chat: { quickPrompts: Record<string, string[]> };
   capabilities: Partial<Record<StudioCapability, StudioCapabilityConfig>>;
   unsupportedCapabilities: StudioCapability[];
@@ -54,7 +82,7 @@ type StudioConfig = {
 
 Purpose: configuration returned by Studio runtime and HTTP config endpoints.
 
-Return behavior: `Studio.config()` returns `StudioConfig`.
+Return behavior: `Studio.config()` returns `StudioConfig`. Pipelines are top-level Studio targets beside agents.
 
 Notable errors: none directly.
 
@@ -133,14 +161,90 @@ type AgentRunStreamEvent =
   | StudioToolApprovalResultEvent
   | StudioToolQuestionRequestEvent
   | StudioToolQuestionResultEvent
-  | StudioSessionLogEvent;
+  | StudioSessionLogEvent
+  | StudioPipelineLogEvent
+  | StudioPipelineFinalEvent;
 ```
 
 Purpose: HTTP request and response contracts for Studio agent runs.
 
-Return behavior: non-streaming runs return `AgentRunResponse`; streaming runs emit newline-delimited `AgentRunStreamEvent` values. `session_log` events are Studio-owned metadata-only runtime logs for session runs.
+Return behavior: non-streaming agent runs return `AgentRunResponse`; streaming agent runs emit newline-delimited `AgentRunStreamEvent` values. `session_log` and `pipeline_log` events are Studio-owned metadata-only runtime logs.
 
 Notable errors: invalid run request bodies return `bad_request`; unsupported stores or capabilities return `unsupported_capability`.
+
+## Pipeline Run Types
+
+```ts
+type StudioPipelineLogLevel = "debug" | "info" | "warn" | "error";
+
+type StudioPipelineLogCategory =
+  | "pipeline"
+  | "run"
+  | "stage"
+  | "parallel"
+  | "agent"
+  | "extractor"
+  | "api";
+
+type StudioPipelineLogEntry = {
+  id: string;
+  pipelineId: string;
+  runId?: string;
+  sequence: number;
+  timestamp: string;
+  level: StudioPipelineLogLevel;
+  category: StudioPipelineLogCategory;
+  event: string;
+  message: string;
+  metadata?: JsonObject;
+};
+
+type StudioPipelineLogAppendInput = {
+  pipelineId: string;
+  runId?: string;
+  level: StudioPipelineLogLevel;
+  category: StudioPipelineLogCategory;
+  event: string;
+  message: string;
+  metadata?: JsonObject;
+};
+
+type StudioPipelineLogListOptions = {
+  pipelineId: string;
+  limit: number;
+  after?: number;
+};
+
+type StudioPipelineLogEvent = {
+  type: "pipeline_log";
+  log: StudioPipelineLogEntry;
+};
+
+type StudioPipelineFinalEvent = {
+  type: "pipeline_final";
+  runId: string;
+  pipelineId: string;
+  output: JsonValue;
+};
+
+type StudioPipelineRunRequest = {
+  input: JsonValue;
+  stream?: boolean;
+  metadata?: JsonObject;
+};
+
+type StudioPipelineRunResponse = {
+  runId: string;
+  pipelineId: string;
+  output: JsonValue;
+};
+```
+
+Purpose: HTTP request, response, stream, and persisted log contracts for Studio pipeline runs.
+
+Return behavior: non-streaming pipeline runs return `StudioPipelineRunResponse`; streaming runs emit `pipeline_log` events and one `pipeline_final` event.
+
+Notable errors: Studio HTTP pipeline inputs must be JSON-compatible. Use direct `pipeline.run(...)` for non-JSON inputs.
 
 ## Knowledge Types
 

@@ -304,4 +304,15 @@
     width: 0;
     height: 0;
   }
+
+  .pipeline-flow .react-flow__edge.pipeline-flow-edge .react-flow__edge-path {
+    stroke: var(--primary);
+    stroke-width: 1.6;
+    opacity: 0.78;
+  }
+
+  .pipeline-flow .react-flow__edges marker path {
+    fill: var(--primary);
+    stroke: var(--primary);
+  }
 }

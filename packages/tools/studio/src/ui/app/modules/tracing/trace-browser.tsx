@@ -569,7 +569,7 @@ function TraceDetailPane(props: {
         </div>
       </header>
       <div className="min-w-0 overflow-auto">
-        <div className="grid min-w-0 max-w-6xl content-start gap-6 p-6">
+        <div className="grid min-w-0 content-start gap-6 p-6">
           {selected.input === undefined ? null : (
             <TraceDataSection title="Input" value={selected.input} />
           )}

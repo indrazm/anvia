@@ -24,6 +24,7 @@ export type ActivePage =
   | "agents"
   | "tools"
   | "mcps"
+  | "pipelines"
   | "knowledge";
 export type TraceStatusFilter = "all" | StudioTrace["status"];
 export type TraceInspectorKey = "trace" | "agent" | `turn:${number}` | `observation:${string}`;

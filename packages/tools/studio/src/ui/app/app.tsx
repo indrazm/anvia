@@ -1,4 +1,4 @@
-import { ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowUp, ExternalLink, Plus, Trash2 } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -13,6 +13,8 @@ import type {
   StudioAgentToolsSummary,
   StudioConfig,
   StudioKnowledgeSummary,
+  StudioPipelineDetail,
+  StudioPipelineLogEntry,
   StudioSession,
   StudioSessionLogEntry,
   StudioSessionSummary,
@@ -33,6 +35,7 @@ import { cn } from "./lib/utils";
 import { AgentsPage } from "./modules/agents/agents-page";
 import { KnowledgePage } from "./modules/knowledge/knowledge-page";
 import { McpsPage } from "./modules/mcps/mcps-page";
+import { PipelinesPage } from "./modules/pipelines/pipelines-page";
 import { TranscriptItem } from "./modules/playground/transcript-item";
 import { SessionLogsPanel } from "./modules/session-logs/session-logs-panel";
 import { DeleteSessionDialog, SessionsPage } from "./modules/sessions/sessions-page";
@@ -107,12 +110,17 @@ export function StudioConsole() {
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [mcpsAgentId, setMcpsAgentId] = useState("");
   const [toolsAgentId, setToolsAgentId] = useState("");
+  const [selectedPipelineId, setSelectedPipelineId] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [allSessions, setAllSessions] = useState<StudioSessionSummary[]>([]);
   const [traces, setTraces] = useState<StudioTrace[]>([]);
   const [sessionLogs, setSessionLogs] = useState<StudioSessionLogEntry[]>([]);
+  const [pipelineDetail, setPipelineDetail] = useState<StudioPipelineDetail | undefined>();
+  const [pipelineLogs, setPipelineLogs] = useState<StudioPipelineLogEntry[]>([]);
   const [messages, setMessages] = useState<TranscriptEntry[]>([]);
   const [prompt, setPrompt] = useState("");
+  const [pipelineRunInput, setPipelineRunInput] = useState('"Hello from Studio"');
+  const [pipelineRunOutput, setPipelineRunOutput] = useState("");
   const [activePage, setActivePage] = useState<ActivePage>(() => initialLocation.page);
   const [selectedTraceId, setSelectedTraceId] = useState(() => initialLocation.traceId ?? "");
   const [traceSessionDetailId, setTraceSessionDetailId] = useState<string | undefined>(
@@ -133,6 +141,11 @@ export function StudioConsole() {
   const [mcpsLoadState, setMcpsLoadState] = useState<"idle" | "loading">("idle");
   const [tools, setTools] = useState<StudioAgentToolsSummary | undefined>();
   const [toolsLoadState, setToolsLoadState] = useState<"idle" | "loading">("idle");
+  const [pipelineDetailLoadState, setPipelineDetailLoadState] = useState<"idle" | "loading">(
+    "idle",
+  );
+  const [pipelineLogLoadState, setPipelineLogLoadState] = useState<"idle" | "loading">("idle");
+  const [pipelineRunState, setPipelineRunState] = useState<RunState>("idle");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const loadConfig = useCallback(async () => {
@@ -153,6 +166,7 @@ export function StudioConsole() {
       setSelectedAgentId((current) => current || nextConfig.agents[0]?.id || "");
       setMcpsAgentId((current) => current || nextConfig.agents[0]?.id || "");
       setToolsAgentId((current) => current || nextConfig.agents[0]?.id || "");
+      setSelectedPipelineId((current) => current || nextConfig.pipelines[0]?.id || "");
       setStatus("Connected");
     } catch (loadError) {
       setError(errorMessage(loadError));
@@ -169,6 +183,7 @@ export function StudioConsole() {
   const knowledgeEnabled = config?.capabilities.knowledge?.enabled === true;
   const mcpsEnabled = config?.capabilities.mcps?.enabled === true;
   const toolsEnabled = config?.capabilities.tools?.enabled === true;
+  const pipelinesEnabled = config?.capabilities.pipelines?.enabled === true;
 
   useEffect(() => {
     applyDarkTheme();
@@ -449,6 +464,72 @@ export function StudioConsole() {
     }
   }, [activePage, loadTools, selectedAgentId, toolsAgentId]);
 
+  const loadPipelineLogs = useCallback(
+    async (pipelineId: string): Promise<StudioPipelineLogEntry[]> => {
+      if (!pipelinesEnabled || pipelineId.length === 0) {
+        setPipelineLogs([]);
+        return [];
+      }
+
+      setPipelineLogLoadState("loading");
+      try {
+        const params = new URLSearchParams({ limit: "1000" });
+        const response = await fetch(`/pipelines/${encodeURIComponent(pipelineId)}/logs?${params}`);
+        if (!response.ok) {
+          throw new Error(`Pipeline logs failed with HTTP ${response.status}`);
+        }
+        const body = (await response.json()) as { logs: StudioPipelineLogEntry[] };
+        setPipelineLogs(body.logs);
+        return body.logs;
+      } catch (loadError) {
+        setError(errorMessage(loadError));
+        setPipelineLogs([]);
+        return [];
+      } finally {
+        setPipelineLogLoadState("idle");
+      }
+    },
+    [pipelinesEnabled],
+  );
+
+  const loadPipeline = useCallback(
+    async (pipelineId: string) => {
+      if (!pipelinesEnabled || pipelineId.length === 0) {
+        setPipelineDetail(undefined);
+        setPipelineLogs([]);
+        return;
+      }
+
+      setPipelineDetailLoadState("loading");
+      setError("");
+      try {
+        const response = await fetch(`/pipelines/${encodeURIComponent(pipelineId)}`);
+        if (!response.ok) {
+          throw new Error(`Pipeline load failed with HTTP ${response.status}`);
+        }
+        setSelectedPipelineId(pipelineId);
+        setPipelineDetail((await response.json()) as StudioPipelineDetail);
+        await loadPipelineLogs(pipelineId);
+      } catch (loadError) {
+        setError(errorMessage(loadError));
+        setPipelineDetail(undefined);
+      } finally {
+        setPipelineDetailLoadState("idle");
+      }
+    },
+    [loadPipelineLogs, pipelinesEnabled],
+  );
+
+  useEffect(() => {
+    if (activePage !== "pipelines") {
+      return;
+    }
+    const pipelineId = selectedPipelineId || config?.pipelines[0]?.id || "";
+    if (pipelineId.length > 0) {
+      void loadPipeline(pipelineId);
+    }
+  }, [activePage, config?.pipelines, loadPipeline, selectedPipelineId]);
+
   const loadSession = useCallback(
     async (sessionId: string, options: { updatePath?: boolean } = {}) => {
       if (runState === "running") {
@@ -677,6 +758,66 @@ export function StudioConsole() {
     }
   }
 
+  async function runPipeline() {
+    const pipelineId = selectedPipelineId || config?.pipelines[0]?.id || "";
+    if (pipelineId.length === 0 || pipelineRunState === "running") {
+      return;
+    }
+
+    let input: unknown;
+    try {
+      input = JSON.parse(pipelineRunInput);
+    } catch {
+      setError("Pipeline input must be valid JSON");
+      return;
+    }
+
+    setPipelineRunState("running");
+    setPipelineRunOutput("");
+    setError("");
+    try {
+      const response = await fetch(`/pipelines/${encodeURIComponent(pipelineId)}/runs`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          input,
+          stream: true,
+          metadata: {
+            source: "anvia-studio",
+          },
+        }),
+      });
+
+      if (!response.ok || response.body === null) {
+        throw new Error(await responseErrorMessage(response, "Pipeline run failed"));
+      }
+
+      await readJsonl(response.body, async (event) => {
+        if (isPipelineLogEvent(event)) {
+          appendPipelineLogEntry(event.log);
+          await nextPaint();
+          return;
+        }
+        if (isPipelineFinalEvent(event)) {
+          setPipelineRunOutput(JSON.stringify(event.output, null, 2));
+          await nextPaint();
+          return;
+        }
+        if (isErrorStreamEvent(event)) {
+          throw new Error(JSON.stringify(event.error));
+        }
+      });
+      await loadPipelineLogs(pipelineId);
+      setStatus("Connected");
+    } catch (runError) {
+      setError(errorMessage(runError));
+    } finally {
+      setPipelineRunState("idle");
+    }
+  }
+
   function acceptStreamEvent(event: AgentRunStreamEvent): boolean {
     if (event.type === "text_delta") {
       appendAssistantText(event.delta);
@@ -739,6 +880,15 @@ export function StudioConsole() {
 
   function appendSessionLogEntry(log: StudioSessionLogEntry) {
     setSessionLogs((current) => {
+      if (current.some((item) => item.id === log.id)) {
+        return current;
+      }
+      return [...current, log].sort((left, right) => left.sequence - right.sequence);
+    });
+  }
+
+  function appendPipelineLogEntry(log: StudioPipelineLogEntry) {
+    setPipelineLogs((current) => {
       if (current.some((item) => item.id === log.id)) {
         return current;
       }
@@ -1148,6 +1298,7 @@ export function StudioConsole() {
   }
 
   const agents = config?.agents ?? [];
+  const pipelines = config?.pipelines ?? [];
   const selectedAgent =
     agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? undefined;
   const selectedAgentQuickPrompts = selectedAgent?.quickPrompts ?? [];
@@ -1155,6 +1306,13 @@ export function StudioConsole() {
 
   function navigatePage(page: ActivePage) {
     setActivePage(page);
+    if (page === "pipelines") {
+      const pipelineId = selectedPipelineId || pipelines[0]?.id || "";
+      if (pipelineId.length > 0) {
+        setSelectedPipelineId(pipelineId);
+        void loadPipeline(pipelineId);
+      }
+    }
     if (page === "tracing") {
       setSelectedTraceId("");
       setTraceSessionDetailId(undefined);
@@ -1203,6 +1361,13 @@ export function StudioConsole() {
             icon="message"
             label="Chat"
             onClick={() => navigatePage("playground")}
+          />
+          <NavButton
+            active={activePage === "pipelines"}
+            icon="workflow"
+            label="Pipelines"
+            disabled={!pipelinesEnabled}
+            onClick={() => navigatePage("pipelines")}
           />
           <NavButton
             active={activePage === "sessions"}
@@ -1291,7 +1456,11 @@ export function StudioConsole() {
             </div>
           ))}
         </nav>
-        <div className="mt-auto">
+        <div className="mt-auto border-t border-sidebar-border/80 px-3 py-3">
+          <nav className="grid gap-1" aria-label="Anvia links">
+            <SidebarLink href="https://anvia.dev/docs" label="Anvia Docs" />
+            <SidebarLink href="https://anvia.dev" label="Anvia Web" />
+          </nav>
           <span className="sr-only" aria-live="polite">
             {status}
           </span>
@@ -1507,6 +1676,28 @@ export function StudioConsole() {
           />
         ) : null}
 
+        {activePage === "pipelines" ? (
+          <PipelinesPage
+            pipelines={pipelines}
+            selectedPipelineId={selectedPipelineId}
+            detail={pipelineDetail}
+            logs={pipelineLogs}
+            enabled={pipelinesEnabled}
+            detailLoading={pipelineDetailLoadState === "loading"}
+            logsLoading={pipelineLogLoadState === "loading"}
+            runState={pipelineRunState}
+            runInput={pipelineRunInput}
+            runOutput={pipelineRunOutput}
+            onSelectPipeline={(pipelineId) => {
+              setSelectedPipelineId(pipelineId);
+              setPipelineRunOutput("");
+              void loadPipeline(pipelineId);
+            }}
+            onRunInputChange={setPipelineRunInput}
+            onRun={() => void runPipeline()}
+          />
+        ) : null}
+
         {activePage === "mcps" ? (
           <McpsPage
             agents={agents}
@@ -1542,6 +1733,45 @@ export function StudioConsole() {
       />
     </div>
   );
+}
+
+function SidebarLink(props: { href: string; label: string }) {
+  return (
+    <a
+      className="flex h-8 min-h-8 items-center justify-between rounded-sm border border-transparent px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      href={props.href}
+      target="_blank"
+      rel="noreferrer"
+    >
+      <span>{props.label}</span>
+      <ExternalLink aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
+    </a>
+  );
+}
+
+function isPipelineLogEvent(event: unknown): event is {
+  type: "pipeline_log";
+  log: StudioPipelineLogEntry;
+} {
+  return isRecord(event) && event.type === "pipeline_log" && isRecord(event.log);
+}
+
+function isPipelineFinalEvent(event: unknown): event is {
+  type: "pipeline_final";
+  output: unknown;
+} {
+  return isRecord(event) && event.type === "pipeline_final" && "output" in event;
+}
+
+function isErrorStreamEvent(event: unknown): event is {
+  type: "error";
+  error: unknown;
+} {
+  return isRecord(event) && event.type === "error";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function enrichTranscriptWithTraceIds(

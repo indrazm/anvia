@@ -78,6 +78,9 @@ function pageLocationFromSegments(segments: string[]): PageLocation {
   if (first === "mcps") {
     return { page: "mcps" };
   }
+  if (first === "pipelines") {
+    return { page: "pipelines" };
+  }
   if (first === "knowledge") {
     return { page: "knowledge" };
   }
@@ -102,6 +105,7 @@ export function updatePagePath(page: ActivePage): void {
       page === "agents" ||
       page === "tools" ||
       page === "mcps" ||
+      page === "pipelines" ||
       page === "knowledge")
   ) {
     updateLocationPath(`${normalizedCompatUiPath}/${page}`);

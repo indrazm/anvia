@@ -11,6 +11,10 @@ import type {
   Message,
 } from "@anvia/core";
 import type {
+  StudioPipelineLogAppendInput,
+  StudioPipelineLogEntry,
+  StudioPipelineLogListOptions,
+  StudioPipelineLogStore,
   StudioSession,
   StudioSessionCreateInput,
   StudioSessionListOptions,
@@ -116,13 +120,26 @@ type SessionLogRow = {
   metadata_json: string | null;
 };
 
+type PipelineLogRow = {
+  id: string;
+  pipeline_id: string;
+  run_id: string | null;
+  sequence: number;
+  timestamp: string;
+  level: StudioPipelineLogEntry["level"];
+  category: StudioPipelineLogEntry["category"];
+  event: string;
+  message: string;
+  metadata_json: string | null;
+};
+
 export function createSqliteSessionStore(
   options: SqliteSessionStoreOptions = {},
-): StudioSessionStore & StudioTraceStore {
+): StudioSessionStore & StudioTraceStore & StudioPipelineLogStore {
   return new SqliteSessionStore(options.path ?? ":memory:");
 }
 
-class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
+class SqliteSessionStore implements StudioSessionStore, StudioTraceStore, StudioPipelineLogStore {
   readonly kind = "sqlite";
   private db: DatabaseSyncType | undefined;
 
@@ -450,6 +467,95 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
     return rows.map(toSessionLog);
   }
 
+  appendPipelineLog(input: StudioPipelineLogAppendInput): StudioPipelineLogEntry {
+    const db = this.database();
+    const now = new Date().toISOString();
+
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      const sequence = this.nextPipelineLogSequence(input.pipelineId);
+      const entry: StudioPipelineLogEntry = {
+        id: globalThis.crypto.randomUUID(),
+        pipelineId: input.pipelineId,
+        ...(input.runId === undefined ? {} : { runId: input.runId }),
+        sequence,
+        timestamp: now,
+        level: input.level,
+        category: input.category,
+        event: input.event,
+        message: input.message,
+        ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+      };
+
+      db.prepare(
+        `INSERT INTO runner_pipeline_logs (
+          id,
+          pipeline_id,
+          run_id,
+          sequence,
+          timestamp,
+          level,
+          category,
+          event,
+          message,
+          metadata_json
+        ) VALUES (
+          $id,
+          $pipelineId,
+          $runId,
+          $sequence,
+          $timestamp,
+          $level,
+          $category,
+          $event,
+          $message,
+          $metadata
+        )`,
+      ).run({
+        $id: entry.id,
+        $pipelineId: entry.pipelineId,
+        $runId: entry.runId ?? null,
+        $sequence: entry.sequence,
+        $timestamp: entry.timestamp,
+        $level: entry.level,
+        $category: entry.category,
+        $event: entry.event,
+        $message: entry.message,
+        $metadata: entry.metadata === undefined ? null : JSON.stringify(entry.metadata),
+      });
+
+      db.exec("COMMIT");
+      return entry;
+    } catch (error) {
+      if (db.isTransaction) {
+        db.exec("ROLLBACK");
+      }
+      throw error;
+    }
+  }
+
+  listPipelineLogs(options: StudioPipelineLogListOptions): StudioPipelineLogEntry[] {
+    const db = this.database();
+    const afterClause = options.after === undefined ? "" : "AND sequence > $after";
+    const rows = db
+      .prepare(
+        `SELECT id, pipeline_id, run_id, sequence, timestamp, level, category, event, message,
+                metadata_json
+         FROM runner_pipeline_logs
+         WHERE pipeline_id = $pipelineId
+         ${afterClause}
+         ORDER BY sequence ASC
+         LIMIT $limit`,
+      )
+      .all({
+        $pipelineId: options.pipelineId,
+        $after: options.after ?? null,
+        $limit: options.limit,
+      }) as PipelineLogRow[];
+
+    return rows.map(toPipelineLog);
+  }
+
   deleteSession(id: string): boolean {
     const db = this.database();
 
@@ -691,6 +797,21 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
       ) STRICT;
       CREATE INDEX IF NOT EXISTS runner_session_logs_session_sequence_idx
         ON runner_session_logs(session_id, sequence ASC);
+      CREATE TABLE IF NOT EXISTS runner_pipeline_logs (
+        id TEXT PRIMARY KEY,
+        pipeline_id TEXT NOT NULL,
+        run_id TEXT,
+        sequence INTEGER NOT NULL,
+        timestamp TEXT NOT NULL,
+        level TEXT NOT NULL,
+        category TEXT NOT NULL,
+        event TEXT NOT NULL,
+        message TEXT NOT NULL,
+        metadata_json TEXT,
+        UNIQUE(pipeline_id, sequence)
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS runner_pipeline_logs_pipeline_sequence_idx
+        ON runner_pipeline_logs(pipeline_id, sequence ASC);
       CREATE TABLE IF NOT EXISTS runner_traces (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -754,6 +875,17 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
          WHERE session_id = $sessionId`,
       )
       .get({ $sessionId: sessionId }) as { next_sequence: number };
+    return row.next_sequence;
+  }
+
+  private nextPipelineLogSequence(pipelineId: string): number {
+    const row = this.database()
+      .prepare(
+        `SELECT COALESCE(MAX(sequence) + 1, 0) AS next_sequence
+         FROM runner_pipeline_logs
+         WHERE pipeline_id = $pipelineId`,
+      )
+      .get({ $pipelineId: pipelineId }) as { next_sequence: number };
     return row.next_sequence;
   }
 
@@ -886,6 +1018,22 @@ function toSessionLog(row: SessionLogRow): StudioSessionLogEntry {
   return {
     id: row.id,
     sessionId: row.session_id,
+    ...(row.run_id === null ? {} : { runId: row.run_id }),
+    sequence: row.sequence,
+    timestamp: row.timestamp,
+    level: row.level,
+    category: row.category,
+    event: row.event,
+    message: row.message,
+    ...(metadata === undefined ? {} : { metadata }),
+  };
+}
+
+function toPipelineLog(row: PipelineLogRow): StudioPipelineLogEntry {
+  const metadata = parseJsonValue<JsonObject>(row.metadata_json);
+  return {
+    id: row.id,
+    pipelineId: row.pipeline_id,
     ...(row.run_id === null ? {} : { runId: row.run_id }),
     sequence: row.sequence,
     timestamp: row.timestamp,
