@@ -1,4 +1,4 @@
-import { ArrowUp, Plus } from "lucide-react";
+import { ArrowUp, Plus, Trash2 } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -1182,19 +1182,22 @@ export function StudioConsole() {
   }
 
   return (
-    <div className="grid min-h-screen overflow-hidden bg-background text-foreground lg:grid-cols-[224px_minmax(0,1fr)]">
-      <aside className="flex min-h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-        <div className="flex h-20 items-center border-b border-sidebar-border px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <img className="h-11 w-11 shrink-0 object-contain" src={logoSrc} alt="" />
-            <span className="grid min-w-0">
-              <span className="anvia-wordmark truncate text-2xl font-semibold tracking-normal text-sidebar-foreground">
-                Anvia
+    <div className="grid min-h-[100dvh] overflow-hidden bg-background text-foreground lg:grid-cols-[228px_minmax(0,1fr)]">
+      <aside className="flex min-h-[100dvh] flex-col border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-xl shadow-black/20">
+        <div className="flex h-15 items-center border-b border-sidebar-border/80 px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <img className="h-7 w-7 shrink-0 object-contain" src={logoSrc} alt="" />
+            <span className="min-w-0 truncate">
+              <span className="anvia-wordmark text-[1.08rem] font-semibold tracking-normal text-sidebar-foreground">
+                Anvia Studio
               </span>
             </span>
           </div>
         </div>
-        <nav className="grid gap-1 border-b border-sidebar-border px-3 py-3" aria-label="Main">
+        <nav className="grid gap-1 border-b border-sidebar-border/80 px-3 py-3" aria-label="Main">
+          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Workspace
+          </div>
           <NavButton
             active={activePage === "playground"}
             icon="message"
@@ -1214,7 +1217,10 @@ export function StudioConsole() {
             onClick={() => navigatePage("tracing")}
           />
         </nav>
-        <nav className="grid gap-1 border-b border-sidebar-border px-3 py-3" aria-label="Studio">
+        <nav className="grid gap-1 border-b border-sidebar-border/80 px-3 py-3" aria-label="Studio">
+          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Inspect
+          </div>
           <NavButton
             active={activePage === "agents"}
             icon="bot"
@@ -1241,46 +1247,60 @@ export function StudioConsole() {
           />
         </nav>
         <nav
-          className="grid min-h-0 gap-1 overflow-auto border-b border-sidebar-border px-3 py-3"
+          className="grid min-h-0 gap-1 overflow-auto border-b border-sidebar-border/80 px-3 py-3"
           aria-label="Recent sessions"
         >
           <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Recent
           </div>
           {allSessions.slice(0, 8).map((session) => (
-            <Button
+            <div
               className={cn(
-                "grid h-auto min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                session.id === selectedSessionId && "bg-sidebar-accent text-primary",
+                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_24px] items-center gap-1 rounded-sm border border-transparent pr-1 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent",
+                session.id === selectedSessionId && "border-sidebar-border bg-sidebar-accent",
               )}
-              type="button"
-              variant="ghost"
-              onClick={() => void loadSession(session.id)}
               key={session.id}
             >
-              <span className="min-w-0 truncate text-xs font-medium">
-                {session.title ?? "Untitled chat"}
-              </span>
-              <time className="font-mono text-[10px] font-medium tabular-nums text-muted-foreground">
-                {formatRelativeTime(session.updatedAt)}
-              </time>
-            </Button>
+              <Button
+                className={cn(
+                  "grid h-auto min-h-8 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
+                  session.id === selectedSessionId && "text-sidebar-accent-foreground",
+                )}
+                type="button"
+                variant="ghost"
+                onClick={() => void loadSession(session.id)}
+              >
+                <span className="min-w-0 truncate text-xs font-medium">
+                  {session.title ?? "Untitled chat"}
+                </span>
+                <time className="font-mono text-[10px] font-medium tabular-nums text-muted-foreground">
+                  {formatRelativeTime(session.updatedAt)}
+                </time>
+              </Button>
+              <Button
+                aria-label={`Delete ${session.title ?? "Untitled chat"}`}
+                className="h-6 min-h-6 w-6 border-0 bg-transparent p-0 text-muted-foreground opacity-55 shadow-none hover:bg-transparent hover:text-destructive hover:opacity-100 group-hover:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
+                size="icon"
+                type="button"
+                variant="ghost"
+                disabled={runState === "running"}
+                onClick={() => setDeleteCandidate(session)}
+              >
+                <Trash2 aria-hidden="true" />
+              </Button>
+            </div>
           ))}
         </nav>
-        <div className="mt-auto border-t border-sidebar-border p-4">
-          <span className="flex min-w-0 items-center gap-2 truncate font-mono text-[11px] font-semibold text-primary">
-            <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-55" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-            </span>
+        <div className="mt-auto">
+          <span className="sr-only" aria-live="polite">
             {status}
           </span>
         </div>
       </aside>
 
-      <main className="grid h-screen min-w-0 grid-rows-[42px_minmax(0,1fr)] overflow-hidden bg-background">
-        <header className="grid min-h-10 border-b border-border bg-background">
-          <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5">
+      <main className="grid h-[100dvh] min-w-0 grid-rows-[52px_minmax(0,1fr)] overflow-hidden bg-background/80">
+        <header className="grid min-h-13 border-b border-border/80 bg-background/88 backdrop-blur">
+          <div className="grid min-h-13 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-6">
             <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
               <span className="text-primary">
                 {activePage === "playground" ? "Agents" : "Studio"}
@@ -1292,15 +1312,7 @@ export function StudioConsole() {
             </div>
             <div className="flex items-center gap-1">
               <Button
-                className="h-7 min-h-7 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                type="button"
-                variant="secondary"
-                onClick={() => navigatePage("agents")}
-              >
-                See config
-              </Button>
-              <Button
-                className="h-7 min-h-7 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="h-8 min-h-8 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 type="button"
                 variant="secondary"
                 onClick={() => navigatePage("sessions")}
@@ -1308,7 +1320,7 @@ export function StudioConsole() {
                 Sessions
               </Button>
               <Button
-                className="h-7 min-h-7 gap-1.5 rounded-sm border-0 bg-primary px-3 font-mono text-xs text-primary-foreground hover:bg-primary/90"
+                className="h-8 min-h-8 gap-1.5 rounded-sm border-0 bg-primary px-3 font-mono text-xs text-primary-foreground hover:bg-primary/90"
                 type="button"
                 onClick={() => startNewChat()}
               >
@@ -1320,13 +1332,22 @@ export function StudioConsole() {
         </header>
 
         {activePage === "playground" ? (
-          <section className="grid min-h-0 grid-cols-[minmax(0,1fr)_310px] overflow-hidden bg-background max-xl:grid-cols-1">
-            <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
-              <section className="min-h-0 overflow-auto px-6 py-5">
-                <div className="mx-auto grid min-h-full w-full max-w-210 content-start items-start gap-5 pb-6">
+          <section className="grid min-h-0 min-w-0 max-w-full grid-cols-[minmax(0,1fr)_minmax(0,460px)] overflow-hidden bg-background/45 max-xl:grid-cols-1">
+            <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
+              <section className="min-h-0 overflow-auto px-6 py-6">
+                <div className="mx-auto grid min-h-full w-full max-w-235 content-start items-start gap-6 pb-8">
                   {!hasMessages ? (
-                    <div className="grid min-h-80 place-items-center text-sm font-medium text-muted-foreground">
-                      No messages
+                    <div className="grid min-h-96 place-items-center text-sm font-medium text-muted-foreground">
+                      <div className="grid max-w-xl gap-4 text-center">
+                        <div className="mx-auto h-px w-28 bg-primary/45" />
+                        <h1 className="m-0 text-4xl font-semibold leading-tight text-foreground text-balance">
+                          What should this agent work on?
+                        </h1>
+                        <p className="m-0 text-base leading-7 text-muted-foreground text-pretty">
+                          Choose a prompt below or write a task. Studio will stream the response,
+                          tool calls, approvals, and trace data here.
+                        </p>
+                      </div>
                     </div>
                   ) : null}
                   {messages.map((message) => (
@@ -1347,17 +1368,17 @@ export function StudioConsole() {
                 </div>
               </section>
               <form
-                className="grid gap-2 bg-background px-6 pb-5"
+                className="grid gap-3 bg-gradient-to-t from-background via-background/95 to-background/0 px-6 pb-6 pt-2"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void runPrompt(prompt);
                 }}
               >
                 {hasMessages || selectedAgentQuickPrompts.length === 0 ? null : (
-                  <div className="mx-auto grid w-full max-w-210 grid-cols-3 gap-2 max-md:grid-cols-1">
+                  <div className="mx-auto grid w-full max-w-235 grid-cols-3 gap-2 max-md:grid-cols-1">
                     {selectedAgentQuickPrompts.map((quickPrompt) => (
                       <Button
-                        className="h-auto min-h-14 justify-start whitespace-normal rounded-sm border border-border bg-card px-3 py-2 text-left text-sm font-medium leading-5 text-foreground hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
+                        className="h-auto min-h-16 justify-start whitespace-normal rounded-sm border border-border/80 bg-card/85 px-3 py-2.5 text-left text-sm font-medium leading-5 text-foreground shadow-sm hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
                         type="button"
                         variant="ghost"
                         disabled={runState === "running" || selectedAgentId.length === 0}
@@ -1371,9 +1392,9 @@ export function StudioConsole() {
                     ))}
                   </div>
                 )}
-                <div className="mx-auto grid w-full max-w-210 gap-2 rounded-lg border border-border bg-card p-2.5 shadow-xl focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                <div className="mx-auto grid w-full max-w-235 gap-2 rounded-md border border-border/80 bg-card/95 p-2.5 shadow-xl shadow-black/35 backdrop-blur focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
                   <Textarea
-                    className="min-h-14 min-w-0 resize-none rounded-md border-0 bg-transparent px-3 py-3 text-sm text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/70 focus:border-transparent focus:ring-0"
+                    className="min-h-16 min-w-0 resize-none rounded-sm border-0 bg-transparent px-3 py-3 text-[15px] leading-7 text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/70 focus:border-transparent focus:ring-0"
                     ref={promptRef}
                     rows={1}
                     value={prompt}
@@ -1385,7 +1406,7 @@ export function StudioConsole() {
                     <div className="flex min-w-0 items-center gap-2">
                       <Button
                         aria-label="Attach context"
-                        className="h-8 min-h-8 w-8 rounded-full border-border bg-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        className="h-8 min-h-8 w-8 rounded-sm border-border bg-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                         size="icon"
                         type="button"
                         variant="secondary"
@@ -1402,7 +1423,7 @@ export function StudioConsole() {
                         >
                           <SelectTrigger
                             aria-label="Select agent"
-                            className="hidden h-8 min-h-8 w-auto max-w-64 gap-2 border-0 bg-transparent px-2 py-1 font-mono text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:flex"
+                            className="hidden h-8 min-h-8 w-auto max-w-64 gap-2 border-0 bg-transparent px-2 py-1 font-mono text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground sm:flex"
                           >
                             <SelectValue placeholder="Agent" />
                           </SelectTrigger>
@@ -1421,7 +1442,7 @@ export function StudioConsole() {
                       )}
                       <Button
                         aria-label={runState === "running" ? "Running" : "Send message"}
-                        className="h-9 min-h-9 w-9 rounded-sm border-primary bg-primary text-primary-foreground hover:bg-primary/90 dark:hover:bg-[#eaff73]"
+                        className="h-9 min-h-9 w-9 rounded-sm border-primary bg-primary text-primary-foreground hover:bg-primary/90"
                         size="icon"
                         type="submit"
                         disabled={runState === "running" || selectedAgentId.length === 0}

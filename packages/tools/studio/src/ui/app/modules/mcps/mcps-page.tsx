@@ -1,4 +1,9 @@
-import type { StudioAgentMcpsSummary, StudioConfig } from "../../../../types";
+import type {
+  StudioAgentMcpServerMetadata,
+  StudioAgentMcpsSummary,
+  StudioAgentMcpToolMetadata,
+  StudioConfig,
+} from "../../../../types";
 import { Badge } from "../../components/ui/badge";
 import {
   Select,
@@ -7,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
-import { JsonValueView } from "../shared/renderers";
 
 export function McpsPage(props: {
   agents: StudioConfig["agents"];
@@ -20,95 +24,135 @@ export function McpsPage(props: {
   const selectedAgent =
     props.agents.find((agent) => agent.id === props.selectedAgentId) ?? props.agents[0];
   const servers = props.summary?.servers ?? [];
+  const toolCount = servers.reduce((total, server) => total + server.toolCount, 0);
 
   return (
     <section
-      className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden"
+      className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background/55"
       aria-label="MCPs"
     >
-      <header className="grid min-h-18 border-b border-border bg-card px-5 py-4">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <div className="grid min-w-0 gap-1">
-            <h1 className="m-0 text-sm font-semibold text-foreground">MCPs</h1>
-            <p className="m-0 text-xs font-medium text-muted-foreground">
-              MCP servers and tools registered on Studio agents
+      <header className="border-b border-border/80 bg-background/70 px-6 py-5 backdrop-blur">
+        <div className="mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
+          <div className="grid min-w-0 gap-2">
+            <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
+              External context
+            </div>
+            <h1 className="m-0 text-2xl font-semibold leading-none tracking-tight text-foreground">
+              MCPs
+            </h1>
+            <p className="m-0 max-w-[62ch] text-sm leading-6 text-muted-foreground">
+              MCP servers and remote tools registered on Studio agents, grouped by server.
             </p>
           </div>
-          {props.agents.length > 1 ? (
-            <Select value={selectedAgent?.id ?? ""} onValueChange={props.onSelectAgent}>
-              <SelectTrigger className="h-8 min-h-8 w-56 rounded-sm border-border bg-background font-mono text-xs">
-                <SelectValue placeholder="Agent" />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {props.agents.map((agent) => (
-                  <SelectItem value={agent.id} key={agent.id}>
-                    {agent.name ?? agent.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
+          <div className="flex min-w-0 items-center gap-3 max-md:grid max-md:grid-cols-1">
+            <Badge className="h-9 justify-center border-border/80 bg-card/70 text-muted-foreground">
+              {servers.length} servers / {toolCount} tools
+            </Badge>
+            {props.agents.length > 1 ? (
+              <Select value={selectedAgent?.id ?? ""} onValueChange={props.onSelectAgent}>
+                <SelectTrigger className="h-9 min-h-9 w-64 rounded-sm border-border bg-card/80 font-mono text-xs max-md:w-full">
+                  <SelectValue placeholder="Agent" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {props.agents.map((agent) => (
+                    <SelectItem value={agent.id} key={agent.id}>
+                      {agent.name ?? agent.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+          </div>
         </div>
       </header>
 
-      <div className="min-h-0 overflow-auto">
-        {!props.enabled ? (
-          <EmptyState
-            title="MCPs unavailable"
-            message="No registered Studio agent exposes MCP tools."
-          />
-        ) : props.loading ? (
-          <EmptyState title="Loading MCPs" message="Reading registered MCP metadata." />
-        ) : servers.length === 0 ? (
-          <EmptyState title="No MCPs" message="The selected agent has no registered MCP tools." />
-        ) : (
-          <div className="min-w-260 border-b border-border bg-card">
-            <div className="grid min-h-10 grid-cols-[minmax(220px,0.8fr)_120px_minmax(220px,0.8fr)_minmax(320px,1.1fr)_140px_minmax(360px,1.3fr)] items-center gap-4 border-b border-border px-5 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              <span>Server</span>
-              <span>Tools</span>
-              <span>Tool</span>
-              <span>Description</span>
-              <span>Source</span>
-              <span>Parameters</span>
-            </div>
-            {servers.flatMap((server) =>
-              server.tools.map((tool, index) => (
-                <div
-                  className="grid min-h-18 grid-cols-[minmax(220px,0.8fr)_120px_minmax(220px,0.8fr)_minmax(320px,1.1fr)_140px_minmax(360px,1.3fr)] items-start gap-4 border-b border-border px-5 py-3 text-muted-foreground"
-                  key={`${server.name}:${tool.source}:${tool.name}`}
-                >
-                  <span className="grid min-w-0 gap-0.5">
-                    {index === 0 ? (
-                      <>
-                        <strong className="min-w-0 truncate text-sm font-medium text-foreground">
-                          {server.name}
-                        </strong>
-                        <span className="min-w-0 truncate font-mono text-xs font-medium text-muted-foreground">
-                          {server.agentId}
-                        </span>
-                      </>
-                    ) : null}
-                  </span>
-                  <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">
-                    {index === 0 ? server.toolCount : ""}
-                  </span>
-                  <span className="min-w-0 truncate text-sm font-medium text-foreground">
-                    {tool.name}
-                  </span>
-                  <p className="m-0 min-w-0 text-sm leading-6 text-muted-foreground">
-                    {tool.description}
-                  </p>
-                  <span className="flex min-w-0 flex-wrap gap-1.5">
-                    <Badge className={sourceBadgeClass(tool.source)}>{tool.source}</Badge>
-                  </span>
-                  <span className="min-w-0 overflow-hidden text-xs text-muted-foreground">
-                    <JsonValueView value={tool.parameters} />
-                  </span>
-                </div>
-              )),
-            )}
-          </div>
-        )}
+      <div className="min-h-0 overflow-auto px-6 py-6">
+        <div className="mx-auto grid max-w-[1500px] gap-5">
+          {!props.enabled ? (
+            <EmptyState
+              title="MCPs unavailable"
+              message="No registered Studio agent exposes MCP tools."
+            />
+          ) : props.loading ? (
+            <EmptyState title="Loading MCPs" message="Reading registered MCP metadata." />
+          ) : servers.length === 0 ? (
+            <EmptyState title="No MCPs" message="The selected agent has no registered MCP tools." />
+          ) : (
+            servers.map((server) => <McpServerSection server={server} key={server.name} />)
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function McpServerSection(props: { server: StudioAgentMcpServerMetadata }) {
+  return (
+    <section className="overflow-hidden border border-border/80 bg-card/55 shadow-sm">
+      <header className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border/80 bg-muted/20 px-4">
+        <div className="grid min-w-0 gap-1">
+          <h2 className="m-0 truncate font-mono text-[15px] font-semibold text-foreground">
+            {props.server.name}
+          </h2>
+          <span className="truncate font-mono text-[11px] font-medium text-muted-foreground">
+            {props.server.agentId}
+          </span>
+        </div>
+        <Badge className="border-border/80 bg-background/50 text-muted-foreground">
+          {props.server.toolCount} tools
+        </Badge>
+      </header>
+      <div className="grid divide-y divide-border/70">
+        {props.server.tools.map((tool) => (
+          <McpToolRow tool={tool} key={`${tool.source}:${tool.name}`} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function McpToolRow(props: { tool: StudioAgentMcpToolMetadata }) {
+  return (
+    <article className="grid grid-cols-[minmax(300px,0.75fr)_minmax(0,1fr)] max-lg:grid-cols-1">
+      <div className="grid content-start gap-4 border-r border-border/70 p-4 max-lg:border-b max-lg:border-r-0">
+        <div className="grid gap-1">
+          <h3 className="m-0 truncate font-mono text-[15px] font-semibold text-foreground">
+            {props.tool.name}
+          </h3>
+          <span className="font-mono text-[11px] font-medium text-muted-foreground">
+            {props.tool.source}
+          </span>
+        </div>
+        <p className="m-0 max-w-[62ch] text-sm leading-6 text-muted-foreground">
+          {props.tool.description}
+        </p>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <Badge className={sourceBadgeClass(props.tool.source)}>{props.tool.source}</Badge>
+          <Badge className="border-border/80 bg-transparent text-muted-foreground">
+            {schemaPropertyCount(props.tool.parameters)} fields
+          </Badge>
+        </div>
+      </div>
+      <SchemaBlock value={props.tool.parameters} />
+    </article>
+  );
+}
+
+function SchemaBlock(props: { value: unknown }) {
+  return (
+    <section className="grid min-w-0 content-start bg-background/35">
+      <div className="flex min-h-9 items-center justify-between gap-3 border-b border-border/70 px-4">
+        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Parameter schema
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {schemaType(props.value)}
+        </span>
+      </div>
+      <div className="min-w-0 overflow-x-auto">
+        <pre className="m-0 max-h-80 min-w-max p-4 font-mono text-[12px] leading-5 text-foreground">
+          <code>{formatSchema(props.value)}</code>
+        </pre>
       </div>
     </section>
   );
@@ -116,9 +160,9 @@ export function McpsPage(props: {
 
 function EmptyState(props: { title: string; message: string }) {
   return (
-    <div className="grid min-h-80 place-items-center px-6 text-center">
+    <div className="grid min-h-80 place-items-center border border-dashed border-border/80 bg-card/35 px-6 text-center">
       <div className="grid max-w-md gap-2">
-        <h2 className="m-0 text-sm font-semibold text-foreground">{props.title}</h2>
+        <h2 className="m-0 text-base font-semibold text-foreground">{props.title}</h2>
         <p className="m-0 text-sm leading-6 text-muted-foreground">{props.message}</p>
       </div>
     </div>
@@ -127,6 +171,32 @@ function EmptyState(props: { title: string; message: string }) {
 
 function sourceBadgeClass(source: "static" | "dynamic"): string {
   return source === "dynamic"
-    ? "border-primary/30 bg-primary/10 text-primary"
-    : "border-border bg-muted text-muted-foreground";
+    ? "border-primary/35 bg-primary/10 text-primary"
+    : "border-border/80 bg-muted/55 text-muted-foreground";
+}
+
+function schemaType(value: unknown): string {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return "value";
+  }
+  const type = (value as { type?: unknown }).type;
+  return typeof type === "string" ? type : "object";
+}
+
+function schemaPropertyCount(value: unknown): number {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return 0;
+  }
+  const properties = (value as { properties?: unknown }).properties;
+  return typeof properties === "object" && properties !== null && !Array.isArray(properties)
+    ? Object.keys(properties).length
+    : 0;
+}
+
+function formatSchema(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }

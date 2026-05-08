@@ -48,10 +48,10 @@ export function TranscriptItem(props: {
   return (
     <article
       className={cn(
-        "max-w-[min(78ch,100%)] self-start",
+        "max-w-[min(82ch,100%)] self-start",
         props.entry.role === "assistant" && "justify-self-start text-foreground",
         props.entry.role === "user" &&
-          "w-fit max-w-[min(64ch,82%)] justify-self-end rounded-sm border border-primary/20 bg-primary/10 px-3 py-2 text-foreground",
+          "w-fit max-w-[min(64ch,82%)] justify-self-end rounded-sm bg-primary/10 px-4 py-2.5 text-foreground shadow-sm shadow-primary/10",
       )}
       data-entry-id={String(props.entry.entryId)}
     >
@@ -100,18 +100,18 @@ function ToolEntry(props: {
 
   return (
     <article
-      className="w-full justify-self-start overflow-hidden rounded-sm border border-border bg-card text-foreground"
+      className="w-full justify-self-start overflow-hidden rounded-sm border border-border/80 bg-card/90 text-foreground shadow-sm shadow-black/20"
       data-entry-id={String(props.entry.entryId)}
     >
       <div
         className={cn(
-          "flex min-w-0 items-center gap-2 px-3 py-2",
-          !collapsed && hasPayload && "border-b border-border",
+          "flex min-w-0 items-center gap-2 px-3 py-2.5",
+          !collapsed && hasPayload && "border-b border-border/80",
         )}
       >
         <Button
           aria-expanded={!collapsed}
-          className="h-auto min-h-0 min-w-0 flex-1 justify-between rounded-none border-0 bg-transparent p-0 text-left text-inherit hover:bg-transparent hover:text-inherit"
+          className="h-auto min-h-0 min-w-0 flex-1 justify-between rounded-none border-0 bg-transparent p-0 text-left text-inherit shadow-none hover:bg-transparent hover:text-inherit"
           type="button"
           variant="ghost"
           onClick={() => setCollapsed((current) => !current)}
@@ -186,8 +186,8 @@ function ToolEntry(props: {
 
 function ChildAgentActivity(props: { events: NonNullable<ToolMessage["childEvents"]> }) {
   return (
-    <div className="rounded-sm border border-border bg-background">
-      <div className="border-b border-border px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+    <div className="rounded-sm border border-border/80 bg-background/65">
+      <div className="border-b border-border/80 bg-muted/20 px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         Subagent activity
       </div>
       <div className="grid gap-3 p-3">
@@ -196,7 +196,7 @@ function ChildAgentActivity(props: { events: NonNullable<ToolMessage["childEvent
           if (event.kind === "message" || event.kind === "reasoning") {
             return (
               <div
-                className="grid gap-1 rounded-sm border border-border bg-card p-3"
+                className="grid gap-1 rounded-sm border border-border/80 bg-card/90 p-3"
                 key={`${event.kind}-${event.agentId}-${event.text}`}
               >
                 <div className="flex min-w-0 items-center gap-2">
@@ -213,7 +213,7 @@ function ChildAgentActivity(props: { events: NonNullable<ToolMessage["childEvent
           }
           return (
             <div
-              className="grid gap-2 rounded-sm border border-border bg-card p-3"
+              className="grid gap-2 rounded-sm border border-border/80 bg-card/90 p-3"
               key={`${event.kind}-${event.agentId}-${event.toolName}-${event.callId ?? event.args ?? event.result ?? ""}`}
             >
               <div className="flex min-w-0 items-center gap-2">
@@ -371,7 +371,7 @@ function QuestionPromptControl(props: {
     submittedAnswer !== undefined ? "Answered" : draftAnswer.length > 0 ? "Ready" : "Waiting";
 
   return (
-    <section className="grid gap-4 rounded-sm border border-border bg-background p-4">
+    <section className="grid gap-4 rounded-sm border border-border/80 bg-background/70 p-4">
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="grid min-w-0 gap-2">
           <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -455,7 +455,7 @@ function ToolApprovalPanel(props: {
 }) {
   const pending = props.approval.status === "pending";
   return (
-    <div className="grid gap-3 rounded-sm border border-border bg-muted/40 p-3">
+    <div className="grid gap-3 rounded-sm border border-border/80 bg-muted/35 p-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-semibold uppercase text-muted-foreground">Approval</div>
