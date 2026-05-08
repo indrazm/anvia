@@ -15,6 +15,10 @@ import type {
   StudioPipelineLogEntry,
   StudioPipelineLogListOptions,
   StudioPipelineLogStore,
+  StudioPipelineRunListOptions,
+  StudioPipelineRunRecord,
+  StudioPipelineRunSaveInput,
+  StudioPipelineRunStore,
   StudioSession,
   StudioSessionCreateInput,
   StudioSessionListOptions,
@@ -133,13 +137,28 @@ type PipelineLogRow = {
   metadata_json: string | null;
 };
 
+type PipelineRunRow = {
+  run_id: string;
+  pipeline_id: string;
+  status: StudioPipelineRunRecord["status"];
+  input_json: string;
+  output_json: string | null;
+  error_json: string | null;
+  metadata_json: string | null;
+  started_at: string;
+  ended_at: string | null;
+  duration_ms: number | null;
+};
+
 export function createSqliteSessionStore(
   options: SqliteSessionStoreOptions = {},
-): StudioSessionStore & StudioTraceStore & StudioPipelineLogStore {
+): StudioSessionStore & StudioTraceStore & StudioPipelineLogStore & StudioPipelineRunStore {
   return new SqliteSessionStore(options.path ?? ":memory:");
 }
 
-class SqliteSessionStore implements StudioSessionStore, StudioTraceStore, StudioPipelineLogStore {
+class SqliteSessionStore
+  implements StudioSessionStore, StudioTraceStore, StudioPipelineLogStore, StudioPipelineRunStore
+{
   readonly kind = "sqlite";
   private db: DatabaseSyncType | undefined;
 
@@ -556,6 +575,88 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore, Studio
     return rows.map(toPipelineLog);
   }
 
+  savePipelineRun(input: StudioPipelineRunSaveInput): StudioPipelineRunRecord {
+    const db = this.database();
+    db.prepare(
+      `INSERT INTO runner_pipeline_runs (
+        run_id,
+        pipeline_id,
+        status,
+        input_json,
+        output_json,
+        error_json,
+        metadata_json,
+        started_at,
+        ended_at,
+        duration_ms
+      ) VALUES (
+        $runId,
+        $pipelineId,
+        $status,
+        $input,
+        $output,
+        $error,
+        $metadata,
+        $startedAt,
+        $endedAt,
+        $durationMs
+      )
+      ON CONFLICT(run_id) DO UPDATE SET
+        pipeline_id = excluded.pipeline_id,
+        status = excluded.status,
+        input_json = excluded.input_json,
+        output_json = excluded.output_json,
+        error_json = excluded.error_json,
+        metadata_json = excluded.metadata_json,
+        started_at = excluded.started_at,
+        ended_at = excluded.ended_at,
+        duration_ms = excluded.duration_ms`,
+    ).run({
+      $runId: input.runId,
+      $pipelineId: input.pipelineId,
+      $status: input.status,
+      $input: JSON.stringify(input.input),
+      $output: input.output === undefined ? null : JSON.stringify(input.output),
+      $error: input.error === undefined ? null : JSON.stringify(input.error),
+      $metadata: input.metadata === undefined ? null : JSON.stringify(input.metadata),
+      $startedAt: input.startedAt,
+      $endedAt: input.endedAt ?? null,
+      $durationMs: input.durationMs ?? null,
+    });
+
+    return {
+      runId: input.runId,
+      pipelineId: input.pipelineId,
+      status: input.status,
+      input: input.input,
+      ...(input.output === undefined ? {} : { output: input.output }),
+      ...(input.error === undefined ? {} : { error: input.error }),
+      ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+      startedAt: input.startedAt,
+      ...(input.endedAt === undefined ? {} : { endedAt: input.endedAt }),
+      ...(input.durationMs === undefined ? {} : { durationMs: input.durationMs }),
+    };
+  }
+
+  listPipelineRuns(options: StudioPipelineRunListOptions): StudioPipelineRunRecord[] {
+    const db = this.database();
+    const rows = db
+      .prepare(
+        `SELECT run_id, pipeline_id, status, input_json, output_json, error_json,
+                metadata_json, started_at, ended_at, duration_ms
+         FROM runner_pipeline_runs
+         WHERE pipeline_id = $pipelineId
+         ORDER BY started_at DESC
+         LIMIT $limit`,
+      )
+      .all({
+        $pipelineId: options.pipelineId,
+        $limit: options.limit,
+      }) as PipelineRunRow[];
+
+    return rows.map(toPipelineRun);
+  }
+
   deleteSession(id: string): boolean {
     const db = this.database();
 
@@ -812,6 +913,20 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore, Studio
       ) STRICT;
       CREATE INDEX IF NOT EXISTS runner_pipeline_logs_pipeline_sequence_idx
         ON runner_pipeline_logs(pipeline_id, sequence ASC);
+      CREATE TABLE IF NOT EXISTS runner_pipeline_runs (
+        run_id TEXT PRIMARY KEY,
+        pipeline_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        input_json TEXT NOT NULL,
+        output_json TEXT,
+        error_json TEXT,
+        metadata_json TEXT,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        duration_ms INTEGER
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS runner_pipeline_runs_pipeline_started_idx
+        ON runner_pipeline_runs(pipeline_id, started_at DESC);
       CREATE TABLE IF NOT EXISTS runner_traces (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -1042,6 +1157,24 @@ function toPipelineLog(row: PipelineLogRow): StudioPipelineLogEntry {
     event: row.event,
     message: row.message,
     ...(metadata === undefined ? {} : { metadata }),
+  };
+}
+
+function toPipelineRun(row: PipelineRunRow): StudioPipelineRunRecord {
+  const output = parseJsonValue<JsonValue>(row.output_json);
+  const error = parseJsonValue<JsonValue>(row.error_json);
+  const metadata = parseJsonValue<JsonObject>(row.metadata_json);
+  return {
+    runId: row.run_id,
+    pipelineId: row.pipeline_id,
+    status: row.status,
+    input: JSON.parse(row.input_json) as JsonValue,
+    ...(output === undefined ? {} : { output }),
+    ...(error === undefined ? {} : { error }),
+    ...(metadata === undefined ? {} : { metadata }),
+    startedAt: row.started_at,
+    ...(row.ended_at === null ? {} : { endedAt: row.ended_at }),
+    ...(row.duration_ms === null ? {} : { durationMs: row.duration_ms }),
   };
 }
 

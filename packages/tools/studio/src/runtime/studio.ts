@@ -275,7 +275,8 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   registerPipelineRoutes(app, {
     pipelines,
     pipelineMap,
-    ...(stores.pipelineLogs === undefined ? {} : { store: stores.pipelineLogs }),
+    ...(stores.pipelineLogs === undefined ? {} : { logStore: stores.pipelineLogs }),
+    ...(stores.pipelineRuns === undefined ? {} : { runStore: stores.pipelineRuns }),
   });
 
   app.post("/agents/:agentId/runs", async (c) => {
