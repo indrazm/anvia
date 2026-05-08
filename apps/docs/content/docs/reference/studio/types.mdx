@@ -12,8 +12,10 @@ type StudioCapability =
   | "agents"
   | "approvals"
   | "knowledge"
+  | "mcps"
   | "observability"
   | "sessions"
+  | "tools"
   | "traces";
 
 type StudioAgent = {
@@ -55,6 +57,59 @@ Purpose: configuration returned by Studio runtime and HTTP config endpoints.
 Return behavior: `Studio.config()` returns `StudioConfig`.
 
 Notable errors: none directly.
+
+## Tool Metadata Types
+
+```ts
+type StudioAgentToolSource = "static" | "dynamic";
+
+type StudioAgentToolApprovalMetadata = {
+  required: boolean;
+  reason?: string;
+  rejectMessage?: string;
+};
+
+type StudioAgentToolMetadata = {
+  agentId: string;
+  name: string;
+  description: string;
+  parameters: JsonObject;
+  source: StudioAgentToolSource;
+  approval: StudioAgentToolApprovalMetadata;
+};
+
+type StudioAgentToolsSummary = {
+  agentId: string;
+  tools: StudioAgentToolMetadata[];
+};
+
+type StudioAgentMcpToolMetadata = {
+  name: string;
+  description: string;
+  parameters: JsonObject;
+  source: StudioAgentToolSource;
+};
+
+type StudioAgentMcpServerMetadata = {
+  agentId: string;
+  name: string;
+  toolCount: number;
+  tools: StudioAgentMcpToolMetadata[];
+};
+
+type StudioAgentMcpsSummary = {
+  agentId: string;
+  servers: StudioAgentMcpServerMetadata[];
+};
+```
+
+Purpose: metadata returned by `GET /agents/:agentId/tools` and used by the Studio Tools inspector.
+
+Return behavior: static tools come from `agent.toolSet`; dynamic tools are listed when the dynamic tool index exposes its underlying `ToolSet`.
+
+Notable errors: unknown agents return `not_found`.
+
+`GET /agents/:agentId/mcps` returns the MCP subset grouped by server name. MCP metadata is available for tools registered through `.mcp(...)`.
 
 ## Run Types
 

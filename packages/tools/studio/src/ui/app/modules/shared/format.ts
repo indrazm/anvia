@@ -77,6 +77,10 @@ export function pageTitle(page: ActivePage, agentName: string | undefined): stri
       return "Sessions";
     case "tracing":
       return "Traces";
+    case "tools":
+      return "Tools";
+    case "mcps":
+      return "MCPs";
     case "knowledge":
       return "Knowledge";
     case "playground":

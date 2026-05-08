@@ -16,6 +16,7 @@ import type {
   StudioTraceStore,
   StudioUiOptions,
 } from "../types";
+import { agentHasMcpTools } from "./tool-metadata";
 
 export type ResolvedStores = {
   sessions?: StudioSessionStore;
@@ -157,6 +158,16 @@ export function capabilityConfig(
   }
   if (stores.traces !== undefined) {
     capabilities.traces = { enabled: true };
+  }
+  if (
+    agents.some(
+      (agent) => agent.agent.toolSet.values().length > 0 || agent.agent.dynamicTools.length > 0,
+    )
+  ) {
+    capabilities.tools = { enabled: true };
+  }
+  if (agents.some(agentHasMcpTools)) {
+    capabilities.mcps = { enabled: true };
   }
 
   if (agents.some((agent) => agent.agent.observers.length > 0)) {

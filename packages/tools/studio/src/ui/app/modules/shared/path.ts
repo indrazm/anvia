@@ -72,6 +72,12 @@ function pageLocationFromSegments(segments: string[]): PageLocation {
   if (first === "agents") {
     return { page: "agents" };
   }
+  if (first === "tools") {
+    return { page: "tools" };
+  }
+  if (first === "mcps") {
+    return { page: "mcps" };
+  }
   if (first === "knowledge") {
     return { page: "knowledge" };
   }
@@ -92,7 +98,11 @@ export function updatePagePath(page: ActivePage): void {
   const normalizedCompatUiPath = normalizePathPrefix(compatUiPath) || "/ui";
   if (
     normalizedUiPath.length === 0 &&
-    (page === "sessions" || page === "agents" || page === "knowledge")
+    (page === "sessions" ||
+      page === "agents" ||
+      page === "tools" ||
+      page === "mcps" ||
+      page === "knowledge")
   ) {
     updateLocationPath(`${normalizedCompatUiPath}/${page}`);
     return;

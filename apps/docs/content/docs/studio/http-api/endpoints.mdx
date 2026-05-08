@@ -13,6 +13,8 @@ Studio exposes the same runtime used by the bundled UI as an HTTP API.
 | `/config` | `GET` | Read agents, quick prompts, and enabled capabilities |
 | `/agents` | `GET` | List registered agents |
 | `/agents/:agentId` | `GET` | Read one agent config |
+| `/agents/:agentId/tools` | `GET` | Inspect registered tool metadata for one agent |
+| `/agents/:agentId/mcps` | `GET` | Inspect registered MCP server and tool metadata for one agent |
 | `/agents/:agentId/runs` | `POST` | Run an agent |
 | `/sessions` | `GET`, `POST` | List or create sessions |
 | `/sessions/:sessionId` | `GET`, `DELETE` | Read or delete a session |

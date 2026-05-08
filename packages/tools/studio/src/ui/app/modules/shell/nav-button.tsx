@@ -5,7 +5,9 @@ import {
   List,
   type LucideIcon,
   MessageSquare,
+  Plug,
   ShieldCheck,
+  Wrench,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
@@ -36,7 +38,7 @@ export function NavButton(props: {
   );
 }
 
-type IconName = "activity" | "bot" | "database" | "list" | "message" | "shield";
+type IconName = "activity" | "bot" | "database" | "list" | "message" | "plug" | "shield" | "wrench";
 
 function navIcon(name: IconName): LucideIcon {
   switch (name) {
@@ -50,7 +52,11 @@ function navIcon(name: IconName): LucideIcon {
       return List;
     case "message":
       return MessageSquare;
+    case "plug":
+      return Plug;
     case "shield":
       return ShieldCheck;
+    case "wrench":
+      return Wrench;
   }
 }

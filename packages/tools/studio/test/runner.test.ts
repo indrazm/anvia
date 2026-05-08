@@ -11,12 +11,14 @@ import {
   type CompletionRequest,
   type CompletionResponse,
   type CompletionStreamEvent,
+  connectMcp,
   createHook,
   createToolIndex,
   type Embedding,
   type EmbeddingModel,
   embedDocuments,
   InMemoryVectorStore,
+  type McpClient,
   Message,
   type StreamingCompletionModel,
   skipTool,
@@ -516,6 +518,110 @@ describe("Anvia studio", () => {
         name: "lookup_policy",
       }),
     ]);
+  });
+
+  it("exposes tool metadata for registered agents", async () => {
+    const embeddings = new KeywordEmbeddingModel();
+    const index = await createToolIndex(embeddings, [lookupPolicyTool]);
+    const refundTool = createRefundTool(() => "ok");
+    const agent = new AgentBuilder("support", new QueueModel([]))
+      .tool(addTool)
+      .tool(refundTool)
+      .dynamicTools(index, { topK: 1 })
+      .build();
+    const runner = new Studio([agent]);
+
+    expect(runner.config().capabilities.tools).toEqual({ enabled: true });
+
+    const res = await runner.fetch(new Request("http://runner.test/agents/support/tools"));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      agentId: "support",
+      tools: [
+        expect.objectContaining({
+          agentId: "support",
+          name: "add",
+          description: "Add numbers",
+          source: "static",
+          approval: { required: false },
+          parameters: expect.objectContaining({ type: "object" }),
+        }),
+        expect.objectContaining({
+          agentId: "support",
+          name: "issue_refund",
+          source: "static",
+          approval: { required: true, rejectMessage: "Rejected by test." },
+        }),
+        expect.objectContaining({
+          agentId: "support",
+          name: "lookup_policy",
+          description: "Look up policy documents",
+          source: "dynamic",
+          approval: { required: false },
+        }),
+      ],
+    });
+  });
+
+  it("exposes MCP server metadata for registered agents", async () => {
+    const mcpClient: McpClient = {
+      async listTools() {
+        return {
+          tools: [
+            {
+              name: "lookup_policy",
+              description: "Look up policy documents",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  query: { type: "string" },
+                },
+                required: ["query"],
+              },
+            },
+          ],
+        };
+      },
+      async callTool() {
+        return { content: [{ type: "text", text: "policy" }] };
+      },
+      async close() {},
+    };
+    const mcpServer = await connectMcp({
+      name: "policies",
+      connect: async () => mcpClient,
+    });
+    const agent = new AgentBuilder("support", new QueueModel([])).mcp([mcpServer]).build();
+    const runner = new Studio([agent]);
+
+    expect(runner.config().capabilities.mcps).toEqual({ enabled: true });
+
+    const res = await runner.fetch(new Request("http://runner.test/agents/support/mcps"));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      agentId: "support",
+      servers: [
+        {
+          agentId: "support",
+          name: "policies",
+          toolCount: 1,
+          tools: [
+            {
+              name: "lookup_policy",
+              description: "Look up policy documents",
+              source: "static",
+              parameters: {
+                type: "object",
+                properties: {
+                  query: { type: "string" },
+                },
+                required: ["query"],
+              },
+            },
+          ],
+        },
+      ],
+    });
   });
 
   it("reports knowledge capability and exposes the knowledge inspector route", async () => {
@@ -1469,6 +1575,8 @@ describe("Anvia studio", () => {
       "/ui/tracing/sessions/session_1",
       "/ui/sessions",
       "/ui/agents",
+      "/ui/tools",
+      "/ui/mcps",
       "/ui/knowledge",
     ]) {
       const routeShell = await runner.fetch(new Request(`http://runner.test${path}`));

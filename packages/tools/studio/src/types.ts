@@ -16,8 +16,10 @@ export type StudioCapability =
   | "agents"
   | "approvals"
   | "knowledge"
+  | "mcps"
   | "observability"
   | "sessions"
+  | "tools"
   | "traces";
 
 export type StudioAgent = {
@@ -53,6 +55,47 @@ export type StudioConfig = {
   };
   capabilities: Partial<Record<StudioCapability, StudioCapabilityConfig>>;
   unsupportedCapabilities: StudioCapability[];
+};
+
+export type StudioAgentToolSource = "static" | "dynamic";
+
+export type StudioAgentToolApprovalMetadata = {
+  required: boolean;
+  reason?: string;
+  rejectMessage?: string;
+};
+
+export type StudioAgentToolMetadata = {
+  agentId: string;
+  name: string;
+  description: string;
+  parameters: JsonObject;
+  source: StudioAgentToolSource;
+  approval: StudioAgentToolApprovalMetadata;
+};
+
+export type StudioAgentToolsSummary = {
+  agentId: string;
+  tools: StudioAgentToolMetadata[];
+};
+
+export type StudioAgentMcpToolMetadata = {
+  name: string;
+  description: string;
+  parameters: JsonObject;
+  source: StudioAgentToolSource;
+};
+
+export type StudioAgentMcpServerMetadata = {
+  agentId: string;
+  name: string;
+  toolCount: number;
+  tools: StudioAgentMcpToolMetadata[];
+};
+
+export type StudioAgentMcpsSummary = {
+  agentId: string;
+  servers: StudioAgentMcpServerMetadata[];
 };
 
 export type StudioTranscriptChatEntry = {

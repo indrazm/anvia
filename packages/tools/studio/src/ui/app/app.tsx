@@ -9,6 +9,8 @@ import {
 } from "react";
 import type {
   AgentRunStreamEvent,
+  StudioAgentMcpsSummary,
+  StudioAgentToolsSummary,
   StudioConfig,
   StudioKnowledgeSummary,
   StudioSession,
@@ -30,6 +32,7 @@ import { Textarea } from "./components/ui/textarea";
 import { cn } from "./lib/utils";
 import { AgentsPage } from "./modules/agents/agents-page";
 import { KnowledgePage } from "./modules/knowledge/knowledge-page";
+import { McpsPage } from "./modules/mcps/mcps-page";
 import { TranscriptItem } from "./modules/playground/transcript-item";
 import { SessionLogsPanel } from "./modules/session-logs/session-logs-panel";
 import { DeleteSessionDialog, SessionsPage } from "./modules/sessions/sessions-page";
@@ -70,6 +73,7 @@ import type {
   TranscriptEntry,
 } from "./modules/shared/types";
 import { NavButton } from "./modules/shell/nav-button";
+import { ToolsPage } from "./modules/tools/tools-page";
 import { TraceBrowser } from "./modules/tracing/trace-browser";
 
 function applyDarkTheme(): void {
@@ -101,6 +105,8 @@ export function StudioConsole() {
   const initialLocation = pageLocationFromLocation();
   const [config, setConfig] = useState<StudioConfig | undefined>();
   const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [mcpsAgentId, setMcpsAgentId] = useState("");
+  const [toolsAgentId, setToolsAgentId] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [allSessions, setAllSessions] = useState<StudioSessionSummary[]>([]);
   const [traces, setTraces] = useState<StudioTrace[]>([]);
@@ -123,6 +129,10 @@ export function StudioConsole() {
   const [traceLoadState, setTraceLoadState] = useState<TraceLoadState>("idle");
   const [knowledge, setKnowledge] = useState<StudioKnowledgeSummary | undefined>();
   const [knowledgeLoadState, setKnowledgeLoadState] = useState<"idle" | "loading">("idle");
+  const [mcps, setMcps] = useState<StudioAgentMcpsSummary | undefined>();
+  const [mcpsLoadState, setMcpsLoadState] = useState<"idle" | "loading">("idle");
+  const [tools, setTools] = useState<StudioAgentToolsSummary | undefined>();
+  const [toolsLoadState, setToolsLoadState] = useState<"idle" | "loading">("idle");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const loadConfig = useCallback(async () => {
@@ -141,6 +151,8 @@ export function StudioConsole() {
       const nextConfig = (await response.json()) as StudioConfig;
       setConfig(nextConfig);
       setSelectedAgentId((current) => current || nextConfig.agents[0]?.id || "");
+      setMcpsAgentId((current) => current || nextConfig.agents[0]?.id || "");
+      setToolsAgentId((current) => current || nextConfig.agents[0]?.id || "");
       setStatus("Connected");
     } catch (loadError) {
       setError(errorMessage(loadError));
@@ -155,6 +167,8 @@ export function StudioConsole() {
   const sessionsEnabled = config?.capabilities.sessions?.enabled === true;
   const tracesEnabled = config?.capabilities.traces?.enabled === true;
   const knowledgeEnabled = config?.capabilities.knowledge?.enabled === true;
+  const mcpsEnabled = config?.capabilities.mcps?.enabled === true;
+  const toolsEnabled = config?.capabilities.tools?.enabled === true;
 
   useEffect(() => {
     applyDarkTheme();
@@ -374,6 +388,66 @@ export function StudioConsole() {
       void loadKnowledge();
     }
   }, [activePage, loadKnowledge]);
+
+  const loadMcps = useCallback(
+    async (agentId: string) => {
+      if (!mcpsEnabled || agentId.length === 0) {
+        setMcps(undefined);
+        return;
+      }
+
+      setMcpsLoadState("loading");
+      try {
+        const response = await fetch(`/agents/${encodeURIComponent(agentId)}/mcps`);
+        if (!response.ok) {
+          throw new Error(`MCPs failed with HTTP ${response.status}`);
+        }
+        setMcps((await response.json()) as StudioAgentMcpsSummary);
+      } catch (loadError) {
+        setError(errorMessage(loadError));
+        setMcps(undefined);
+      } finally {
+        setMcpsLoadState("idle");
+      }
+    },
+    [mcpsEnabled],
+  );
+
+  useEffect(() => {
+    if (activePage === "mcps") {
+      void loadMcps(mcpsAgentId || selectedAgentId);
+    }
+  }, [activePage, loadMcps, mcpsAgentId, selectedAgentId]);
+
+  const loadTools = useCallback(
+    async (agentId: string) => {
+      if (!toolsEnabled || agentId.length === 0) {
+        setTools(undefined);
+        return;
+      }
+
+      setToolsLoadState("loading");
+      try {
+        const response = await fetch(`/agents/${encodeURIComponent(agentId)}/tools`);
+        if (!response.ok) {
+          throw new Error(`Tools failed with HTTP ${response.status}`);
+        }
+        setTools((await response.json()) as StudioAgentToolsSummary);
+      } catch (loadError) {
+        setError(errorMessage(loadError));
+        setTools(undefined);
+      } finally {
+        setToolsLoadState("idle");
+      }
+    },
+    [toolsEnabled],
+  );
+
+  useEffect(() => {
+    if (activePage === "tools") {
+      void loadTools(toolsAgentId || selectedAgentId);
+    }
+  }, [activePage, loadTools, selectedAgentId, toolsAgentId]);
 
   const loadSession = useCallback(
     async (sessionId: string, options: { updatePath?: boolean } = {}) => {
@@ -1148,6 +1222,18 @@ export function StudioConsole() {
             onClick={() => navigatePage("agents")}
           />
           <NavButton
+            active={activePage === "tools"}
+            icon="wrench"
+            label="Tools"
+            onClick={() => navigatePage("tools")}
+          />
+          <NavButton
+            active={activePage === "mcps"}
+            icon="plug"
+            label="MCPs"
+            onClick={() => navigatePage("mcps")}
+          />
+          <NavButton
             active={activePage === "knowledge"}
             icon="database"
             label="Knowledge"
@@ -1384,6 +1470,34 @@ export function StudioConsole() {
 
         {activePage === "agents" ? (
           <AgentsPage agents={agents} selectedAgentId={selectedAgentId} />
+        ) : null}
+
+        {activePage === "tools" ? (
+          <ToolsPage
+            agents={agents}
+            selectedAgentId={toolsAgentId || selectedAgent?.id || selectedAgentId}
+            summary={tools}
+            enabled={toolsEnabled}
+            loading={toolsLoadState === "loading"}
+            onSelectAgent={(agentId) => {
+              setToolsAgentId(agentId);
+              void loadTools(agentId);
+            }}
+          />
+        ) : null}
+
+        {activePage === "mcps" ? (
+          <McpsPage
+            agents={agents}
+            selectedAgentId={mcpsAgentId || selectedAgent?.id || selectedAgentId}
+            summary={mcps}
+            enabled={mcpsEnabled}
+            loading={mcpsLoadState === "loading"}
+            onSelectAgent={(agentId) => {
+              setMcpsAgentId(agentId);
+              void loadMcps(agentId);
+            }}
+          />
         ) : null}
 
         {activePage === "knowledge" ? (

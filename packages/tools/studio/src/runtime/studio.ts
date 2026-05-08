@@ -35,6 +35,7 @@ import {
   type StudioApprovalHook,
 } from "./approvals";
 import { registerKnowledgeRoutes } from "./knowledge";
+import { registerMcpRoutes } from "./mcps";
 import { createQuestionRuntime, registerQuestionRoutes } from "./questions";
 import {
   AsyncEventQueue,
@@ -69,6 +70,7 @@ import {
   unsupportedCapabilities,
   unsupportedCapability,
 } from "./shared";
+import { registerToolRoutes } from "./tools";
 import { registerTraceRoutes } from "./trace-routes";
 
 type StudioApp = AnviaStudio & {
@@ -233,6 +235,8 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
     return c.json(agentConfig(agent));
   });
 
+  registerMcpRoutes(app, { agentMap });
+  registerToolRoutes(app, { agentMap });
   registerApprovalRoutes(app, approvalRuntime);
   registerQuestionRoutes(app, questionRuntime);
   registerKnowledgeRoutes(app, {
