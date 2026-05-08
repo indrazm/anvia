@@ -26,9 +26,13 @@ Start with the framework that owns your HTTP routes:
 | --- | --- | --- |
 | Next.js | [Next.js Prep](/docs/frameworks/nextjs/01-prep) | App Router `route.ts` handlers |
 | TanStack Start | [TanStack Start Prep](/docs/frameworks/tanstack-start/01-prep) | `createServerFn(...)` and server routes |
+| SvelteKit | [SvelteKit Prep](/docs/frameworks/sveltekit/01-prep) | `+server.ts` endpoint modules |
 | Hono | [Hono Prep](/docs/frameworks/hono/01-prep) | Plain Hono routes |
+| Express | [Express Prep](/docs/frameworks/express/01-prep) | Router middleware and handlers |
+| Fastify | [Fastify Prep](/docs/frameworks/fastify/01-prep) | Plugin routes and replies |
+| NestJS | [NestJS Prep](/docs/frameworks/nestjs/01-prep) | Modules, services, and controllers |
 
-The Anvia runtime shape stays the same across all three:
+The Anvia runtime shape stays the same across every framework:
 
 ```ts
 import { AgentBuilder } from "@anvia/core";
