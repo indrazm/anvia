@@ -422,7 +422,7 @@ describe("Anvia studio", () => {
     });
   });
 
-  it("runs pipelines over HTTP and persists metadata-only pipeline logs", async () => {
+  it("runs pipelines over HTTP and persists runs plus metadata-only pipeline logs", async () => {
     const pipeline = new PipelineBuilder<string>({ id: "audit-pipeline" })
       .step((input) => input.trim(), { id: "normalize", name: "Normalize" })
       .step((input) => ({ reply: input.toUpperCase() }), { id: "shape", name: "Shape" })
@@ -490,6 +490,50 @@ describe("Anvia studio", () => {
     const serializedLogs = JSON.stringify([...firstBody.logs, ...nextBody.logs]);
     expect(serializedLogs).not.toContain("raw secret payload");
     expect(serializedLogs).not.toContain("RAW SECRET PAYLOAD");
+
+    const runsPage = await runner.fetch(
+      new Request("http://runner.test/pipelines/audit-pipeline/runs?limit=10"),
+    );
+    expect(runsPage.status).toBe(200);
+    const runsBody = (await runsPage.json()) as {
+      runs: Array<{
+        runId: string;
+        pipelineId: string;
+        status: string;
+        input: unknown;
+        output?: unknown;
+        metadata?: unknown;
+      }>;
+    };
+    expect(runsBody.runs).toHaveLength(1);
+    const savedRun = runsBody.runs[0]!;
+    expect(savedRun).toMatchObject({
+      pipelineId: "audit-pipeline",
+      status: "success",
+      input: " raw secret payload ",
+      output: { reply: "RAW SECRET PAYLOAD" },
+    });
+
+    const db = new DatabaseSync(process.env.ANVIA_STUDIO_DB!);
+    try {
+      const row = db
+        .prepare(
+          `SELECT pipeline_id, status, input_json, output_json
+           FROM runner_pipeline_runs
+           WHERE run_id = $runId`,
+        )
+        .get({ $runId: savedRun.runId }) as
+        | { pipeline_id: string; status: string; input_json: string; output_json: string }
+        | undefined;
+      expect(row).toMatchObject({
+        pipeline_id: "audit-pipeline",
+        status: "success",
+        input_json: JSON.stringify(" raw secret payload "),
+        output_json: JSON.stringify({ reply: "RAW SECRET PAYLOAD" }),
+      });
+    } finally {
+      db.close();
+    }
   });
 
   it("starts a served single-agent runner from a built agent", async () => {

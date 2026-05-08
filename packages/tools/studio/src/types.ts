@@ -399,6 +399,7 @@ export type StudioStores = {
   sessions?: StudioSessionStore | false;
   traces?: StudioTraceStore;
   pipelineLogs?: StudioPipelineLogStore | false;
+  pipelineRuns?: StudioPipelineRunStore | false;
 };
 
 export type StudioUiOptions = {
@@ -579,6 +580,48 @@ export type StudioPipelineFinalEvent = {
   runId: string;
   pipelineId: string;
   output: JsonValue;
+};
+
+export type StudioPipelineRunStatus = "running" | "success" | "error";
+
+export type StudioPipelineRunRecord = {
+  runId: string;
+  pipelineId: string;
+  status: StudioPipelineRunStatus;
+  input: JsonValue;
+  output?: JsonValue;
+  error?: JsonValue;
+  metadata?: JsonObject;
+  startedAt: string;
+  endedAt?: string;
+  durationMs?: number;
+};
+
+export type StudioPipelineRunSaveInput = {
+  runId: string;
+  pipelineId: string;
+  status: StudioPipelineRunStatus;
+  input: JsonValue;
+  output?: JsonValue;
+  error?: JsonValue;
+  metadata?: JsonObject;
+  startedAt: string;
+  endedAt?: string;
+  durationMs?: number;
+};
+
+export type StudioPipelineRunListOptions = {
+  pipelineId: string;
+  limit: number;
+};
+
+export type StudioPipelineRunStore = {
+  savePipelineRun(
+    input: StudioPipelineRunSaveInput,
+  ): StudioPipelineRunRecord | Promise<StudioPipelineRunRecord>;
+  listPipelineRuns(
+    options: StudioPipelineRunListOptions,
+  ): StudioPipelineRunRecord[] | Promise<StudioPipelineRunRecord[]>;
 };
 
 export type StudioPipelineRunRequest = {

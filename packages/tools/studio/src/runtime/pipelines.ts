@@ -1,4 +1,4 @@
-import type { JsonValue, PipelineRunEvent } from "@anvia/core";
+import type { JsonObject, JsonValue, PipelineRunEvent } from "@anvia/core";
 import type { Context, Hono } from "hono";
 import { stream as streamResponse } from "hono/streaming";
 import type {
@@ -8,6 +8,8 @@ import type {
   StudioPipelineLogStore,
   StudioPipelineRunRequest,
   StudioPipelineRunResponse,
+  StudioPipelineRunSaveInput,
+  StudioPipelineRunStore,
 } from "../types";
 import {
   appendPipelineLog,
@@ -26,7 +28,8 @@ export function registerPipelineRoutes(
   props: {
     pipelines: StudioPipeline[];
     pipelineMap: Map<string, StudioPipeline>;
-    store?: StudioPipelineLogStore;
+    logStore?: StudioPipelineLogStore;
+    runStore?: StudioPipelineRunStore;
   },
 ): void {
   app.get("/pipelines", (c) =>
@@ -48,7 +51,7 @@ export function registerPipelineRoutes(
     if (!props.pipelineMap.has(pipelineId)) {
       return errorResponse(c, 404, "not_found", "Pipeline not found");
     }
-    if (props.store === undefined) {
+    if (props.logStore === undefined) {
       return errorResponse(
         c,
         501,
@@ -67,7 +70,7 @@ export function registerPipelineRoutes(
       return errorResponse(c, 400, "bad_request", "after must be a non-negative integer");
     }
 
-    const logs = await props.store.listPipelineLogs({
+    const logs = await props.logStore.listPipelineLogs({
       pipelineId,
       limit,
       ...(after === undefined ? {} : { after }),
@@ -77,6 +80,30 @@ export function registerPipelineRoutes(
       logs,
       ...(logs.length === limit && last !== undefined ? { nextCursor: last.sequence } : {}),
     });
+  });
+
+  app.get("/pipelines/:pipelineId/runs", async (c) => {
+    const pipelineId = c.req.param("pipelineId");
+    if (!props.pipelineMap.has(pipelineId)) {
+      return errorResponse(c, 404, "not_found", "Pipeline not found");
+    }
+    if (props.runStore === undefined) {
+      return errorResponse(
+        c,
+        501,
+        "unsupported_capability",
+        'Capability "pipelines.runs" is not implemented by this runner',
+        { capability: "pipelines", operation: "runs" },
+      );
+    }
+
+    const limit = parsePipelineLogLimit(c.req.query("limit"));
+    if (limit === undefined) {
+      return errorResponse(c, 400, "bad_request", "limit must be a positive integer");
+    }
+
+    const runs = await props.runStore.listPipelineRuns({ pipelineId, limit });
+    return c.json({ runs });
   });
 
   app.post("/pipelines/:pipelineId/runs", async (c) => {
@@ -92,8 +119,9 @@ export function registerPipelineRoutes(
 
     const runId = globalThis.crypto.randomUUID();
     const startedAt = Date.now();
+    const startedAtIso = new Date(startedAt).toISOString();
     await appendPipelineLog(
-      props.store,
+      props.logStore,
       pipelineRunReceivedLog({
         pipeline,
         runId,
@@ -102,6 +130,14 @@ export function registerPipelineRoutes(
         ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
       }),
     );
+    await savePipelineRun(props.runStore, {
+      runId,
+      pipelineId: pipeline.id,
+      status: "running",
+      input: body.input,
+      ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
+      startedAt: startedAtIso,
+    });
 
     if (body.stream === true) {
       return streamPipelineRun(c, {
@@ -109,26 +145,41 @@ export function registerPipelineRoutes(
         runId,
         input: body.input,
         startedAt,
-        ...(props.store === undefined ? {} : { store: props.store }),
+        startedAtIso,
+        ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
+        ...(props.logStore === undefined ? {} : { logStore: props.logStore }),
+        ...(props.runStore === undefined ? {} : { runStore: props.runStore }),
       });
     }
 
     try {
-      await appendPipelineLog(props.store, pipelineRunStartedLog(pipeline, runId));
+      await appendPipelineLog(props.logStore, pipelineRunStartedLog(pipeline, runId));
       const output = await pipeline.pipeline.run(body.input, {
         observer: {
           async onEvent(event) {
-            await appendPipelineLog(props.store, pipelineStageLog(pipeline.id, runId, event));
+            await appendPipelineLog(props.logStore, pipelineStageLog(pipeline.id, runId, event));
           },
         },
       });
       const jsonOutput = toJsonValue(output);
+      const endedAt = Date.now();
+      await savePipelineRun(props.runStore, {
+        runId,
+        pipelineId: pipeline.id,
+        status: "success",
+        input: body.input,
+        output: jsonOutput,
+        ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
+        startedAt: startedAtIso,
+        endedAt: new Date(endedAt).toISOString(),
+        durationMs: endedAt - startedAt,
+      });
       await appendPipelineLog(
-        props.store,
+        props.logStore,
         pipelineRunCompletedLog({
           pipelineId: pipeline.id,
           runId,
-          durationMs: Date.now() - startedAt,
+          durationMs: endedAt - startedAt,
           output: jsonOutput,
         }),
       );
@@ -139,8 +190,20 @@ export function registerPipelineRoutes(
       };
       return c.json(response);
     } catch (error) {
+      const endedAt = Date.now();
+      await savePipelineRun(props.runStore, {
+        runId,
+        pipelineId: pipeline.id,
+        status: "error",
+        input: body.input,
+        error: serializeError(error),
+        ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
+        startedAt: startedAtIso,
+        endedAt: new Date(endedAt).toISOString(),
+        durationMs: endedAt - startedAt,
+      });
       await appendPipelineLog(
-        props.store,
+        props.logStore,
         pipelineRunFailedLog(pipeline.id, runId, error, startedAt),
       );
       return errorResponse(c, 500, "internal_error", "Pipeline run failed", serializeError(error));
@@ -164,7 +227,10 @@ function streamPipelineRun(
     runId: string;
     input: JsonValue;
     startedAt: number;
-    store?: StudioPipelineLogStore;
+    startedAtIso: string;
+    metadata?: JsonObject;
+    logStore?: StudioPipelineLogStore;
+    runStore?: StudioPipelineRunStore;
   },
 ): Response {
   c.header("content-type", "application/x-ndjson; charset=utf-8");
@@ -191,9 +257,12 @@ async function* pipelineRunEvents(props: {
   runId: string;
   input: JsonValue;
   startedAt: number;
-  store?: StudioPipelineLogStore;
+  startedAtIso: string;
+  metadata?: JsonObject;
+  logStore?: StudioPipelineLogStore;
+  runStore?: StudioPipelineRunStore;
 }): AsyncIterable<AgentRunStreamEvent> {
-  yield* emitPipelineLog(props.store, pipelineRunStartedLog(props.pipeline, props.runId));
+  yield* emitPipelineLog(props.logStore, pipelineRunStartedLog(props.pipeline, props.runId));
 
   const events = new AsyncEventQueue<AgentRunStreamEvent>();
   const run = props.pipeline.pipeline
@@ -201,7 +270,7 @@ async function* pipelineRunEvents(props: {
       observer: {
         async onEvent(event: PipelineRunEvent) {
           const log = await appendPipelineLog(
-            props.store,
+            props.logStore,
             pipelineStageLog(props.pipeline.id, props.runId, event),
           );
           if (log !== undefined) {
@@ -212,12 +281,24 @@ async function* pipelineRunEvents(props: {
     })
     .then(async (output) => {
       const jsonOutput = toJsonValue(output);
+      const endedAt = Date.now();
+      await savePipelineRun(props.runStore, {
+        runId: props.runId,
+        pipelineId: props.pipeline.id,
+        status: "success",
+        input: props.input,
+        output: jsonOutput,
+        ...(props.metadata === undefined ? {} : { metadata: props.metadata }),
+        startedAt: props.startedAtIso,
+        endedAt: new Date(endedAt).toISOString(),
+        durationMs: endedAt - props.startedAt,
+      });
       const log = await appendPipelineLog(
-        props.store,
+        props.logStore,
         pipelineRunCompletedLog({
           pipelineId: props.pipeline.id,
           runId: props.runId,
-          durationMs: Date.now() - props.startedAt,
+          durationMs: endedAt - props.startedAt,
           output: jsonOutput,
         }),
       );
@@ -232,8 +313,20 @@ async function* pipelineRunEvents(props: {
       });
     })
     .catch(async (error) => {
+      const endedAt = Date.now();
+      await savePipelineRun(props.runStore, {
+        runId: props.runId,
+        pipelineId: props.pipeline.id,
+        status: "error",
+        input: props.input,
+        error: serializeError(error),
+        ...(props.metadata === undefined ? {} : { metadata: props.metadata }),
+        startedAt: props.startedAtIso,
+        endedAt: new Date(endedAt).toISOString(),
+        durationMs: endedAt - props.startedAt,
+      });
       const log = await appendPipelineLog(
-        props.store,
+        props.logStore,
         pipelineRunFailedLog(props.pipeline.id, props.runId, error, props.startedAt),
       );
       if (log !== undefined) {
@@ -254,6 +347,13 @@ async function* pipelineRunEvents(props: {
   } finally {
     await run;
   }
+}
+
+async function savePipelineRun(
+  store: StudioPipelineRunStore | undefined,
+  input: StudioPipelineRunSaveInput,
+) {
+  return store?.savePipelineRun(input);
 }
 
 async function parsePipelineRunRequest(

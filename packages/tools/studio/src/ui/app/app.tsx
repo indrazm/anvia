@@ -15,6 +15,7 @@ import type {
   StudioKnowledgeSummary,
   StudioPipelineDetail,
   StudioPipelineLogEntry,
+  StudioPipelineRunRecord,
   StudioSession,
   StudioSessionLogEntry,
   StudioSessionSummary,
@@ -117,10 +118,12 @@ export function StudioConsole() {
   const [sessionLogs, setSessionLogs] = useState<StudioSessionLogEntry[]>([]);
   const [pipelineDetail, setPipelineDetail] = useState<StudioPipelineDetail | undefined>();
   const [pipelineLogs, setPipelineLogs] = useState<StudioPipelineLogEntry[]>([]);
+  const [pipelineRuns, setPipelineRuns] = useState<StudioPipelineRunRecord[]>([]);
   const [messages, setMessages] = useState<TranscriptEntry[]>([]);
   const [prompt, setPrompt] = useState("");
   const [pipelineRunInput, setPipelineRunInput] = useState('"Hello from Studio"');
   const [pipelineRunOutput, setPipelineRunOutput] = useState("");
+  const [activePipelineRunId, setActivePipelineRunId] = useState("");
   const [activePage, setActivePage] = useState<ActivePage>(() => initialLocation.page);
   const [selectedTraceId, setSelectedTraceId] = useState(() => initialLocation.traceId ?? "");
   const [traceSessionDetailId, setTraceSessionDetailId] = useState<string | undefined>(
@@ -145,6 +148,7 @@ export function StudioConsole() {
     "idle",
   );
   const [pipelineLogLoadState, setPipelineLogLoadState] = useState<"idle" | "loading">("idle");
+  const [pipelineRunLoadState, setPipelineRunLoadState] = useState<"idle" | "loading">("idle");
   const [pipelineRunState, setPipelineRunState] = useState<RunState>("idle");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -492,11 +496,40 @@ export function StudioConsole() {
     [pipelinesEnabled],
   );
 
+  const loadPipelineRuns = useCallback(
+    async (pipelineId: string): Promise<StudioPipelineRunRecord[]> => {
+      if (!pipelinesEnabled || pipelineId.length === 0) {
+        setPipelineRuns([]);
+        return [];
+      }
+
+      setPipelineRunLoadState("loading");
+      try {
+        const params = new URLSearchParams({ limit: "50" });
+        const response = await fetch(`/pipelines/${encodeURIComponent(pipelineId)}/runs?${params}`);
+        if (!response.ok) {
+          throw new Error(`Pipeline runs failed with HTTP ${response.status}`);
+        }
+        const body = (await response.json()) as { runs: StudioPipelineRunRecord[] };
+        setPipelineRuns(body.runs);
+        return body.runs;
+      } catch (loadError) {
+        setError(errorMessage(loadError));
+        setPipelineRuns([]);
+        return [];
+      } finally {
+        setPipelineRunLoadState("idle");
+      }
+    },
+    [pipelinesEnabled],
+  );
+
   const loadPipeline = useCallback(
     async (pipelineId: string) => {
       if (!pipelinesEnabled || pipelineId.length === 0) {
         setPipelineDetail(undefined);
         setPipelineLogs([]);
+        setPipelineRuns([]);
         return;
       }
 
@@ -509,7 +542,7 @@ export function StudioConsole() {
         }
         setSelectedPipelineId(pipelineId);
         setPipelineDetail((await response.json()) as StudioPipelineDetail);
-        await loadPipelineLogs(pipelineId);
+        await Promise.all([loadPipelineLogs(pipelineId), loadPipelineRuns(pipelineId)]);
       } catch (loadError) {
         setError(errorMessage(loadError));
         setPipelineDetail(undefined);
@@ -517,7 +550,7 @@ export function StudioConsole() {
         setPipelineDetailLoadState("idle");
       }
     },
-    [loadPipelineLogs, pipelinesEnabled],
+    [loadPipelineLogs, loadPipelineRuns, pipelinesEnabled],
   );
 
   useEffect(() => {
@@ -774,6 +807,7 @@ export function StudioConsole() {
 
     setPipelineRunState("running");
     setPipelineRunOutput("");
+    setActivePipelineRunId("");
     setError("");
     try {
       const response = await fetch(`/pipelines/${encodeURIComponent(pipelineId)}/runs`, {
@@ -796,6 +830,9 @@ export function StudioConsole() {
 
       await readJsonl(response.body, async (event) => {
         if (isPipelineLogEvent(event)) {
+          if (event.log.runId !== undefined) {
+            setActivePipelineRunId((current) => current || event.log.runId || "");
+          }
           appendPipelineLogEntry(event.log);
           await nextPaint();
           return;
@@ -809,7 +846,7 @@ export function StudioConsole() {
           throw new Error(JSON.stringify(event.error));
         }
       });
-      await loadPipelineLogs(pipelineId);
+      await Promise.all([loadPipelineLogs(pipelineId), loadPipelineRuns(pipelineId)]);
       setStatus("Connected");
     } catch (runError) {
       setError(errorMessage(runError));
@@ -1682,15 +1719,19 @@ export function StudioConsole() {
             selectedPipelineId={selectedPipelineId}
             detail={pipelineDetail}
             logs={pipelineLogs}
+            activeRunId={activePipelineRunId}
+            runs={pipelineRuns}
             enabled={pipelinesEnabled}
             detailLoading={pipelineDetailLoadState === "loading"}
             logsLoading={pipelineLogLoadState === "loading"}
+            runsLoading={pipelineRunLoadState === "loading"}
             runState={pipelineRunState}
             runInput={pipelineRunInput}
             runOutput={pipelineRunOutput}
             onSelectPipeline={(pipelineId) => {
               setSelectedPipelineId(pipelineId);
               setPipelineRunOutput("");
+              setActivePipelineRunId("");
               void loadPipeline(pipelineId);
             }}
             onRunInputChange={setPipelineRunInput}

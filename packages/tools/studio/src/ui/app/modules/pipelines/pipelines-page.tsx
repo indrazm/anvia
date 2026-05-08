@@ -13,7 +13,12 @@ import {
 import "@xyflow/react/dist/style.css";
 import { Play } from "lucide-react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import type { StudioConfig, StudioPipelineDetail, StudioPipelineLogEntry } from "../../../../types";
+import type {
+  StudioConfig,
+  StudioPipelineDetail,
+  StudioPipelineLogEntry,
+  StudioPipelineRunRecord,
+} from "../../../../types";
 import { Button } from "../../components/ui/button";
 import {
   Select,
@@ -32,15 +37,19 @@ const flowPrimaryColor = "var(--primary)";
 const flowBackgroundColor = "var(--background)";
 const flowMutedForegroundColor = "var(--muted-foreground)";
 const flowDestructiveColor = "var(--destructive)";
+const flowRunningColor = "hsl(38 96% 56%)";
 
 export function PipelinesPage(props: {
   pipelines: StudioConfig["pipelines"];
   selectedPipelineId: string;
   detail: StudioPipelineDetail | undefined;
   logs: StudioPipelineLogEntry[];
+  activeRunId: string;
+  runs: StudioPipelineRunRecord[];
   enabled: boolean;
   detailLoading: boolean;
   logsLoading: boolean;
+  runsLoading: boolean;
   runState: "idle" | "running";
   runInput: string;
   runOutput: string;
@@ -52,7 +61,10 @@ export function PipelinesPage(props: {
   const graph = props.detail?.graph;
   const selectedNode =
     graph?.nodes.find((node) => node.id === selectedNodeId) ?? graph?.nodes[0] ?? undefined;
-  const nodeStatuses = useMemo(() => nodeStatusFromLogs(props.logs), [props.logs]);
+  const nodeStatuses = useMemo(
+    () => nodeStatusFromLogs(props.logs, props.activeRunId),
+    [props.logs, props.activeRunId],
+  );
   const flow = useMemo(() => {
     if (graph === undefined) {
       return { nodes: [] as Node[], edges: [] as Edge[] };
@@ -136,7 +148,9 @@ export function PipelinesPage(props: {
         selectedPipelineId={props.selectedPipelineId}
         detail={props.detail}
         logs={props.logs}
+        runs={props.runs}
         logsLoading={props.logsLoading}
+        runsLoading={props.runsLoading}
         runState={props.runState}
         runInput={props.runInput}
         runOutput={props.runOutput}
@@ -160,7 +174,9 @@ function PipelineInspectorSidebar(props: {
   selectedPipelineId: string;
   detail: StudioPipelineDetail | undefined;
   logs: StudioPipelineLogEntry[];
+  runs: StudioPipelineRunRecord[];
   logsLoading: boolean;
+  runsLoading: boolean;
   runState: "idle" | "running";
   runInput: string;
   runOutput: string;
@@ -240,7 +256,12 @@ function PipelineInspectorSidebar(props: {
           />
         ) : null}
         {activeTab === "runs" ? (
-          <PipelineRunsPanel runOutput={props.runOutput} runState={props.runState} />
+          <PipelineRunsPanel
+            runs={props.runs}
+            runOutput={props.runOutput}
+            runState={props.runState}
+            loading={props.runsLoading}
+          />
         ) : null}
         {activeTab === "logs" ? (
           <PipelineLogsSection
@@ -379,35 +400,113 @@ function PipelineMetadataPanel(props: {
   );
 }
 
-function PipelineRunsPanel(props: { runOutput: string; runState: "idle" | "running" }) {
+function PipelineRunsPanel(props: {
+  runs: StudioPipelineRunRecord[];
+  runOutput: string;
+  runState: "idle" | "running";
+  loading: boolean;
+}) {
   return (
     <section className="grid gap-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            Latest run
+            Runs
           </div>
           <p className="m-0 mt-1 text-xs leading-5 text-muted-foreground">
-            Most recent HTTP pipeline output.
+            Persisted pipeline executions.
           </p>
         </div>
         <Badge>{props.runState}</Badge>
       </div>
+      {props.runOutput.length > 0 && props.runs.length === 0 ? (
+        <PipelineRunOutputBlock title="Latest output" output={props.runOutput} />
+      ) : null}
       <div className="grid gap-2">
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Output
-          </span>
-          <span className="font-mono text-[9px] font-medium tabular-nums text-muted-foreground">
-            {props.runOutput.length} bytes
-          </span>
-        </div>
-        <pre className="min-h-52 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded-sm border border-border/80 bg-card/30 p-3 font-mono text-xs leading-5 text-foreground">
-          {props.runOutput.length > 0 ? props.runOutput : "Run the pipeline to inspect output."}
-        </pre>
+        {props.loading && props.runs.length === 0 ? (
+          <div className="grid gap-2 py-3">
+            <div className="h-4 w-32 animate-pulse rounded-sm bg-muted" />
+            <div className="h-4 w-56 max-w-full animate-pulse rounded-sm bg-muted/60" />
+          </div>
+        ) : null}
+        {!props.loading && props.runs.length === 0 ? (
+          <div className="py-3 text-sm font-medium text-muted-foreground">
+            No saved pipeline runs yet.
+          </div>
+        ) : null}
+        {props.runs.map((run) => (
+          <PipelineRunRow run={run} key={run.runId} />
+        ))}
       </div>
     </section>
   );
+}
+
+function PipelineRunRow(props: { run: StudioPipelineRunRecord }) {
+  const output = pipelineRunOutputText(props.run);
+  return (
+    <article className="grid gap-3 rounded-sm border border-border/80 bg-card/25 p-3">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <span className="truncate font-mono text-[11px] font-semibold text-foreground">
+          {props.run.runId}
+        </span>
+        <span
+          className={[
+            "shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]",
+            pipelineRunStatusClass(props.run.status),
+          ].join(" ")}
+        >
+          {props.run.status}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+        <span className="truncate">{formatLogTime(props.run.startedAt)}</span>
+        <span className="truncate text-right tabular-nums">
+          {props.run.durationMs === undefined ? "" : `${props.run.durationMs}ms`}
+        </span>
+      </div>
+      <PipelineRunOutputBlock title="Output" output={output} />
+    </article>
+  );
+}
+
+function PipelineRunOutputBlock(props: { title: string; output: string }) {
+  return (
+    <div className="grid gap-2">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {props.title}
+        </span>
+        <span className="font-mono text-[9px] font-medium tabular-nums text-muted-foreground">
+          {props.output.length} bytes
+        </span>
+      </div>
+      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-sm border border-border/80 bg-background/55 p-3 font-mono text-xs leading-5 text-foreground">
+        {props.output.length > 0 ? props.output : "No output saved."}
+      </pre>
+    </div>
+  );
+}
+
+function pipelineRunOutputText(run: StudioPipelineRunRecord): string {
+  if (run.output !== undefined) {
+    return JSON.stringify(run.output, null, 2);
+  }
+  if (run.error !== undefined) {
+    return JSON.stringify(run.error, null, 2);
+  }
+  return "";
+}
+
+function pipelineRunStatusClass(status: StudioPipelineRunRecord["status"]): string {
+  switch (status) {
+    case "success":
+      return "text-primary";
+    case "error":
+      return "text-destructive";
+    case "running":
+      return "text-muted-foreground";
+  }
 }
 
 function NodeInspector(props: {
@@ -607,7 +706,7 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
       className={[
         "group relative min-h-[74px] w-[210px] rounded-md border bg-card px-4 py-3 text-left shadow-[inset_0_1px_0_hsl(var(--foreground)/0.06)] transition duration-200",
         props.selected ? "border-primary" : "border-border/80",
-        status === "running" ? "translate-y-[-1px] border-primary" : "",
+        status === "running" ? "translate-y-[-1px] border-amber-400" : "",
         status === "completed" ? "border-primary/70" : "",
         status === "failed" ? "border-destructive" : "",
       ].join(" ")}
@@ -623,14 +722,20 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
             {props.data.label}
           </div>
           <div className="mt-1 flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: props.data.statusColor }}
+            />
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {props.data.kind}
             </span>
           </div>
         </div>
         {status === undefined ? null : (
-          <span className="rounded-sm border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-primary">
+          <span
+            className="rounded-sm border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
+            style={{ color: props.data.statusColor }}
+          >
             {status}
           </span>
         )}
@@ -651,9 +756,18 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
 
 type NodeStatus = "running" | "completed" | "failed";
 
-function nodeStatusFromLogs(logs: StudioPipelineLogEntry[]): Map<string, NodeStatus> {
+function nodeStatusFromLogs(
+  logs: StudioPipelineLogEntry[],
+  activeRunId: string,
+): Map<string, NodeStatus> {
   const statuses = new Map<string, NodeStatus>();
+  if (activeRunId.length === 0) {
+    return statuses;
+  }
   for (const log of logs) {
+    if (log.runId !== activeRunId) {
+      continue;
+    }
     const nodeId = metadataString(log.metadata, "nodeId");
     if (nodeId === undefined) {
       continue;
@@ -758,7 +872,7 @@ function nodeDepths(graph: StudioPipelineDetail["graph"]): Map<string, number> {
 function statusColor(status: NodeStatus | undefined): string {
   switch (status) {
     case "running":
-      return flowPrimaryColor;
+      return flowRunningColor;
     case "completed":
       return flowPrimaryColor;
     case "failed":

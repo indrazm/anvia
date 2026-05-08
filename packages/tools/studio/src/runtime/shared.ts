@@ -13,6 +13,7 @@ import type {
   StudioPipeline,
   StudioPipelineConfig,
   StudioPipelineLogStore,
+  StudioPipelineRunStore,
   StudioSessionStore,
   StudioStores,
   StudioTraceStatus,
@@ -25,6 +26,7 @@ export type ResolvedStores = {
   sessions?: StudioSessionStore;
   traces?: StudioTraceStore;
   pipelineLogs?: StudioPipelineLogStore;
+  pipelineRuns?: StudioPipelineRunStore;
 };
 
 export type StudioRuntimeOptions = {
@@ -47,10 +49,12 @@ export function resolveStores(options: StudioRuntimeOptions): ResolvedStores {
   const sessions = resolveSessionStore(options, defaultStore);
   const traces = resolveTraceStore(options, sessions, defaultStore);
   const pipelineLogs = resolvePipelineLogStore(options, sessions, defaultStore);
+  const pipelineRuns = resolvePipelineRunStore(options, sessions, pipelineLogs, defaultStore);
   return {
     ...(sessions === undefined ? {} : { sessions }),
     ...(traces === undefined ? {} : { traces }),
     ...(pipelineLogs === undefined ? {} : { pipelineLogs }),
+    ...(pipelineRuns === undefined ? {} : { pipelineRuns }),
   };
 }
 
@@ -102,6 +106,27 @@ function resolvePipelineLogStore(
   return defaultStore;
 }
 
+function resolvePipelineRunStore(
+  options: StudioRuntimeOptions,
+  sessionStore: StudioSessionStore | undefined,
+  pipelineLogStore: StudioPipelineLogStore | undefined,
+  defaultStore: StudioPipelineRunStore,
+): StudioPipelineRunStore | undefined {
+  if (options.stores?.pipelineRuns === false) {
+    return undefined;
+  }
+  if (options.stores?.pipelineRuns !== undefined) {
+    return options.stores.pipelineRuns;
+  }
+  if (sessionStore !== undefined && isPipelineRunStore(sessionStore)) {
+    return sessionStore;
+  }
+  if (pipelineLogStore !== undefined && isPipelineRunStore(pipelineLogStore)) {
+    return pipelineLogStore;
+  }
+  return defaultStore;
+}
+
 function isTraceStore(store: StudioSessionStore): store is StudioSessionStore & StudioTraceStore {
   const candidate = store as Partial<StudioTraceStore>;
   return (
@@ -118,6 +143,14 @@ function isPipelineLogStore(
   return (
     typeof candidate.appendPipelineLog === "function" &&
     typeof candidate.listPipelineLogs === "function"
+  );
+}
+
+function isPipelineRunStore(store: object): store is object & StudioPipelineRunStore {
+  const candidate = store as Partial<StudioPipelineRunStore>;
+  return (
+    typeof candidate.savePipelineRun === "function" &&
+    typeof candidate.listPipelineRuns === "function"
   );
 }
 
