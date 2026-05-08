@@ -149,6 +149,48 @@ export type StudioSessionRunTranscriptInput = {
   error?: JsonValue;
 };
 
+export type StudioSessionLogLevel = "debug" | "info" | "warn" | "error";
+
+export type StudioSessionLogCategory =
+  | "session"
+  | "run"
+  | "memory"
+  | "prompt"
+  | "model"
+  | "tool"
+  | "approval"
+  | "question"
+  | "api";
+
+export type StudioSessionLogEntry = {
+  id: string;
+  sessionId: string;
+  runId?: string;
+  sequence: number;
+  timestamp: string;
+  level: StudioSessionLogLevel;
+  category: StudioSessionLogCategory;
+  event: string;
+  message: string;
+  metadata?: JsonObject;
+};
+
+export type StudioSessionLogAppendInput = {
+  sessionId: string;
+  runId?: string;
+  level: StudioSessionLogLevel;
+  category: StudioSessionLogCategory;
+  event: string;
+  message: string;
+  metadata?: JsonObject;
+};
+
+export type StudioSessionLogListOptions = {
+  sessionId: string;
+  limit: number;
+  after?: number;
+};
+
 export type StudioSessionStore = MemoryStore & {
   readonly kind?: string;
   listSessions(
@@ -161,6 +203,12 @@ export type StudioSessionStore = MemoryStore & {
   saveSessionRunTranscript(
     input: StudioSessionRunTranscriptInput,
   ): StudioSession | undefined | Promise<StudioSession | undefined>;
+  appendSessionLog?(
+    input: StudioSessionLogAppendInput,
+  ): StudioSessionLogEntry | Promise<StudioSessionLogEntry>;
+  listSessionLogs?(
+    options: StudioSessionLogListOptions,
+  ): StudioSessionLogEntry[] | Promise<StudioSessionLogEntry[]>;
   deleteSession?(id: string): boolean | Promise<boolean>;
 };
 
@@ -393,6 +441,11 @@ export type StudioToolQuestionResultEvent = {
   question: StudioToolQuestion;
 };
 
+export type StudioSessionLogEvent = {
+  type: "session_log";
+  log: StudioSessionLogEntry;
+};
+
 export type AgentRunRequest = {
   message: string | Message;
   history?: Message[];
@@ -411,7 +464,8 @@ export type AgentRunStreamEvent =
   | StudioToolApprovalRequestEvent
   | StudioToolApprovalResultEvent
   | StudioToolQuestionRequestEvent
-  | StudioToolQuestionResultEvent;
+  | StudioToolQuestionResultEvent
+  | StudioSessionLogEvent;
 
 export type StudioErrorCode =
   | "bad_request"

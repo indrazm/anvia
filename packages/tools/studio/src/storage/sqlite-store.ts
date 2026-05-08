@@ -14,6 +14,9 @@ import type {
   StudioSession,
   StudioSessionCreateInput,
   StudioSessionListOptions,
+  StudioSessionLogAppendInput,
+  StudioSessionLogEntry,
+  StudioSessionLogListOptions,
   StudioSessionRunStatus,
   StudioSessionRunTranscriptInput,
   StudioSessionStore,
@@ -98,6 +101,19 @@ type SessionRunRow = {
   error_json: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type SessionLogRow = {
+  id: string;
+  session_id: string;
+  run_id: string | null;
+  sequence: number;
+  timestamp: string;
+  level: StudioSessionLogEntry["level"];
+  category: StudioSessionLogEntry["category"];
+  event: string;
+  message: string;
+  metadata_json: string | null;
 };
 
 export function createSqliteSessionStore(
@@ -341,6 +357,99 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
     }
   }
 
+  appendSessionLog(input: StudioSessionLogAppendInput): StudioSessionLogEntry {
+    const db = this.database();
+    const now = new Date().toISOString();
+
+    try {
+      db.exec("BEGIN IMMEDIATE");
+      const row = this.getSessionRow(input.sessionId);
+      if (row === undefined) {
+        throw new Error("Session not found");
+      }
+      const sequence = this.nextSessionLogSequence(input.sessionId);
+      const entry: StudioSessionLogEntry = {
+        id: globalThis.crypto.randomUUID(),
+        sessionId: input.sessionId,
+        ...(input.runId === undefined ? {} : { runId: input.runId }),
+        sequence,
+        timestamp: now,
+        level: input.level,
+        category: input.category,
+        event: input.event,
+        message: input.message,
+        ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+      };
+
+      db.prepare(
+        `INSERT INTO runner_session_logs (
+          id,
+          session_id,
+          run_id,
+          sequence,
+          timestamp,
+          level,
+          category,
+          event,
+          message,
+          metadata_json
+        ) VALUES (
+          $id,
+          $sessionId,
+          $runId,
+          $sequence,
+          $timestamp,
+          $level,
+          $category,
+          $event,
+          $message,
+          $metadata
+        )`,
+      ).run({
+        $id: entry.id,
+        $sessionId: entry.sessionId,
+        $runId: entry.runId ?? null,
+        $sequence: entry.sequence,
+        $timestamp: entry.timestamp,
+        $level: entry.level,
+        $category: entry.category,
+        $event: entry.event,
+        $message: entry.message,
+        $metadata: entry.metadata === undefined ? null : JSON.stringify(entry.metadata),
+      });
+
+      db.exec("COMMIT");
+      return entry;
+    } catch (error) {
+      if (db.isTransaction) {
+        db.exec("ROLLBACK");
+      }
+      throw error;
+    }
+  }
+
+  listSessionLogs(options: StudioSessionLogListOptions): StudioSessionLogEntry[] {
+    const db = this.database();
+    const afterClause = options.after === undefined ? "" : "AND sequence > $after";
+    const rows = db
+      .prepare(
+        `SELECT id, session_id, run_id, sequence, timestamp, level, category, event, message,
+                metadata_json
+         FROM runner_session_logs
+         WHERE session_id = $sessionId
+         ${afterClause}
+         ORDER BY sequence ASC
+         LIMIT $limit`,
+      )
+      .all({
+        $sessionId: options.sessionId,
+        $after: options.after ?? null,
+        $limit: options.limit,
+      }) as SessionLogRow[];
+
+    return rows.map(toSessionLog);
+  }
+
   deleteSession(id: string): boolean {
     const db = this.database();
 
@@ -348,6 +457,7 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
       db.exec("BEGIN IMMEDIATE");
       db.prepare("DELETE FROM runner_traces WHERE session_id = $id").run({ $id: id });
       db.prepare("DELETE FROM runner_session_runs WHERE session_id = $id").run({ $id: id });
+      db.prepare("DELETE FROM runner_session_logs WHERE session_id = $id").run({ $id: id });
       const result = db.prepare("DELETE FROM runner_sessions WHERE id = $id").run({ $id: id }) as {
         changes: number | bigint;
       };
@@ -565,6 +675,22 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
       ) STRICT;
       CREATE INDEX IF NOT EXISTS runner_session_runs_session_created_idx
         ON runner_session_runs(session_id, created_at ASC);
+      CREATE TABLE IF NOT EXISTS runner_session_logs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        run_id TEXT,
+        sequence INTEGER NOT NULL,
+        timestamp TEXT NOT NULL,
+        level TEXT NOT NULL,
+        category TEXT NOT NULL,
+        event TEXT NOT NULL,
+        message TEXT NOT NULL,
+        metadata_json TEXT,
+        UNIQUE(session_id, sequence),
+        FOREIGN KEY(session_id) REFERENCES runner_sessions(id) ON DELETE CASCADE
+      ) STRICT;
+      CREATE INDEX IF NOT EXISTS runner_session_logs_session_sequence_idx
+        ON runner_session_logs(session_id, sequence ASC);
       CREATE TABLE IF NOT EXISTS runner_traces (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -618,6 +744,17 @@ class SqliteSessionStore implements StudioSessionStore, StudioTraceStore {
          ORDER BY created_at ASC`,
       )
       .all({ $sessionId: sessionId }) as SessionRunRow[];
+  }
+
+  private nextSessionLogSequence(sessionId: string): number {
+    const row = this.database()
+      .prepare(
+        `SELECT COALESCE(MAX(sequence) + 1, 0) AS next_sequence
+         FROM runner_session_logs
+         WHERE session_id = $sessionId`,
+      )
+      .get({ $sessionId: sessionId }) as { next_sequence: number };
+    return row.next_sequence;
   }
 
   private listSessionMessages(sessionId: string): Message[] {
@@ -740,6 +877,22 @@ function toSessionSummary(row: SessionSummaryRow): StudioSessionSummary {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     messageCount: row.message_count,
+    ...(metadata === undefined ? {} : { metadata }),
+  };
+}
+
+function toSessionLog(row: SessionLogRow): StudioSessionLogEntry {
+  const metadata = parseJsonValue<JsonObject>(row.metadata_json);
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    ...(row.run_id === null ? {} : { runId: row.run_id }),
+    sequence: row.sequence,
+    timestamp: row.timestamp,
+    level: row.level,
+    category: row.category,
+    event: row.event,
+    message: row.message,
     ...(metadata === undefined ? {} : { metadata }),
   };
 }

@@ -16,6 +16,7 @@ Studio exposes the same runtime used by the bundled UI as an HTTP API.
 | `/agents/:agentId/runs` | `POST` | Run an agent |
 | `/sessions` | `GET`, `POST` | List or create sessions |
 | `/sessions/:sessionId` | `GET`, `DELETE` | Read or delete a session |
+| `/sessions/:sessionId/logs` | `GET` | Read metadata-only session audit logs |
 | `/sessions/:sessionId/traces` | `GET` | List traces for a session |
 | `/traces` | `GET` | List traces |
 | `/traces/:traceId` | `GET` | Read one trace |

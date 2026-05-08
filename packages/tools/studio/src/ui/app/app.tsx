@@ -1,4 +1,4 @@
-import { ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowUp, Plus } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -12,6 +12,7 @@ import type {
   StudioConfig,
   StudioKnowledgeSummary,
   StudioSession,
+  StudioSessionLogEntry,
   StudioSessionSummary,
   StudioTrace,
   StudioTraceSummary,
@@ -30,6 +31,7 @@ import { cn } from "./lib/utils";
 import { AgentsPage } from "./modules/agents/agents-page";
 import { KnowledgePage } from "./modules/knowledge/knowledge-page";
 import { TranscriptItem } from "./modules/playground/transcript-item";
+import { SessionLogsPanel } from "./modules/session-logs/session-logs-panel";
 import { DeleteSessionDialog, SessionsPage } from "./modules/sessions/sessions-page";
 import {
   errorMessage,
@@ -102,6 +104,7 @@ export function StudioConsole() {
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [allSessions, setAllSessions] = useState<StudioSessionSummary[]>([]);
   const [traces, setTraces] = useState<StudioTrace[]>([]);
+  const [sessionLogs, setSessionLogs] = useState<StudioSessionLogEntry[]>([]);
   const [messages, setMessages] = useState<TranscriptEntry[]>([]);
   const [prompt, setPrompt] = useState("");
   const [activePage, setActivePage] = useState<ActivePage>(() => initialLocation.page);
@@ -116,6 +119,7 @@ export function StudioConsole() {
   const [decidingApprovals, setDecidingApprovals] = useState<Set<string>>(() => new Set());
   const [answeringQuestions, setAnsweringQuestions] = useState<Set<string>>(() => new Set());
   const [sessionLoadState, setSessionLoadState] = useState<SessionLoadState>("idle");
+  const [sessionLogLoadState, setSessionLogLoadState] = useState<SessionLoadState>("idle");
   const [traceLoadState, setTraceLoadState] = useState<TraceLoadState>("idle");
   const [knowledge, setKnowledge] = useState<StudioKnowledgeSummary | undefined>();
   const [knowledgeLoadState, setKnowledgeLoadState] = useState<"idle" | "loading">("idle");
@@ -178,6 +182,34 @@ export function StudioConsole() {
     void loadAllSessions();
   }, [loadAllSessions]);
 
+  const loadSessionLogs = useCallback(
+    async (sessionId: string): Promise<StudioSessionLogEntry[]> => {
+      if (!sessionsEnabled) {
+        setSessionLogs([]);
+        return [];
+      }
+
+      setSessionLogLoadState("loading");
+      try {
+        const params = new URLSearchParams({ limit: "1000" });
+        const response = await fetch(`/sessions/${encodeURIComponent(sessionId)}/logs?${params}`);
+        if (!response.ok) {
+          throw new Error(`Session logs failed with HTTP ${response.status}`);
+        }
+        const body = (await response.json()) as { logs: StudioSessionLogEntry[] };
+        setSessionLogs(body.logs);
+        return body.logs;
+      } catch (loadError) {
+        setError(errorMessage(loadError));
+        setSessionLogs([]);
+        return [];
+      } finally {
+        setSessionLogLoadState("idle");
+      }
+    },
+    [sessionsEnabled],
+  );
+
   async function createSession(title: string): Promise<StudioSessionSummary> {
     const agentId = selectedAgent?.id ?? selectedAgentId;
     const response = await fetch("/sessions", {
@@ -200,6 +232,7 @@ export function StudioConsole() {
     setSelectedSessionId(session.id);
     setAllSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
     updateSessionPath(session.id);
+    await loadSessionLogs(session.id);
     return session;
   }
 
@@ -356,7 +389,10 @@ export function StudioConsole() {
           throw new Error(`Session load failed with HTTP ${response.status}`);
         }
         const session = (await response.json()) as StudioSession;
-        const traceSummaries = await loadSessionTraceSummaries(session.id);
+        const [traceSummaries] = await Promise.all([
+          loadSessionTraceSummaries(session.id),
+          loadSessionLogs(session.id),
+        ]);
         setTranscriptSequence(nextSequence(session.transcript));
         setSelectedAgentId(session.agentId);
         setSelectedSessionId(session.id);
@@ -372,7 +408,7 @@ export function StudioConsole() {
         setSessionLoadState("idle");
       }
     },
-    [runState, loadSessionTraceSummaries],
+    [runState, loadSessionTraceSummaries, loadSessionLogs],
   );
 
   const startNewChat = useCallback(
@@ -382,6 +418,7 @@ export function StudioConsole() {
       }
       resetTranscriptSequence();
       setSelectedSessionId("");
+      setSessionLogs([]);
       setMessages([]);
       setPrompt("");
       setActivePage("playground");
@@ -403,6 +440,7 @@ export function StudioConsole() {
       setSelectedAgentId(agentId);
       resetTranscriptSequence();
       setSelectedSessionId("");
+      setSessionLogs([]);
       setMessages([]);
       setPrompt("");
       setActivePage("playground");
@@ -432,6 +470,7 @@ export function StudioConsole() {
       if (selectedSessionId === session.id) {
         resetTranscriptSequence();
         setSelectedSessionId("");
+        setSessionLogs([]);
         setMessages([]);
         setPrompt("");
         if (activePage === "playground") {
@@ -548,7 +587,10 @@ export function StudioConsole() {
       await loadAllSessions();
       if (sessionId.length > 0) {
         setSelectedSessionId(sessionId);
-        const traceSummaries = await loadSessionTraceSummaries(sessionId);
+        const [traceSummaries] = await Promise.all([
+          loadSessionTraceSummaries(sessionId),
+          loadSessionLogs(sessionId),
+        ]);
         setMessages((current) => enrichTranscriptWithTraceIds(current, traceSummaries));
       }
       setStatus("Connected");
@@ -607,6 +649,10 @@ export function StudioConsole() {
       updateToolQuestion(event.question);
       return true;
     }
+    if (event.type === "session_log") {
+      appendSessionLogEntry(event.log);
+      return true;
+    }
     if (event.type === "final" && event.trace?.traceId !== undefined) {
       assignAssistantTraceId(event.trace.traceId);
       return true;
@@ -615,6 +661,15 @@ export function StudioConsole() {
       setError(JSON.stringify(event.error));
     }
     return false;
+  }
+
+  function appendSessionLogEntry(log: StudioSessionLogEntry) {
+    setSessionLogs((current) => {
+      if (current.some((item) => item.id === log.id)) {
+        return current;
+      }
+      return [...current, log].sort((left, right) => left.sequence - right.sequence);
+    });
   }
 
   function appendAssistantText(delta: string) {
@@ -1099,6 +1154,33 @@ export function StudioConsole() {
             onClick={() => navigatePage("knowledge")}
           />
         </nav>
+        <nav
+          className="grid min-h-0 gap-1 overflow-auto border-b border-sidebar-border px-3 py-3"
+          aria-label="Recent sessions"
+        >
+          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Recent
+          </div>
+          {allSessions.slice(0, 8).map((session) => (
+            <Button
+              className={cn(
+                "grid h-auto min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                session.id === selectedSessionId && "bg-sidebar-accent text-primary",
+              )}
+              type="button"
+              variant="ghost"
+              onClick={() => void loadSession(session.id)}
+              key={session.id}
+            >
+              <span className="min-w-0 truncate text-xs font-medium">
+                {session.title ?? "Untitled chat"}
+              </span>
+              <time className="font-mono text-[10px] font-medium tabular-nums text-muted-foreground">
+                {formatRelativeTime(session.updatedAt)}
+              </time>
+            </Button>
+          ))}
+        </nav>
         <div className="mt-auto border-t border-sidebar-border p-4">
           <span className="flex min-w-0 items-center gap-2 truncate font-mono text-[11px] font-semibold text-primary">
             <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
@@ -1265,47 +1347,11 @@ export function StudioConsole() {
                 </div>
               </form>
             </div>
-            <aside className="min-h-0 overflow-auto border-l border-border px-3 py-5 max-xl:hidden">
-              <div className="grid gap-1">
-                {allSessions.slice(0, 12).map((session) => (
-                  <div
-                    className={cn(
-                      "group grid min-h-10 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-l border-transparent bg-transparent px-3 py-1 text-left hover:bg-accent",
-                      session.id === selectedSessionId &&
-                        "border-primary bg-accent text-accent-foreground",
-                    )}
-                    key={session.id}
-                  >
-                    <Button
-                      className="h-auto min-h-0 min-w-0 justify-start rounded-none border-0 bg-transparent p-0 text-left text-inherit hover:bg-transparent hover:text-inherit"
-                      type="button"
-                      variant="ghost"
-                      onClick={() => void loadSession(session.id)}
-                    >
-                      <span className="min-w-0 truncate text-sm font-medium">
-                        {session.title ?? "Untitled chat"}
-                      </span>
-                    </Button>
-                    <time className="self-center justify-self-end font-mono text-xs font-medium tabular-nums text-muted-foreground">
-                      {formatRelativeTime(session.updatedAt)}
-                    </time>
-                    <Button
-                      aria-label={`Delete ${session.title ?? "Untitled chat"}`}
-                      className="h-7 min-h-7 w-7 border-0 bg-transparent p-0 text-muted-foreground opacity-70 hover:bg-transparent hover:text-destructive hover:opacity-100 focus-visible:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
-                      size="icon"
-                      type="button"
-                      variant="ghost"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleteCandidate(session);
-                      }}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </aside>
+            <SessionLogsPanel
+              logs={sessionLogs}
+              selectedSessionId={selectedSessionId}
+              loading={sessionLogLoadState === "loading"}
+            />
           </section>
         ) : null}
 

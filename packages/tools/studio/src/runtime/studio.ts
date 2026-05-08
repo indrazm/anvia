@@ -46,6 +46,16 @@ import {
   traceForRun,
   transcriptFromMessages,
 } from "./runs";
+import {
+  appendSessionLog,
+  memoryLoadedLog,
+  memorySavedLog,
+  runCompletedLog,
+  runFailedLog,
+  runReceivedLog,
+  runStartedLog,
+  streamSessionRunLogs,
+} from "./session-logs";
 import { registerSessionRoutes } from "./sessions";
 import {
   agentConfig,
@@ -256,6 +266,23 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
     }
 
     const runId = globalThis.crypto.randomUUID();
+    const runStartedAt = Date.now();
+    if (session !== undefined) {
+      await appendSessionLog(
+        stores.sessions,
+        runReceivedLog({
+          sessionId: session.id,
+          runId,
+          agentId,
+          message: body.message,
+          stream: body.stream === true,
+          ...(body.maxTurns === undefined ? {} : { maxTurns: body.maxTurns }),
+          ...(body.toolConcurrency === undefined ? {} : { toolConcurrency: body.toolConcurrency }),
+          hasTrace: body.trace !== undefined,
+          ...(body.metadata === undefined ? {} : { metadata: body.metadata }),
+        }),
+      );
+    }
     const memoryMetadata = {
       agentId,
       ...(body.metadata ?? {}),
@@ -311,7 +338,13 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
         session === undefined || stores.sessions === undefined
           ? runStream
           : persistStreamingSessionTranscript({
-              stream: runStream,
+              stream: streamSessionRunLogs({
+                stream: runStream,
+                store: stores.sessions,
+                session,
+                runId,
+                startedAt: runStartedAt,
+              }),
               store: stores.sessions,
               session,
               message: body.message,
@@ -321,6 +354,10 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
     }
 
     try {
+      if (session !== undefined) {
+        await appendSessionLog(stores.sessions, runStartedLog(session, runId));
+        await appendSessionLog(stores.sessions, memoryLoadedLog(session, runId));
+      }
       const effectiveHook = composeHooks(
         composeHooks(
           agent.agent.hook,
@@ -351,6 +388,25 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
           transcript: transcriptFromMessages(response.messages),
           status: "success",
         });
+        await appendSessionLog(
+          stores.sessions,
+          runCompletedLog({
+            sessionId: session.id,
+            runId,
+            durationMs: Date.now() - runStartedAt,
+            usage: response.usage,
+            output: response.output,
+            messageCount: response.messages.length,
+          }),
+        );
+        await appendSessionLog(
+          stores.sessions,
+          memorySavedLog({
+            sessionId: session.id,
+            runId,
+            messageCount: response.messages.length,
+          }),
+        );
       }
       return c.json(response);
     } catch (error) {
@@ -367,6 +423,10 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
           status: "error",
           error: serializeError(error),
         });
+        await appendSessionLog(
+          stores.sessions,
+          runFailedLog(session.id, runId, error, runStartedAt),
+        );
       }
       return errorResponse(c, 500, "internal_error", "Agent run failed", serializeError(error));
     }

@@ -77,12 +77,13 @@ type AgentRunStreamEvent =
   | StudioToolApprovalRequestEvent
   | StudioToolApprovalResultEvent
   | StudioToolQuestionRequestEvent
-  | StudioToolQuestionResultEvent;
+  | StudioToolQuestionResultEvent
+  | StudioSessionLogEvent;
 ```
 
 Purpose: HTTP request and response contracts for Studio agent runs.
 
-Return behavior: non-streaming runs return `AgentRunResponse`; streaming runs emit newline-delimited `AgentRunStreamEvent` values.
+Return behavior: non-streaming runs return `AgentRunResponse`; streaming runs emit newline-delimited `AgentRunStreamEvent` values. `session_log` events are Studio-owned metadata-only runtime logs for session runs.
 
 Notable errors: invalid run request bodies return `bad_request`; unsupported stores or capabilities return `unsupported_capability`.
 

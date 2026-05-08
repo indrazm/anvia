@@ -1602,6 +1602,84 @@ describe("Anvia studio", () => {
     });
   });
 
+  it("streams and persists metadata-only session audit logs", async () => {
+    const model = new StreamingQueueModel([[{ type: "text_delta", delta: "safe answer" }]]);
+    const agent = new AgentBuilder("support", model).build();
+    const runner = new Studio([agent]);
+
+    const created = await runner.fetch(
+      new Request("http://runner.test/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentId: "support", title: "secret title" }),
+      }),
+    );
+    const session = (await created.json()) as { id: string };
+
+    const run = await runner.fetch(
+      new Request("http://runner.test/agents/support/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "my raw secret prompt",
+          sessionId: session.id,
+          stream: true,
+        }),
+      }),
+    );
+
+    expect(run.status).toBe(200);
+    const events = await readJsonl(run);
+    const streamedLogs = events.filter(
+      (event): event is { type: "session_log"; log: { event: string; sequence: number } } =>
+        typeof event === "object" &&
+        event !== null &&
+        "type" in event &&
+        event.type === "session_log",
+    );
+    expect(streamedLogs).toContainEqual(
+      expect.objectContaining({ log: expect.objectContaining({ event: "run.started" }) }),
+    );
+    expect(streamedLogs).toContainEqual(
+      expect.objectContaining({ log: expect.objectContaining({ event: "memory.loaded" }) }),
+    );
+    expect(streamedLogs).toContainEqual(
+      expect.objectContaining({ log: expect.objectContaining({ event: "prompt.prepared" }) }),
+    );
+    expect(streamedLogs).toContainEqual(
+      expect.objectContaining({ log: expect.objectContaining({ event: "run.completed" }) }),
+    );
+    expect(streamedLogs).toContainEqual(
+      expect.objectContaining({ log: expect.objectContaining({ event: "memory.saved" }) }),
+    );
+
+    const firstPage = await runner.fetch(
+      new Request(`http://runner.test/sessions/${session.id}/logs?limit=2`),
+    );
+    expect(firstPage.status).toBe(200);
+    const firstBody = (await firstPage.json()) as {
+      logs: Array<{ event: string; sequence: number; metadata?: unknown }>;
+      nextCursor?: number;
+    };
+    expect(firstBody.logs).toHaveLength(2);
+    expect(firstBody.logs[0]).toMatchObject({ event: "session.created", sequence: 0 });
+    expect(firstBody.nextCursor).toBe(1);
+
+    const nextPage = await runner.fetch(
+      new Request(`http://runner.test/sessions/${session.id}/logs?after=${firstBody.nextCursor}`),
+    );
+    const nextBody = (await nextPage.json()) as {
+      logs: Array<{ event: string; sequence: number; metadata?: unknown }>;
+    };
+    expect(nextBody.logs[0]).toMatchObject({ event: "run.started", sequence: 2 });
+    expect(nextBody.logs.map((log) => log.event)).toContain("run.completed");
+
+    const serializedLogs = JSON.stringify([...firstBody.logs, ...nextBody.logs]);
+    expect(serializedLogs).not.toContain("my raw secret prompt");
+    expect(serializedLogs).not.toContain("secret title");
+    expect(serializedLogs).not.toContain("safe answer");
+  });
+
   it("persists streaming subagent activity in tool transcript entries", async () => {
     const parentModel = new StreamingQueueModel([
       [
@@ -2148,6 +2226,42 @@ describe("Anvia studio", () => {
       messageCount: 4,
       messages,
     });
+  });
+
+  it("persists session audit logs with monotonic sequence and deletes them with sessions", async () => {
+    const store = createSqliteSessionStore({ path: ":memory:" });
+    store.createSession({ id: "session_1", agentId: "support" });
+
+    const first = await store.appendSessionLog?.({
+      sessionId: "session_1",
+      level: "info",
+      category: "session",
+      event: "session.created",
+      message: "Session created",
+      metadata: { agentId: "support" },
+    });
+    const second = await store.appendSessionLog?.({
+      sessionId: "session_1",
+      runId: "run_1",
+      level: "debug",
+      category: "memory",
+      event: "memory.loaded",
+      message: "Session memory loaded",
+      metadata: { messageCount: 0 },
+    });
+
+    expect(first).toMatchObject({ sequence: 0, event: "session.created" });
+    expect(second).toMatchObject({ sequence: 1, event: "memory.loaded", runId: "run_1" });
+    expect(await store.listSessionLogs?.({ sessionId: "session_1", limit: 10 })).toEqual([
+      expect.objectContaining({ sequence: 0 }),
+      expect.objectContaining({ sequence: 1 }),
+    ]);
+    expect(await store.listSessionLogs?.({ sessionId: "session_1", limit: 10, after: 0 })).toEqual([
+      expect.objectContaining({ sequence: 1 }),
+    ]);
+
+    expect(await store.deleteSession?.("session_1")).toBe(true);
+    expect(await store.listSessionLogs?.({ sessionId: "session_1", limit: 10 })).toEqual([]);
   });
 
   it("rejects legacy SQLite session schemas with messages_json", () => {
