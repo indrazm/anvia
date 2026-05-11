@@ -91,7 +91,7 @@ function toolPayloadDisplay(value: string): string {
   }
 }
 
-function JsonSyntax(props: { text: string }) {
+export function JsonSyntax(props: { text: string }) {
   const tokenPattern =
     /"(?:\\.|[^"\\])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b|[{}[\],:]/g;
   const nodes: React.ReactNode[] = [];

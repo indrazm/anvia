@@ -188,6 +188,13 @@ export function StudioConsole() {
   const mcpsEnabled = config?.capabilities.mcps?.enabled === true;
   const toolsEnabled = config?.capabilities.tools?.enabled === true;
   const pipelinesEnabled = config?.capabilities.pipelines?.enabled === true;
+  const agents = config?.agents ?? [];
+  const pipelines = config?.pipelines ?? [];
+  const hasAgents = agents.length > 0;
+  const selectedAgent =
+    agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? undefined;
+  const selectedAgentQuickPrompts = selectedAgent?.quickPrompts ?? [];
+  const hasMessages = messages.length > 0;
 
   useEffect(() => {
     applyDarkTheme();
@@ -1334,14 +1341,11 @@ export function StudioConsole() {
     void runPrompt(prompt);
   }
 
-  const agents = config?.agents ?? [];
-  const pipelines = config?.pipelines ?? [];
-  const selectedAgent =
-    agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? undefined;
-  const selectedAgentQuickPrompts = selectedAgent?.quickPrompts ?? [];
-  const hasMessages = messages.length > 0;
-
   function navigatePage(page: ActivePage) {
+    if (page === "playground" && !hasAgents) {
+      return;
+    }
+
     setActivePage(page);
     if (page === "pipelines") {
       const pipelineId = selectedPipelineId || pipelines[0]?.id || "";
@@ -1364,6 +1368,46 @@ export function StudioConsole() {
     }
     updatePagePath(page);
   }
+
+  useEffect(() => {
+    if (config === undefined || hasAgents || activePage !== "playground") {
+      return;
+    }
+
+    const nextPage: ActivePage = pipelinesEnabled
+      ? "pipelines"
+      : sessionsEnabled
+        ? "sessions"
+        : tracesEnabled
+          ? "tracing"
+          : "agents";
+
+    resetTranscriptSequence();
+    setSelectedSessionId("");
+    setSessionLogs([]);
+    setMessages([]);
+    setPrompt("");
+    setActivePage(nextPage);
+    updatePagePath(nextPage);
+
+    if (nextPage === "pipelines") {
+      const pipelineId = selectedPipelineId || pipelines[0]?.id || "";
+      if (pipelineId.length > 0) {
+        setSelectedPipelineId(pipelineId);
+        void loadPipeline(pipelineId);
+      }
+    }
+  }, [
+    activePage,
+    config,
+    hasAgents,
+    loadPipeline,
+    pipelines,
+    pipelinesEnabled,
+    selectedPipelineId,
+    sessionsEnabled,
+    tracesEnabled,
+  ]);
 
   function selectTrace(traceId: string) {
     setActivePage("tracing");
@@ -1397,6 +1441,7 @@ export function StudioConsole() {
             active={activePage === "playground"}
             icon="message"
             label="Chat"
+            disabled={!hasAgents}
             onClick={() => navigatePage("playground")}
           />
           <NavButton
