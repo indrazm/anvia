@@ -48,6 +48,10 @@ export type AgentRunErrorArgs = {
 export type AgentGenerationStartArgs = {
   turn: number;
   request: CompletionRequest;
+  modelInfo?: {
+    provider: string;
+    defaultModel: string;
+  };
 };
 
 export type AgentGenerationEndArgs<RawResponse = unknown> = {

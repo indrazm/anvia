@@ -311,6 +311,10 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         const generationObservers = await runObservers.startGeneration({
           turn: currentTurns,
           request,
+          modelInfo: {
+            provider: this.agent.model.provider,
+            defaultModel: this.agent.model.defaultModel,
+          },
         });
         const accumulator = new CompletionStreamAccumulator();
         const generationStartedAt = Date.now();
@@ -426,7 +430,14 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     runObservers: ActiveAgentRunObservers,
   ): Promise<CompletionResponse> {
     assertCompletionRequestSupported(this.agent.model, request);
-    const generationObservers = await runObservers.startGeneration({ turn, request });
+    const generationObservers = await runObservers.startGeneration({
+      turn,
+      request,
+      modelInfo: {
+        provider: this.agent.model.provider,
+        defaultModel: this.agent.model.defaultModel,
+      },
+    });
     try {
       const response = await this.agent.model.completion(request);
       await generationObservers.end({ turn, response });

@@ -506,7 +506,10 @@ describe("Anvia studio", () => {
       }>;
     };
     expect(runsBody.runs).toHaveLength(1);
-    const savedRun = runsBody.runs[0]!;
+    const [savedRun] = runsBody.runs;
+    if (savedRun === undefined) {
+      throw new Error("Expected a saved pipeline run");
+    }
     expect(savedRun).toMatchObject({
       pipelineId: "audit-pipeline",
       status: "success",
@@ -514,7 +517,11 @@ describe("Anvia studio", () => {
       output: { reply: "RAW SECRET PAYLOAD" },
     });
 
-    const db = new DatabaseSync(process.env.ANVIA_STUDIO_DB!);
+    const studioDbPath = process.env.ANVIA_STUDIO_DB;
+    if (studioDbPath === undefined) {
+      throw new Error("Expected ANVIA_STUDIO_DB to be set");
+    }
+    const db = new DatabaseSync(studioDbPath);
     try {
       const row = db
         .prepare(
@@ -2194,7 +2201,22 @@ describe("Anvia studio", () => {
     await expect(trace.json()).resolves.toMatchObject({
       sessionId: session.id,
       status: "success",
-      observations: [{ kind: "generation", name: "model.turn.1", status: "success" }],
+      observations: [
+        {
+          kind: "generation",
+          name: "model.turn.1",
+          status: "success",
+          metadata: expect.objectContaining({
+            provider: "test",
+            model: "test",
+            defaultModel: "test",
+            toolCount: 0,
+            toolNames: [],
+            documentCount: 0,
+            historyCount: 1,
+          }),
+        },
+      ],
     });
   });
 
@@ -2291,14 +2313,32 @@ describe("Anvia studio", () => {
           kind: "generation",
           name: "model.turn.1",
           status: "success",
-          metadata: expect.objectContaining({ firstDeltaMs: expect.any(Number) }),
+          metadata: expect.objectContaining({
+            provider: "test",
+            model: "test",
+            defaultModel: "test",
+            toolCount: 1,
+            toolNames: ["add"],
+            documentCount: 0,
+            historyCount: 1,
+            firstDeltaMs: expect.any(Number),
+          }),
         },
         { kind: "tool", name: "add", status: "success", output: 7 },
         {
           kind: "generation",
           name: "model.turn.2",
           status: "success",
-          metadata: expect.objectContaining({ firstDeltaMs: expect.any(Number) }),
+          metadata: expect.objectContaining({
+            provider: "test",
+            model: "test",
+            defaultModel: "test",
+            toolCount: 1,
+            toolNames: ["add"],
+            documentCount: 0,
+            historyCount: 3,
+            firstDeltaMs: expect.any(Number),
+          }),
         },
       ],
     });

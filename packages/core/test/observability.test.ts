@@ -159,6 +159,17 @@ describe("agent observability", () => {
         },
       },
     });
+    expect(observer.events).toContainEqual(
+      expect.objectContaining({
+        type: "generation_start",
+        args: expect.objectContaining({
+          modelInfo: {
+            provider: "test",
+            defaultModel: "test",
+          },
+        }),
+      }),
+    );
   });
 
   it("records multiple turns and tool calls", async () => {
@@ -265,6 +276,17 @@ describe("agent observability", () => {
       "generation_end",
       "run_end",
     ]);
+    expect(observer.events).toContainEqual(
+      expect.objectContaining({
+        type: "generation_start",
+        args: expect.objectContaining({
+          modelInfo: {
+            provider: "test",
+            defaultModel: "test",
+          },
+        }),
+      }),
+    );
     expect(observer.events).toContainEqual(
       expect.objectContaining({
         type: "generation_end",

@@ -75,11 +75,7 @@ class StudioRunTraceObserver implements AgentRunObserver {
             startedAt,
             input: toJsonValue(args.request),
             output: toJsonValue(endArgs.response),
-            metadata: {
-              model: args.request.model ?? "default",
-              toolCount: args.request.tools.length,
-              ...(endArgs.firstDeltaMs === undefined ? {} : { firstDeltaMs: endArgs.firstDeltaMs }),
-            },
+            metadata: generationMetadata(args, endArgs),
           }),
         );
       },
@@ -93,10 +89,7 @@ class StudioRunTraceObserver implements AgentRunObserver {
             startedAt,
             input: toJsonValue(args.request),
             error: serializeError(errorArgs.error),
-            metadata: {
-              model: args.request.model ?? "default",
-              toolCount: args.request.tools.length,
-            },
+            metadata: generationMetadata(args),
           }),
         );
       },
@@ -498,6 +491,61 @@ function traceMetadata(args: AgentRunStartArgs, messages: JsonValue): JsonObject
     metadata: toJsonValue(args.trace?.metadata ?? {}),
     messages,
   });
+}
+
+function generationMetadata(
+  args: AgentGenerationStartArgs,
+  endArgs?: AgentGenerationEndArgs,
+): JsonObject {
+  const request = args.request;
+  const response = endArgs?.response;
+  const rawResponse = isRecord(response?.rawResponse) ? response.rawResponse : undefined;
+  const effectiveModel =
+    request.model ?? stringValue(rawResponse?.model) ?? args.modelInfo?.defaultModel ?? "default";
+  const providerResponse = providerResponseSummary(rawResponse);
+
+  return compactJsonObject({
+    provider: args.modelInfo?.provider,
+    model: effectiveModel,
+    requestedModel: request.model,
+    defaultModel: args.modelInfo?.defaultModel,
+    messageId: response?.messageId,
+    toolCount: request.tools.length,
+    toolNames: request.tools.map((tool) => tool.name),
+    documentCount: request.documents.length,
+    historyCount: request.chatHistory.length,
+    temperature: request.temperature,
+    maxTokens: request.maxTokens,
+    toolChoice: request.toolChoice,
+    hasOutputSchema: request.outputSchema !== undefined,
+    firstDeltaMs: endArgs?.firstDeltaMs,
+    providerResponse,
+  });
+}
+
+function providerResponseSummary(
+  rawResponse: Record<string, unknown> | undefined,
+): JsonObject | undefined {
+  if (rawResponse === undefined) {
+    return undefined;
+  }
+  const reasoning = isRecord(rawResponse.reasoning) ? rawResponse.reasoning : undefined;
+  const text = isRecord(rawResponse.text) ? rawResponse.text : undefined;
+  const toolUsage = isRecord(rawResponse.tool_usage) ? rawResponse.tool_usage : undefined;
+  const webSearch = isRecord(toolUsage?.web_search) ? toolUsage.web_search : undefined;
+  const summary = compactJsonObject({
+    id: rawResponse.id,
+    status: rawResponse.status,
+    serviceTier: rawResponse.service_tier,
+    store: rawResponse.store,
+    parallelToolCalls: rawResponse.parallel_tool_calls,
+    promptCacheKey: rawResponse.prompt_cache_key,
+    promptCacheRetention: rawResponse.prompt_cache_retention,
+    reasoningEffort: reasoning?.effort,
+    textVerbosity: text?.verbosity,
+    webSearchRequestCount: webSearch?.num_requests,
+  });
+  return Object.keys(summary).length === 0 ? undefined : summary;
 }
 
 function toolMetadata(args: AgentToolStartArgs, skipped: boolean): JsonObject {
