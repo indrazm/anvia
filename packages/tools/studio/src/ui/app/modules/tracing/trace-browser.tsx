@@ -284,7 +284,7 @@ function TracePanel(props: {
                   isLastSibling={true}
                   level={0}
                   tone="trace"
-                  title={trace.name ?? "support-ticket-summary"}
+                  title={trace.name ?? "Agent"}
                   subtitle={formatDuration(trace.durationMs)}
                   onSelect={() => selectTimelineItem(trace.id, "trace")}
                 />
@@ -897,7 +897,7 @@ function selectedTraceDetail(
     }
   }
   return {
-    title: trace.name ?? "support-ticket-summary",
+    title: trace.name ?? "Agent",
     tone: "trace",
     startedAt: formatTraceTime(trace.startedAt),
     durationMs: trace.durationMs,
