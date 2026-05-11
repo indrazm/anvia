@@ -6,6 +6,7 @@ const githubUrl = "https://github.com/anvia-hq/anvia";
 const discordUrl = "https://discord.gg/6yegrFJBgp";
 const resourceLinks = [
   { text: "Docs", url: "/docs/guides" },
+  { text: "Best Practices", url: "/docs/best-practices" },
   { text: "Frameworks", url: "/docs/frameworks" },
   { text: "Studio", url: "/docs/studio/overview" },
   { text: "Reference", url: "/docs/reference" },
