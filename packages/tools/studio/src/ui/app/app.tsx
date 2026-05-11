@@ -1609,17 +1609,7 @@ export function StudioConsole() {
                     placeholder="Ask anything..."
                   />
                   <div className="flex min-w-0 items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Button
-                        aria-label="Attach context"
-                        className="h-8 min-h-8 w-8 rounded-sm border-border bg-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                        size="icon"
-                        type="button"
-                        variant="secondary"
-                      >
-                        <Plus aria-hidden="true" />
-                      </Button>
-                    </div>
+                    <div />
                     <div className="flex min-w-0 items-center gap-2">
                       {agents.length > 1 ? (
                         <Select
