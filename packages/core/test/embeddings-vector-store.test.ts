@@ -245,6 +245,44 @@ describe("in-memory vector store", () => {
     await expect(tool.call({ query: "cat" })).resolves.toMatchObject([{ id: "cat" }]);
     expect(await tool.definition("")).toMatchObject({ name: "search_docs" });
   });
+
+  it("inspects paginated documents without embeddings", async () => {
+    const model = new KeywordEmbeddingModel();
+    const index = InMemoryVectorStore.fromDocuments(await sampleEmbedded(model)).index(model);
+
+    await expect(index.inspect({ limit: 2 })).resolves.toEqual({
+      items: [
+        {
+          id: "cat",
+          document: { id: "cat", title: "Cat guide", texts: ["cat", "pet"] },
+          metadata: { category: "animal", rank: 3 },
+        },
+        {
+          id: "dog",
+          document: { id: "dog", title: "Dog guide", texts: ["dog"] },
+          metadata: { category: "animal", rank: 3 },
+        },
+      ],
+      nextCursor: "2",
+      totalCount: 3,
+    });
+    await expect(index.inspect({ limit: 2, cursor: "2" })).resolves.toEqual({
+      items: [
+        {
+          id: "risk",
+          document: { id: "risk", title: "Risk memo", texts: ["risk"] },
+          metadata: { category: "finance", rank: 1 },
+        },
+      ],
+      totalCount: 3,
+    });
+    await expect(
+      index.inspect({ limit: 5, filter: vectorFilter.eq("category", "animal") }),
+    ).resolves.toMatchObject({
+      items: [{ id: "cat" }, { id: "dog" }],
+      totalCount: 2,
+    });
+  });
 });
 
 describe("agent dynamic context", () => {
@@ -309,6 +347,25 @@ describe("agent dynamic tools", () => {
         metadata: { domain: "billing" },
       },
     ]);
+  });
+
+  it("passes dynamic tool inspection through to the wrapped index", async () => {
+    const embeddingModel = new KeywordEmbeddingModel();
+    const index = await createToolIndex(embeddingModel, [issueRefundTool, lookupDogTool]);
+
+    await expect(index.inspect?.({ limit: 1 })).resolves.toMatchObject({
+      items: [
+        {
+          id: "issue_refund",
+          document: {
+            toolName: "issue_refund",
+            definition: expect.objectContaining({ name: "issue_refund" }),
+          },
+        },
+      ],
+      nextCursor: "1",
+      totalCount: 2,
+    });
   });
 
   it("injects selected dynamic tools into send requests and executes them", async () => {

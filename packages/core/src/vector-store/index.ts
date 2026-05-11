@@ -30,10 +30,29 @@ export type VectorSearchResult<T = unknown, Metadata extends VectorMetadata = Ve
   metadata?: Metadata | undefined;
 };
 
+export type VectorInspectRequest = {
+  limit: number;
+  cursor?: string | undefined;
+  filter?: VectorFilter | undefined;
+};
+
+export type VectorInspectItem<T = unknown, Metadata extends VectorMetadata = VectorMetadata> = {
+  id: string;
+  document: T;
+  metadata?: Metadata | undefined;
+};
+
+export type VectorInspectPage<T = unknown, Metadata extends VectorMetadata = VectorMetadata> = {
+  items: Array<VectorInspectItem<T, Metadata>>;
+  nextCursor?: string | undefined;
+  totalCount?: number | undefined;
+};
+
 export interface VectorSearchIndex<T = unknown, Metadata extends VectorMetadata = VectorMetadata> {
   search(request: VectorSearchRequest): Promise<Array<VectorSearchResult<T, Metadata>>>;
   searchIds(request: VectorSearchRequest): Promise<Array<{ score: number; id: string }>>;
   asTool(options: VectorSearchToolOptions): Tool<{ query: string; topK?: number }, unknown>;
+  inspect?(request: VectorInspectRequest): Promise<VectorInspectPage<T, Metadata>>;
 }
 
 export type VectorSearchToolOptions = {
@@ -166,6 +185,25 @@ export class InMemoryVectorIndex<T, Metadata extends VectorMetadata = VectorMeta
 
   async searchIds(request: VectorSearchRequest): Promise<Array<{ score: number; id: string }>> {
     return (await this.search(request)).map(({ score, id }) => ({ score, id }));
+  }
+
+  async inspect(request: VectorInspectRequest): Promise<VectorInspectPage<T, Metadata>> {
+    const limit = Math.max(0, Math.trunc(request.limit));
+    const start = Math.max(0, Math.trunc(Number(request.cursor ?? "0")));
+    const documents = this.store
+      .values()
+      .filter((document) => matchesVectorFilter(document.metadata, request.filter));
+    const page = documents.slice(start, start + limit);
+    const nextOffset = start + page.length;
+    return {
+      items: page.map((document) => ({
+        id: document.id,
+        document: document.document,
+        ...(document.metadata === undefined ? {} : { metadata: document.metadata }),
+      })),
+      ...(nextOffset < documents.length ? { nextCursor: String(nextOffset) } : {}),
+      totalCount: documents.length,
+    };
   }
 
   asTool(options: VectorSearchToolOptions): Tool<{ query: string; topK?: number }, unknown> {
