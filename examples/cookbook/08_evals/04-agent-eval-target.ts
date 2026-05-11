@@ -2,8 +2,11 @@ import { AgentBuilder, type PromptResponse } from "@anvia/core/agent";
 import { agentEvalTarget, contains, exactMatch, runEvalSuite } from "@anvia/core/evals";
 import { OpenAIClient } from "@anvia/openai";
 
-const openAIClient = new OpenAIClient({ apiKey: requireEnv("OPENAI_API_KEY") });
-const model = openAIClient.completionModel(process.env.OPENAI_MODEL ?? "gpt-5.5");
+const openAIClient = new OpenAIClient({
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const model = openAIClient.completionModel("gpt-5.5");
 
 const agent = new AgentBuilder("support-policy-agent", model)
   .instructions(
@@ -63,11 +66,3 @@ console.log({
   failed: result.failed,
   invalid: result.invalid,
 });
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value.length === 0) {
-    throw new Error(`Set ${name} before running this cookbook example.`);
-  }
-  return value;
-}

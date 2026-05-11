@@ -4,11 +4,11 @@ import { OpenAIClient } from "@anvia/openai";
 import { Studio } from "@anvia/studio";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-const replyModel = client.completionModel("deepseek/deepseek-v4-pro");
+const replyModel = client.completionModel("gpt-5.5");
 const replyAgent = new AgentBuilder("studio-reply-drafter", replyModel)
   .name("Studio Reply Drafter")
   .description("Drafts short support replies from normalized ticket context.")

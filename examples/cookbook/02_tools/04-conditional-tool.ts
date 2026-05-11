@@ -17,10 +17,10 @@ const addTool = createTool({
 const enableMathTools = process.env.ENABLE_MATH_TOOLS !== "false";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
-const builderModel = client.completionModel("deepseek/deepseek-v4-pro");
+const builderModel = client.completionModel("gpt-5.5");
 const builder = new AgentBuilder("builder", builderModel)
   .instructions("You are a concise assistant. Use tools only when they are available.")
   .defaultMaxTurns(2);

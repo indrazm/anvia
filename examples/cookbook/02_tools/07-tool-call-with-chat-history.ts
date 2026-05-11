@@ -52,10 +52,10 @@ const historyPath = new URL("../.memory/tool-call-chat-history.json", import.met
 const prompt = "Use the ticket tool to summarize TICKET-1001 and remember who owns it.";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
-const agentModel = client.completionModel("deepseek/deepseek-v4-pro");
+const agentModel = client.completionModel("gpt-5.5");
 const agent = new AgentBuilder("agent", agentModel)
   .instructions("Use tools for private ticket data. Use prior chat history when it is relevant.")
   .tools([getTicketTool])

@@ -3,8 +3,10 @@ import { audioGenerationRequest } from "@anvia/core/audio-generation";
 import { transcriptionRequest } from "@anvia/core/transcription";
 import { OpenAIClient } from "@anvia/openai";
 
-const apiKey = requireEnv("OPENAI_API_KEY");
-const client = new OpenAIClient({ apiKey });
+const client = new OpenAIClient({
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const speech = await audioGenerationRequest(client.audioGenerationModel())
   .text("Anvia can now generate audio and transcribe audio through provider-neutral APIs.")
@@ -28,11 +30,3 @@ console.log({
   mediaType: speech.mediaType,
   transcript: transcript.text,
 });
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value.length === 0) {
-    throw new Error(`Set ${name} before running this cookbook example.`);
-  }
-  return value;
-}

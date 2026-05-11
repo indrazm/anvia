@@ -25,11 +25,11 @@ class InMemoryAgentEventStore implements AgentEventStore {
 }
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-const model = client.completionModel("deepseek/deepseek-v4-pro");
+const model = client.completionModel("gpt-5.5");
 
 const supportAgent = new AgentBuilder("support", model)
   .name("Support Specialist")

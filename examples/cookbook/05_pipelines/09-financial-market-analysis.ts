@@ -5,8 +5,8 @@ import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const marketTools = ToolSet.fromTools([
@@ -69,7 +69,7 @@ const riskFlags = new PipelineBuilder<string>()
   .step((ticker) => marketTools.call("risk_flags", JSON.stringify({ ticker })))
   .build();
 
-const marketAnalystModel = client.completionModel("deepseek/deepseek-v4-pro");
+const marketAnalystModel = client.completionModel("gpt-5.5");
 const marketAnalyst = new AgentBuilder("market-analyst", marketAnalystModel)
   .instructions(
     [

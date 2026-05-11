@@ -3,10 +3,10 @@ import { Message, UserContent } from "@anvia/core/completion";
 import { OpenAIClient } from "@anvia/openai";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
-const agentModel = client.completionModel("google/gemini-3.1-flash-lite-preview");
+const agentModel = client.completionModel("gpt-5.5");
 const agent = new AgentBuilder("agent", agentModel)
   .instructions("Answer visual questions briefly.")
   .build();

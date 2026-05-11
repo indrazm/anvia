@@ -5,8 +5,8 @@ import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const researchTools = ToolSet.fromTools([
@@ -48,7 +48,7 @@ const sourceQuality = new PipelineBuilder<string>()
   .step((topic) => researchTools.call("source_quality", JSON.stringify({ topic })))
   .build();
 
-const synthesizerModel = client.completionModel("deepseek/deepseek-v4-pro");
+const synthesizerModel = client.completionModel("gpt-5.5");
 const synthesizer = new AgentBuilder("synthesizer", synthesizerModel)
   .instructions(
     [

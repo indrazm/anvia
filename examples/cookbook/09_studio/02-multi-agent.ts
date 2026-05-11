@@ -5,8 +5,8 @@ import { Studio } from "@anvia/studio";
 import { z } from "zod";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const getTicket = createTool({
@@ -53,7 +53,7 @@ const getRunbook = createTool({
   }),
 });
 
-const supportAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
+const supportAgentModel = client.completionModel("gpt-5.5");
 const supportAgent = new AgentBuilder("support-triage", supportAgentModel)
   .name("Support Triage")
   .description("Summarizes customer-facing support tickets.")
@@ -62,7 +62,7 @@ const supportAgent = new AgentBuilder("support-triage", supportAgentModel)
   .defaultMaxTurns(2)
   .build();
 
-const engineeringAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
+const engineeringAgentModel = client.completionModel("gpt-5.5");
 const engineeringAgent = new AgentBuilder("engineering-triage", engineeringAgentModel)
   .name("Engineering Triage")
   .description("Turns incidents and runbooks into engineering next steps.")
@@ -71,7 +71,7 @@ const engineeringAgent = new AgentBuilder("engineering-triage", engineeringAgent
   .defaultMaxTurns(2)
   .build();
 
-const commsAgentModel = client.completionModel("deepseek/deepseek-v4-pro");
+const commsAgentModel = client.completionModel("gpt-5.5");
 const commsAgent = new AgentBuilder("customer-comms", commsAgentModel)
   .name("Customer Comms")
   .description("Drafts concise customer updates for incidents.")

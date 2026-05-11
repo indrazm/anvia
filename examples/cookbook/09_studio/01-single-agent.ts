@@ -5,8 +5,8 @@ import { Studio } from "@anvia/studio";
 import { z } from "zod";
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const getOrder = createTool({
@@ -29,7 +29,7 @@ const getOrder = createTool({
   }),
 });
 
-const agentModel = client.completionModel("deepseek/deepseek-v4-pro");
+const agentModel = client.completionModel("gpt-5.5");
 const agent = new AgentBuilder("support-operations", agentModel)
   .name("Support Operations")
   .description("Answers operational questions with short, concrete summaries.")
