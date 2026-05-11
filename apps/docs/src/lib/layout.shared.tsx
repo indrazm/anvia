@@ -99,8 +99,8 @@ export const baseOptions: BaseLayoutProps = {
       on: "nav",
     },
     {
-      text: "Blog",
-      url: "/blog",
+      text: "Sponsors",
+      url: "/sponsors",
       active: "nested-url",
       on: "nav",
     },
