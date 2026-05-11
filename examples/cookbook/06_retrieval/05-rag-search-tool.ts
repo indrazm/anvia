@@ -10,8 +10,8 @@ type Runbook = {
 };
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 const embeddingModel = await createTransformersEmbeddingModel();
 const runbooks: Runbook[] = [
@@ -40,7 +40,7 @@ const searchRunbooks = store.index(embeddingModel).asTool({
   topK: 2,
 });
 
-const agentModel = client.completionModel("deepseek/deepseek-v4-pro");
+const agentModel = client.completionModel("gpt-5.5");
 const agent = new AgentBuilder("agent", agentModel)
   .instructions("Use the runbook search tool before answering incident questions.")
   .tools([searchRunbooks])

@@ -2,8 +2,11 @@ import { AgentBuilder } from "@anvia/core/agent";
 import { Message, UserContent } from "@anvia/core/completion";
 import { OpenAIClient } from "@anvia/openai";
 
-const client = new OpenAIClient({ apiKey: process.env.OPENAI_API_KEY });
-const agentModel = client.completionModel("gpt-5.4");
+const client = new OpenAIClient({
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const agentModel = client.completionModel("gpt-5.5");
 const agent = new AgentBuilder("agent", agentModel)
   .instructions("Summarize attached documents in concise bullets.")
   .build();

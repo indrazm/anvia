@@ -9,10 +9,10 @@ const taskSchema = z.object({
 });
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
-const model = client.completionModel("deepseek/deepseek-v4-pro");
+const model = client.completionModel("gpt-5.5");
 
 // This extends basic extraction with context, retries, and prior messages.
 const extractor = new ExtractorBuilder(model, taskSchema)

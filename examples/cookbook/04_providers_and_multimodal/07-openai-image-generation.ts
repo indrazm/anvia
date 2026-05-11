@@ -2,8 +2,10 @@ import { writeFile } from "node:fs/promises";
 import { imageGenerationRequest } from "@anvia/core/image-generation";
 import { GPT_IMAGE_2, OpenAIClient } from "@anvia/openai";
 
-const apiKey = requireEnv("OPENAI_API_KEY");
-const client = new OpenAIClient({ apiKey });
+const client = new OpenAIClient({
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
+});
 const imageModel = client.imageGenerationModel(process.env.OPENAI_IMAGE_MODEL ?? GPT_IMAGE_2);
 
 const response = await imageGenerationRequest(imageModel)
@@ -19,11 +21,3 @@ console.log({
   mediaType: response.mediaType,
   output: "openai-image-generation.png",
 });
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value.length === 0) {
-    throw new Error(`Set ${name} before running this cookbook example.`);
-  }
-  return value;
-}

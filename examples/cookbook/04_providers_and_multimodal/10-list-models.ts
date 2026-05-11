@@ -14,15 +14,9 @@ console.table(
 );
 
 function createModelListingClient(): ModelListingClient {
-  if (process.env.OPENROUTER_API_KEY !== undefined) {
-    return new OpenAIClient({
-      baseUrl: "https://openrouter.ai/api/v1",
-      apiKey: process.env.OPENROUTER_API_KEY,
-    });
-  }
-
   if (process.env.OPENAI_API_KEY !== undefined) {
     return new OpenAIClient({
+      baseUrl: process.env.OPENAI_BASEURL,
       apiKey: process.env.OPENAI_API_KEY,
     });
   }

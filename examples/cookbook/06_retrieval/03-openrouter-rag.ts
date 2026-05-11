@@ -10,8 +10,8 @@ type PolicyNote = {
 };
 
 const client = new OpenAIClient({
-  baseUrl: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 const embeddingModel = await createTransformersEmbeddingModel();
 const notes: PolicyNote[] = [
@@ -31,7 +31,7 @@ const embedded = await embedDocuments(embeddingModel, notes, {
 });
 const index = InMemoryVectorStore.fromDocuments(embedded).index(embeddingModel);
 
-const agentModel = client.completionModel("deepseek/deepseek-v4-pro");
+const agentModel = client.completionModel("gpt-5.5");
 const agent = new AgentBuilder("agent", agentModel)
   .instructions("Answer using the retrieved policy context. If context is thin, say so.")
   .dynamicContext(index, { topK: 1 })

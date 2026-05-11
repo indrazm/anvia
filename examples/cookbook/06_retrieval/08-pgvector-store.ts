@@ -29,7 +29,7 @@ const embedded = await embedDocuments(embeddingModel, notes, {
 });
 
 const store = await PgVectorStore.connect<MarketNote>({
-  connectionString: process.env.DATABASE_URL ?? "postgres://anvia:anvia@localhost:5432/anvia",
+  connectionString: process.env.DATABASE_URL ?? "postgres://anvia:anvia@localhost:5439/anvia",
   tableName: "anvia_market_notes",
   vectorSize: 384,
 });

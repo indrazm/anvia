@@ -2,8 +2,11 @@ import { llmJudge, llmScore, runEvalSuite } from "@anvia/core/evals";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
-const openAIClient = new OpenAIClient({ apiKey: requireEnv("OPENAI_API_KEY") });
-const model = openAIClient.completionModel(process.env.OPENAI_MODEL ?? "gpt-5.5");
+const openAIClient = new OpenAIClient({
+  baseUrl: process.env.OPENAI_BASEURL,
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const model = openAIClient.completionModel("gpt-5.5");
 
 const cases = [
   {
@@ -82,12 +85,4 @@ function scoreForTable(score: unknown): string | number | boolean {
     return typeof nested.score === "number" ? nested.score : "";
   }
   return "";
-}
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value.length === 0) {
-    throw new Error(`Set ${name} before running this cookbook example.`);
-  }
-  return value;
 }
