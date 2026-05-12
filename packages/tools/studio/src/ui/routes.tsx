@@ -63,6 +63,8 @@ export function registerStudioUi(app: Hono, options: ResolvedStudioUiOptions): v
   app.get(`${options.path}/sessions`, async (c) => c.html(await renderShell()));
   app.get(`${options.path}/agents`, async (c) => c.html(await renderShell()));
   app.get(`${options.path}/knowledge`, async (c) => c.html(await renderShell()));
+  app.get(`${options.path}/knowledge/:tab`, async (c) => c.html(await renderShell()));
+  app.get(`${options.path}/knowledge/*`, async (c) => c.html(await renderShell()));
 
   if (options.rootRoutes) {
     app.get("/playground", async (c) => c.html(await renderRootShell()));

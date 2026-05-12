@@ -47,8 +47,10 @@ import {
   titleFromText,
 } from "./modules/shared/format";
 import {
+  defaultKnowledgeTab,
   logoSrc,
   pageLocationFromLocation,
+  updateKnowledgePath,
   updatePagePath,
   updateSessionPath,
   updateTracePath,
@@ -69,6 +71,7 @@ import {
 } from "./modules/shared/transcript";
 import type {
   ActivePage,
+  KnowledgeTab,
   RunState,
   SessionLoadState,
   ToolApprovalUpdate,
@@ -125,6 +128,9 @@ export function StudioConsole() {
   const [pipelineRunOutput, setPipelineRunOutput] = useState("");
   const [activePipelineRunId, setActivePipelineRunId] = useState("");
   const [activePage, setActivePage] = useState<ActivePage>(() => initialLocation.page);
+  const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTab>(
+    () => initialLocation.knowledgeTab ?? defaultKnowledgeTab,
+  );
   const [selectedTraceId, setSelectedTraceId] = useState(() => initialLocation.traceId ?? "");
   const [traceSessionDetailId, setTraceSessionDetailId] = useState<string | undefined>(
     () => initialLocation.traceSessionId,
@@ -687,6 +693,7 @@ export function StudioConsole() {
 
     const location = pageLocationFromLocation();
     setActivePage(location.page);
+    setKnowledgeTab(location.knowledgeTab ?? defaultKnowledgeTab);
     setSelectedTraceId(location.traceId ?? "");
     setTraceSessionDetailId(location.traceSessionId);
     if (location.page === "tracing" && location.traceSessionId !== undefined) {
@@ -707,6 +714,7 @@ export function StudioConsole() {
     function handlePopState() {
       const location = pageLocationFromLocation();
       setActivePage(location.page);
+      setKnowledgeTab(location.knowledgeTab ?? defaultKnowledgeTab);
       setSelectedTraceId(location.traceId ?? "");
       setTraceSessionDetailId(location.traceSessionId);
       if (location.page === "tracing" && location.traceSessionId !== undefined) {
@@ -1360,6 +1368,12 @@ export function StudioConsole() {
       updatePagePath("tracing");
       return;
     }
+    if (page === "knowledge") {
+      setSelectedTraceId("");
+      setTraceSessionDetailId(undefined);
+      updateKnowledgePath(knowledgeTab);
+      return;
+    }
     setSelectedTraceId("");
     setTraceSessionDetailId(undefined);
     if (page === "playground" && selectedSessionId.length > 0) {
@@ -1367,6 +1381,14 @@ export function StudioConsole() {
       return;
     }
     updatePagePath(page);
+  }
+
+  function navigateKnowledgeTab(tab: KnowledgeTab) {
+    setActivePage("knowledge");
+    setKnowledgeTab(tab);
+    setSelectedTraceId("");
+    setTraceSessionDetailId(undefined);
+    updateKnowledgePath(tab);
   }
 
   useEffect(() => {
@@ -1792,11 +1814,13 @@ export function StudioConsole() {
 
         {activePage === "knowledge" ? (
           <KnowledgePage
+            activeTab={knowledgeTab}
             enabled={knowledgeEnabled}
             summary={knowledge}
             loading={knowledgeLoadState === "loading"}
             onOpenTrace={selectTrace}
             onRefresh={() => void loadKnowledge()}
+            onSelectTab={navigateKnowledgeTab}
           />
         ) : null}
       </main>

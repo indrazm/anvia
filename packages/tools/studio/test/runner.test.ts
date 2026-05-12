@@ -1899,6 +1899,10 @@ describe("Anvia studio", () => {
       "/ui/pipelines",
       "/ui/mcps",
       "/ui/knowledge",
+      "/ui/knowledge/static-context",
+      "/ui/knowledge/dynamic-context",
+      "/ui/knowledge/dynamic-tools",
+      "/ui/knowledge/retrieval-log",
     ]) {
       const routeShell = await runner.fetch(new Request(`http://runner.test${path}`));
       expect(routeShell.status).toBe(200);

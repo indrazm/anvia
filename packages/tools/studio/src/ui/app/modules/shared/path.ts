@@ -1,4 +1,4 @@
-import type { ActivePage, PageLocation } from "./types";
+import type { ActivePage, KnowledgeTab, PageLocation } from "./types";
 
 const root = document.getElementById("anvia-ui");
 const uiPath = root?.dataset.uiPath ?? "/ui";
@@ -6,6 +6,7 @@ const compatUiPath = root?.dataset.uiCompatPath ?? "/ui";
 const assetPath = normalizePathPrefix(uiPath) || normalizePathPrefix(compatUiPath) || "/ui";
 
 export const logoSrc = `${assetPath}/assets/logo.png`;
+export const defaultKnowledgeTab: KnowledgeTab = "static-context";
 
 export function pageLocationFromLocation(): PageLocation {
   const normalizedUiPath = normalizePathPrefix(uiPath);
@@ -82,7 +83,7 @@ function pageLocationFromSegments(segments: string[]): PageLocation {
     return { page: "pipelines" };
   }
   if (first === "knowledge") {
-    return { page: "knowledge" };
+    return { page: "knowledge", knowledgeTab: knowledgeTabFromSegment(second) };
   }
   if (first === "playground") {
     return {
@@ -97,6 +98,10 @@ function pageLocationFromSegments(segments: string[]): PageLocation {
 }
 
 export function updatePagePath(page: ActivePage): void {
+  if (page === "knowledge") {
+    updateKnowledgePath(defaultKnowledgeTab);
+    return;
+  }
   const normalizedUiPath = normalizePathPrefix(uiPath);
   const normalizedCompatUiPath = normalizePathPrefix(compatUiPath) || "/ui";
   if (
@@ -105,8 +110,7 @@ export function updatePagePath(page: ActivePage): void {
       page === "agents" ||
       page === "tools" ||
       page === "mcps" ||
-      page === "pipelines" ||
-      page === "knowledge")
+      page === "pipelines")
   ) {
     updateLocationPath(`${normalizedCompatUiPath}/${page}`);
     return;
@@ -114,6 +118,13 @@ export function updatePagePath(page: ActivePage): void {
   const nextPath =
     page === "playground" ? `${normalizedUiPath}/playground` : `${normalizedUiPath}/${page}`;
   updateLocationPath(nextPath);
+}
+
+export function updateKnowledgePath(tab: KnowledgeTab): void {
+  const normalizedUiPath = normalizePathPrefix(uiPath);
+  const normalizedCompatUiPath = normalizePathPrefix(compatUiPath) || "/ui";
+  const basePath = normalizedUiPath.length === 0 ? normalizedCompatUiPath : normalizedUiPath;
+  updateLocationPath(`${basePath}/knowledge/${tab}`);
 }
 
 export function updateSessionPath(sessionId: string | undefined): void {
@@ -145,4 +156,16 @@ function updateLocationPath(nextPath: string): void {
     return;
   }
   window.history.pushState({}, "", nextUrl);
+}
+
+function knowledgeTabFromSegment(segment: string | undefined): KnowledgeTab {
+  switch (segment) {
+    case "dynamic-context":
+    case "dynamic-tools":
+    case "retrieval-log":
+    case "static-context":
+      return segment;
+    default:
+      return defaultKnowledgeTab;
+  }
 }

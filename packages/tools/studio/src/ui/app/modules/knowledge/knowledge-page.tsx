@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import type {
   StudioAgentKnowledgeConfig,
   StudioKnowledgeItem,
@@ -10,7 +10,9 @@ import type {
 } from "../../../../types";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { JsonValueView } from "../shared/renderers";
+import { isRecord } from "../shared/object";
+import { JsonSyntax, JsonValueView } from "../shared/renderers";
+import type { KnowledgeTab } from "../shared/types";
 
 const itemLimit = 50;
 
@@ -33,11 +35,13 @@ type ItemState = {
 };
 
 export function KnowledgePage(props: {
+  activeTab: KnowledgeTab;
   enabled: boolean;
   summary: StudioKnowledgeSummary | undefined;
   loading: boolean;
   onOpenTrace: (traceId: string) => void;
   onRefresh: () => void;
+  onSelectTab: (tab: KnowledgeTab) => void;
 }) {
   const [selectedKey, setSelectedKey] = useState("");
   const [itemState, setItemState] = useState<ItemState | undefined>();
@@ -45,28 +49,33 @@ export function KnowledgePage(props: {
   const agents = props.summary?.agents ?? [];
   const evidence = props.summary?.evidence ?? [];
   const sources = useMemo(() => flattenSources(agents), [agents]);
-  const selectedSource = sources.find((source) => source.key === selectedKey) ?? sources[0];
-  const metrics = useMemo(
-    () => knowledgeMetrics(agents, evidence.length),
-    [agents, evidence.length],
+  const activeSourceKind = sourceKindForTab(props.activeTab);
+  const visibleSources = useMemo(
+    () =>
+      activeSourceKind === undefined
+        ? []
+        : sources.filter((source) => source.source.kind === activeSourceKind),
+    [activeSourceKind, sources],
   );
+  const selectedSource =
+    visibleSources.find((source) => source.key === selectedKey) ?? visibleSources[0];
 
   useEffect(() => {
-    if (sources.length === 0) {
+    if (visibleSources.length === 0) {
       setSelectedKey("");
       return;
     }
-    if (sources.some((source) => source.key === selectedKey)) {
+    if (visibleSources.some((source) => source.key === selectedKey)) {
       return;
     }
     const next =
-      sources.find(
+      visibleSources.find(
         (source) => source.source.inspectable === true && (source.source.itemCount ?? 0) > 0,
       ) ??
-      sources.find((source) => source.source.inspectable === true) ??
-      sources[0];
+      visibleSources.find((source) => source.source.inspectable === true) ??
+      visibleSources[0];
     setSelectedKey(next?.key ?? "");
-  }, [selectedKey, sources]);
+  }, [selectedKey, visibleSources]);
 
   const loadItems = useCallback(
     async (source: KnowledgeSourceRef, options: { append: boolean; cursor?: string }) => {
@@ -146,7 +155,7 @@ export function KnowledgePage(props: {
         <div className="min-w-0">
           <h1 className="m-0 text-sm font-semibold text-foreground">Knowledge</h1>
           <p className="m-0 text-xs font-medium text-muted-foreground">
-            Browse configured context, dynamic chunks, tools, and retrieval evidence.
+            Browse configured context, dynamic chunks, dynamic tools, and retrieval evidence.
           </p>
         </div>
         <Button
@@ -160,151 +169,192 @@ export function KnowledgePage(props: {
         </Button>
       </header>
       <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden p-6">
-        <MetricStrip metrics={metrics} />
-        <div className="grid min-h-0 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_420px]">
-          <SourceList
-            sources={sources}
+        <KnowledgeTabs
+          activeTab={props.activeTab}
+          sources={sources}
+          evidenceCount={evidence.length}
+          onSelectTab={props.onSelectTab}
+        />
+        {props.activeTab === "retrieval-log" ? (
+          <RetrievalLogPanel evidence={evidence} onOpenTrace={props.onOpenTrace} />
+        ) : (
+          <SourceWorkspace
+            sources={visibleSources}
             selectedKey={selectedSource?.key ?? ""}
             loading={props.loading}
+            activeTab={props.activeTab}
             onSelect={setSelectedKey}
-          />
-          <ItemBrowser
-            source={selectedSource}
-            state={itemState}
-            onLoadMore={() => {
-              if (selectedSource === undefined) {
-                return;
-              }
-              void loadItems(
-                selectedSource,
-                itemState?.nextCursor === undefined
-                  ? { append: true }
-                  : { append: true, cursor: itemState.nextCursor },
-              );
-            }}
-          />
-          <EvidencePanel evidence={evidence} onOpenTrace={props.onOpenTrace} />
-        </div>
+          >
+            <ItemBrowser
+              activeTab={props.activeTab}
+              source={selectedSource}
+              state={itemState}
+              onLoadMore={() => {
+                if (selectedSource === undefined) {
+                  return;
+                }
+                void loadItems(
+                  selectedSource,
+                  itemState?.nextCursor === undefined
+                    ? { append: true }
+                    : { append: true, cursor: itemState.nextCursor },
+                );
+              }}
+            />
+          </SourceWorkspace>
+        )}
       </div>
     </section>
   );
 }
 
-function MetricStrip(props: { metrics: Array<[string, string]> }) {
+function KnowledgeTabs(props: {
+  activeTab: KnowledgeTab;
+  sources: KnowledgeSourceRef[];
+  evidenceCount: number;
+  onSelectTab: (tab: KnowledgeTab) => void;
+}) {
   return (
-    <div className="grid border-y border-border/80 sm:grid-cols-5">
-      {props.metrics.map(([label, value]) => (
-        <div
-          className="border-b border-border/80 px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
-          key={label}
-        >
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            {label}
+    <nav
+      className="flex min-w-0 gap-7 overflow-x-auto border-b border-border/80"
+      aria-label="Knowledge sections"
+    >
+      {knowledgeTabs.map((tab) => {
+        const active = props.activeTab === tab.id;
+        return (
+          <button
+            className={[
+              "flex min-h-10 shrink-0 items-center gap-2 border-b px-0 pb-2 pt-1 text-left transition duration-200 hover:text-foreground focus-visible:outline-none",
+              active
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:border-border",
+            ].join(" ")}
+            key={tab.id}
+            type="button"
+            aria-current={active ? "page" : undefined}
+            onClick={() => props.onSelectTab(tab.id)}
+          >
+            <span className="text-sm font-semibold">{tab.label}</span>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              {tabCountLabel(tab.id, props.sources, props.evidenceCount)}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function SourceWorkspace(props: {
+  sources: KnowledgeSourceRef[];
+  selectedKey: string;
+  loading: boolean;
+  activeTab: KnowledgeTab;
+  onSelect: (key: string) => void;
+  children: ReactNode;
+}) {
+  const showSources = props.sources.length !== 1 || props.loading;
+  return (
+    <div
+      className={[
+        "grid min-h-0 gap-3 overflow-hidden",
+        showSources ? "grid-rows-[auto_minmax(0,1fr)]" : "grid-rows-[minmax(0,1fr)]",
+      ].join(" ")}
+    >
+      {showSources ? (
+        <div className="min-w-0 overflow-x-auto border border-border/80 bg-card/35">
+          <div className="flex min-h-11 min-w-max items-center gap-2 px-3">
+            <span className="mr-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {tabLabel(props.activeTab)}
+            </span>
+            {props.loading && props.sources.length === 0 ? (
+              <span className="font-mono text-[11px] text-muted-foreground">Loading sources</span>
+            ) : null}
+            {!props.loading && props.sources.length === 0 ? (
+              <span className="font-mono text-[11px] text-muted-foreground">
+                No knowledge sources
+              </span>
+            ) : null}
+            {props.sources.map((source) => (
+              <button
+                className={[
+                  "flex h-7 items-center gap-2 border border-border/80 bg-background/45 px-2.5 font-mono text-[11px] font-semibold text-muted-foreground transition duration-200 hover:border-primary/45 hover:bg-primary/10 hover:text-foreground focus-visible:border-ring focus-visible:outline-none",
+                  props.selectedKey === source.key
+                    ? "border-primary/45 bg-primary/10 text-primary"
+                    : "",
+                ].join(" ")}
+                key={source.key}
+                type="button"
+                onClick={() => props.onSelect(source.key)}
+              >
+                <span>{source.source.label ?? sourceLabel(source.source.kind)}</span>
+                {source.source.itemCount === undefined ? null : (
+                  <span className="text-muted-foreground">{source.source.itemCount}</span>
+                )}
+              </button>
+            ))}
           </div>
-          <div className="mt-1 font-mono text-sm font-semibold text-foreground">{value}</div>
         </div>
-      ))}
+      ) : null}
+      {props.children}
     </div>
   );
 }
 
-function SourceList(props: {
-  sources: KnowledgeSourceRef[];
-  selectedKey: string;
-  loading: boolean;
-  onSelect: (key: string) => void;
-}) {
-  return (
-    <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden border border-border/80 bg-card/45">
-      <div className="border-b border-border/80 px-4 py-3">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          Sources
-        </div>
-        <p className="m-0 mt-1 text-xs leading-5 text-muted-foreground">
-          Browseable sources show chunks directly. Search-only sources still appear in evidence.
-        </p>
-      </div>
-      <div className="min-h-0 overflow-auto p-2">
-        {props.loading && props.sources.length === 0 ? <MutedRow text="Loading sources" /> : null}
-        {!props.loading && props.sources.length === 0 ? (
-          <MutedRow text="No knowledge sources" />
-        ) : null}
-        {props.sources.map((source) => (
-          <button
-            className={[
-              "grid w-full gap-2 border border-transparent px-3 py-3 text-left transition duration-200 hover:border-primary/35 hover:bg-primary/10",
-              props.selectedKey === source.key ? "border-primary/45 bg-primary/10" : "",
-            ].join(" ")}
-            key={source.key}
-            type="button"
-            onClick={() => props.onSelect(source.key)}
-          >
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-foreground">
-                  {source.source.label ?? sourceLabel(source.source.kind)}
-                </div>
-                <div className="truncate font-mono text-[11px] font-medium text-muted-foreground">
-                  {source.agentName}
-                </div>
-              </div>
-              <Badge variant={source.source.inspectable === true ? "success" : "default"}>
-                {source.source.inspectable === true ? "Browse" : "Search"}
-              </Badge>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge>{sourceLabel(source.source.kind)}</Badge>
-              {source.source.itemCount === undefined ? null : (
-                <Badge>{source.source.itemCount} items</Badge>
-              )}
-              {source.source.topK === undefined ? null : <Badge>Top {source.source.topK}</Badge>}
-            </div>
-          </button>
-        ))}
-      </div>
-    </aside>
-  );
-}
-
 function ItemBrowser(props: {
+  activeTab: KnowledgeTab;
   source: KnowledgeSourceRef | undefined;
   state: ItemState | undefined;
   onLoadMore: () => void;
 }) {
   const state = props.state;
+  const showHeader = props.activeTab !== "dynamic-tools";
   return (
-    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border border-border/80 bg-card/35">
-      <div className="border-b border-border/80 px-4 py-3">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="m-0 truncate text-sm font-semibold text-foreground">
-              {props.source?.source.label ?? "Knowledge items"}
-            </h2>
-            <p className="m-0 mt-1 truncate font-mono text-xs text-muted-foreground">
-              {props.source === undefined
-                ? "No source selected"
-                : `${props.source.agentId} / ${sourceId(props.source.source)}`}
-            </p>
+    <section
+      className={[
+        "grid min-h-0 overflow-hidden border border-border/80 bg-card/20",
+        showHeader ? "grid-rows-[auto_minmax(0,1fr)_auto]" : "grid-rows-[minmax(0,1fr)_auto]",
+      ].join(" ")}
+    >
+      {showHeader ? (
+        <div className="border-b border-border/80 px-4 py-3">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="m-0 truncate text-sm font-semibold text-foreground">
+                {props.source?.source.label ?? "Knowledge items"}
+              </h2>
+              <p className="m-0 mt-1 truncate font-mono text-xs text-muted-foreground">
+                {props.source === undefined
+                  ? "No source selected"
+                  : `${props.source.agentId} / ${sourceId(props.source.source)}`}
+              </p>
+            </div>
+            {state?.totalCount === undefined ? null : <Badge>{state.totalCount} total</Badge>}
           </div>
-          {state?.totalCount === undefined ? null : <Badge>{state.totalCount} total</Badge>}
         </div>
-      </div>
-      <div className="min-h-0 overflow-auto p-4">
-        {props.source === undefined ? <MutedRow text="No knowledge source selected" /> : null}
-        {state?.loading === true && state.items.length === 0 ? (
-          <MutedRow text="Loading items" />
-        ) : null}
-        {state?.error === undefined ? null : <MutedRow text={state.error} />}
-        {state?.inspectable === false ? (
-          <MutedRow text={state.message ?? "This source does not expose browseable chunks."} />
-        ) : null}
-        {state?.inspectable !== false && state?.loading === false && state.items.length === 0 ? (
-          <MutedRow text="No items in this source" />
-        ) : null}
-        <div className="grid gap-3">
-          {state?.items.map((item) => (
-            <KnowledgeItemCard item={item} key={`${item.kind}:${item.id}`} />
-          ))}
+      ) : null}
+      <div className="min-h-0 overflow-auto">
+        <div className={props.activeTab === "dynamic-tools" ? "" : "p-4"}>
+          {props.source === undefined ? <MutedRow text="No knowledge source selected" /> : null}
+          {state?.loading === true && state.items.length === 0 ? (
+            <MutedRow text="Loading items" />
+          ) : null}
+          {state?.error === undefined ? null : <MutedRow text={state.error} />}
+          {state?.inspectable === false ? (
+            <MutedRow text={state.message ?? "This source does not expose browseable chunks."} />
+          ) : null}
+          {state?.inspectable !== false && state?.loading === false && state.items.length === 0 ? (
+            <MutedRow text="No items in this source" />
+          ) : null}
+          {props.activeTab === "dynamic-tools" && state?.items.length ? (
+            <DynamicToolsTable items={state.items} source={props.source} />
+          ) : (
+            <div className="grid gap-3">
+              {state?.items.map((item) => (
+                <KnowledgeItemCard item={item} key={`${item.kind}:${item.id}`} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex min-h-12 items-center justify-between gap-3 border-t border-border/80 px-4 py-2">
@@ -322,6 +372,73 @@ function ItemBrowser(props: {
         </Button>
       </div>
     </section>
+  );
+}
+
+function DynamicToolsTable(props: {
+  items: StudioKnowledgeItem[];
+  source: KnowledgeSourceRef | undefined;
+}) {
+  return (
+    <div className="min-w-0 overflow-x-auto">
+      <div className="grid min-w-230 border-border/80 lg:grid-cols-[43%_57%]">
+        <div className="border-b border-r border-border/80 px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Definition
+        </div>
+        <div className="border-b border-border/80 px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Parameter schema
+        </div>
+        {props.items.map((item) => (
+          <DynamicToolRow item={item} key={`${item.kind}:${item.id}`} source={props.source} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DynamicToolRow(props: {
+  item: StudioKnowledgeItem;
+  source: KnowledgeSourceRef | undefined;
+}) {
+  const schema = dynamicToolSchema(props.item);
+  return (
+    <>
+      <article className="grid content-start gap-5 border-b border-r border-border/80 px-5 py-6">
+        <div className="grid gap-2">
+          <h3 className="m-0 font-mono text-base font-semibold text-foreground">
+            {props.item.toolName ?? props.item.id}
+          </h3>
+          <p className="m-0 font-mono text-xs text-muted-foreground">
+            {props.source?.agentName ?? props.source?.agentId ?? "Agent"}
+          </p>
+        </div>
+        {props.item.description === undefined || props.item.description.length === 0 ? null : (
+          <p className="m-0 max-w-160 text-sm leading-7 text-muted-foreground [overflow-wrap:anywhere]">
+            {props.item.description}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="success">Dynamic</Badge>
+          <Badge>Approval none</Badge>
+          <Badge>{props.item.parameterKeys?.length ?? 0} field</Badge>
+        </div>
+      </article>
+      <article className="grid content-start border-b border-border/80">
+        <div className="flex min-h-11 items-center justify-between gap-3 border-b border-border/80 px-5">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Json schema
+          </span>
+          <span className="font-mono text-xs text-muted-foreground">{schemaType(schema)}</span>
+        </div>
+        <div className="min-w-0 overflow-x-auto px-5 py-5">
+          <pre className="m-0 min-w-max font-mono text-[13px] leading-6 text-foreground">
+            <code>
+              <JsonSyntax text={jsonDisplay(schema)} />
+            </code>
+          </pre>
+        </div>
+      </article>
+    </>
   );
 }
 
@@ -368,15 +485,15 @@ function KnowledgeItemCard(props: { item: StudioKnowledgeItem }) {
   );
 }
 
-function EvidencePanel(props: {
+function RetrievalLogPanel(props: {
   evidence: NonNullable<StudioKnowledgeSummary["evidence"]>;
   onOpenTrace: (traceId: string) => void;
 }) {
   return (
-    <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden border border-border/80 bg-card/35">
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden border border-border/80 bg-card/35">
       <div className="border-b border-border/80 px-4 py-3">
         <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          Recent evidence
+          Retrieval log
         </div>
         <p className="m-0 mt-1 text-xs leading-5 text-muted-foreground">
           Runtime retrieval and dynamic tool signals captured in traces.
@@ -440,7 +557,7 @@ function EvidencePanel(props: {
           ))}
         </div>
       </div>
-    </aside>
+    </section>
   );
 }
 
@@ -485,6 +602,13 @@ function flattenSources(agents: StudioAgentKnowledgeConfig[]): KnowledgeSourceRe
   );
 }
 
+const knowledgeTabs: Array<{ id: KnowledgeTab; label: string }> = [
+  { id: "static-context", label: "Static Context" },
+  { id: "dynamic-context", label: "Dynamic Context" },
+  { id: "dynamic-tools", label: "Dynamic Tools" },
+  { id: "retrieval-log", label: "Retrieval Log" },
+];
+
 function withSourceId(
   source: StudioKnowledgeSourceSummary,
   index: number,
@@ -509,23 +633,6 @@ function fallbackSourceId(source: StudioKnowledgeSourceSummary, index: number): 
   }
 }
 
-function knowledgeMetrics(
-  agents: StudioAgentKnowledgeConfig[],
-  evidenceCount: number,
-): Array<[string, string]> {
-  const sources = agents.flatMap((agent) => agent.sources);
-  return [
-    ["Agents", String(agents.length)],
-    ["Static docs", String(sumKind(sources, "static_context"))],
-    [
-      "Dynamic context",
-      String(sources.filter((source) => source.kind === "dynamic_context").length),
-    ],
-    ["Dynamic tools", String(sources.filter((source) => source.kind === "dynamic_tools").length)],
-    ["Evidence", String(evidenceCount)],
-  ];
-}
-
 function sumKind(sources: StudioKnowledgeSourceSummary[], kind: StudioKnowledgeSourceKind): number {
   return sources
     .filter((source) => source.kind === kind)
@@ -540,6 +647,66 @@ function sourceLabel(kind: StudioKnowledgeSourceKind): string {
       return "Dynamic context";
     case "dynamic_tools":
       return "Dynamic tools";
+  }
+}
+
+function sourceKindForTab(tab: KnowledgeTab): StudioKnowledgeSourceKind | undefined {
+  switch (tab) {
+    case "static-context":
+      return "static_context";
+    case "dynamic-context":
+      return "dynamic_context";
+    case "dynamic-tools":
+      return "dynamic_tools";
+    case "retrieval-log":
+      return undefined;
+  }
+}
+
+function tabLabel(tab: KnowledgeTab): string {
+  return knowledgeTabs.find((item) => item.id === tab)?.label ?? "Knowledge";
+}
+
+function tabCountLabel(
+  tab: KnowledgeTab,
+  sources: KnowledgeSourceRef[],
+  evidenceCount: number,
+): string {
+  const sourceKind = sourceKindForTab(tab);
+  if (sourceKind === undefined) {
+    return `${evidenceCount} entries`;
+  }
+  const tabSources = sources.filter((source) => source.source.kind === sourceKind);
+  const itemCount = sumKind(
+    tabSources.map((source) => source.source),
+    sourceKind,
+  );
+  return `${tabSources.length} sources / ${itemCount} items`;
+}
+
+function dynamicToolSchema(item: StudioKnowledgeItem): unknown {
+  if (!isRecord(item.document)) {
+    return {};
+  }
+  const definition = isRecord(item.document.definition) ? item.document.definition : {};
+  return definition.parameters ?? {};
+}
+
+function schemaType(schema: unknown): string {
+  if (isRecord(schema) && typeof schema.type === "string") {
+    return schema.type;
+  }
+  if (Array.isArray(schema)) {
+    return "array";
+  }
+  return typeof schema;
+}
+
+function jsonDisplay(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return JSON.stringify(String(value), null, 2);
   }
 }
 
