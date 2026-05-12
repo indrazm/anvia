@@ -75,11 +75,7 @@ class StudioRunTraceObserver implements AgentRunObserver {
             startedAt,
             input: toJsonValue(args.request),
             output: toJsonValue(endArgs.response),
-            metadata: {
-              model: args.request.model ?? "default",
-              toolCount: args.request.tools.length,
-              ...(endArgs.firstDeltaMs === undefined ? {} : { firstDeltaMs: endArgs.firstDeltaMs }),
-            },
+            metadata: generationMetadata(args, endArgs),
           }),
         );
       },
@@ -93,10 +89,7 @@ class StudioRunTraceObserver implements AgentRunObserver {
             startedAt,
             input: toJsonValue(args.request),
             error: serializeError(errorArgs.error),
-            metadata: {
-              model: args.request.model ?? "default",
-              toolCount: args.request.tools.length,
-            },
+            metadata: generationMetadata(args),
           }),
         );
       },
@@ -119,7 +112,7 @@ class StudioRunTraceObserver implements AgentRunObserver {
           startedAt,
           input: parseOrString(args.args),
           output: parseOrString(endArgs.result),
-          metadata: toolMetadata(args, endArgs.skipped),
+          metadata: toolMetadata(args, endArgs.skipped, endArgs.result),
         });
         this.observations.push(parentObservation);
         this.observations.push(...childTrace.observations(parentObservation.id));
@@ -500,12 +493,150 @@ function traceMetadata(args: AgentRunStartArgs, messages: JsonValue): JsonObject
   });
 }
 
-function toolMetadata(args: AgentToolStartArgs, skipped: boolean): JsonObject {
+function generationMetadata(
+  args: AgentGenerationStartArgs,
+  endArgs?: AgentGenerationEndArgs,
+): JsonObject {
+  const request = args.request;
+  const response = endArgs?.response;
+  const rawResponse = isRecord(response?.rawResponse) ? response.rawResponse : undefined;
+  const effectiveModel =
+    request.model ?? stringValue(rawResponse?.model) ?? args.modelInfo?.defaultModel ?? "default";
+  const providerResponse = providerResponseSummary(rawResponse);
+  const usage = response?.usage;
+
+  return compactJsonObject({
+    provider: args.modelInfo?.provider,
+    model: effectiveModel,
+    requestedModel: request.model,
+    defaultModel: args.modelInfo?.defaultModel,
+    messageId: response?.messageId,
+    usage,
+    toolCount: request.tools.length,
+    toolNames: request.tools.map((tool) => tool.name),
+    documentCount: request.documents.length,
+    historyCount: request.chatHistory.length,
+    temperature: request.temperature,
+    maxTokens: request.maxTokens,
+    toolChoice: request.toolChoice,
+    additionalParamKeys: isRecord(request.additionalParams)
+      ? Object.keys(request.additionalParams).sort()
+      : undefined,
+    hasOutputSchema: request.outputSchema !== undefined,
+    firstDeltaMs: endArgs?.firstDeltaMs,
+    providerResponse,
+    modelInfo: compactJsonObject({
+      provider: args.modelInfo?.provider,
+      model: effectiveModel,
+      requestedModel: request.model,
+      defaultModel: args.modelInfo?.defaultModel,
+      capabilities: args.modelInfo?.capabilities,
+    }),
+    modelCall: compactJsonObject({
+      request: completionRequestSummary(request),
+      providerRequest: args.providerRequest,
+    }),
+    response: compactJsonObject({
+      messageId: response?.messageId,
+      usage,
+      contentTypes: response?.choice.map((item) => item.type),
+      providerResponse,
+    }),
+    tools: compactJsonObject({
+      count: request.tools.length,
+      names: request.tools.map((tool) => tool.name),
+      toolChoice: request.toolChoice,
+      hasOutputSchema: request.outputSchema !== undefined,
+    }),
+    timing: compactJsonObject({
+      firstDeltaMs: endArgs?.firstDeltaMs,
+    }),
+  });
+}
+
+function completionRequestSummary(request: AgentGenerationStartArgs["request"]): JsonObject {
+  return compactJsonObject({
+    model: request.model,
+    instructions: request.instructions === undefined ? undefined : { present: true },
+    messageCount: request.chatHistory.length,
+    documentCount: request.documents.length,
+    documentIds: request.documents.map((document) => document.id),
+    toolCount: request.tools.length,
+    toolNames: request.tools.map((tool) => tool.name),
+    temperature: request.temperature,
+    maxTokens: request.maxTokens,
+    toolChoice: request.toolChoice,
+    additionalParamKeys: isRecord(request.additionalParams)
+      ? Object.keys(request.additionalParams).sort()
+      : undefined,
+    hasOutputSchema: request.outputSchema !== undefined,
+  });
+}
+
+function providerResponseSummary(
+  rawResponse: Record<string, unknown> | undefined,
+): JsonObject | undefined {
+  if (rawResponse === undefined) {
+    return undefined;
+  }
+  const reasoning = isRecord(rawResponse.reasoning) ? rawResponse.reasoning : undefined;
+  const text = isRecord(rawResponse.text) ? rawResponse.text : undefined;
+  const toolUsage = isRecord(rawResponse.tool_usage) ? rawResponse.tool_usage : undefined;
+  const webSearch = isRecord(toolUsage?.web_search) ? toolUsage.web_search : undefined;
+  const summary = compactJsonObject({
+    id: rawResponse.id,
+    status: rawResponse.status,
+    serviceTier: rawResponse.service_tier,
+    store: rawResponse.store,
+    parallelToolCalls: rawResponse.parallel_tool_calls,
+    promptCacheKey: rawResponse.prompt_cache_key,
+    promptCacheRetention: rawResponse.prompt_cache_retention,
+    reasoningEffort: reasoning?.effort,
+    textVerbosity: text?.verbosity,
+    webSearchRequestCount: webSearch?.num_requests,
+  });
+  return Object.keys(summary).length === 0 ? undefined : summary;
+}
+
+function toolMetadata(args: AgentToolStartArgs, skipped: boolean, result?: string): JsonObject {
+  const schema = isRecord(args.toolDefinition?.parameters) ? args.toolDefinition.parameters : {};
+  const properties = isRecord(schema.properties) ? schema.properties : {};
+  const required = Array.isArray(schema.required)
+    ? schema.required.filter((item): item is string => typeof item === "string")
+    : [];
   return compactJsonObject({
     internalCallId: args.internalCallId,
     toolCallId: args.toolCallId,
     skipped,
+    argumentBytes: byteLength(args.args),
+    resultBytes: result === undefined ? undefined : byteLength(result),
+    hasCallSignature: args.toolCall.signature !== undefined,
+    hasAdditionalParams: args.toolCall.additionalParams !== undefined,
+    toolDescription: args.toolDefinition?.description,
+    parameterKeys: Object.keys(properties).sort(),
+    requiredParameterKeys: required,
+    approvalRequired: args.toolMetadata?.approvalRequired,
+    mcpServerName: args.toolMetadata?.mcpServerName,
+    tools: compactJsonObject({
+      name: args.toolName,
+      internalCallId: args.internalCallId,
+      toolCallId: args.toolCallId,
+      skipped,
+      description: args.toolDefinition?.description,
+      parameterKeys: Object.keys(properties).sort(),
+      requiredParameterKeys: required,
+      approvalRequired: args.toolMetadata?.approvalRequired,
+      mcpServerName: args.toolMetadata?.mcpServerName,
+      argumentBytes: byteLength(args.args),
+      resultBytes: result === undefined ? undefined : byteLength(result),
+      hasCallSignature: args.toolCall.signature !== undefined,
+      hasAdditionalParams: args.toolCall.additionalParams !== undefined,
+    }),
   });
+}
+
+function byteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
 }
 
 function compactJsonObject(values: Record<string, unknown>): JsonObject {

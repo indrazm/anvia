@@ -18,7 +18,7 @@ const options = {
 };
 
 function usage() {
-  console.log(`Usage: bin/dependency-report.sh [options]
+  console.log(`Usage: bin/check-upstream-deps.sh [options]
 
 Reports npm updates for external runtime dependencies declared by packages/* wrappers.
 
@@ -164,14 +164,14 @@ function updateKind(current, latest) {
   return "patch";
 }
 
-async function fetchLatestVersion(packageName) {
+async function fetchLatestPackageInfo(packageName) {
   const packageUrlName = packageName
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/");
   const registryUrl = `https://registry.npmjs.org/${packageUrlName}`;
   const response = await fetch(registryUrl, {
-    headers: { accept: "application/vnd.npm.install-v1+json" },
+    headers: { accept: "application/json" },
   });
 
   if (!response.ok) {
@@ -185,7 +185,10 @@ async function fetchLatestVersion(packageName) {
     throw new Error(`No latest dist-tag found for ${packageName}`);
   }
 
-  return latest;
+  return {
+    latest,
+    latestPublishedAt: metadata?.time?.[latest] ?? null,
+  };
 }
 
 function uniqueDependencies(records) {
@@ -196,6 +199,53 @@ function pad(value, width) {
   return value.padEnd(width, " ");
 }
 
+function formatRelativeTime(dateString, now) {
+  if (!dateString) {
+    return "-";
+  }
+
+  const date = new Date(dateString);
+  const timestamp = date.getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return "-";
+  }
+
+  const diffMs = now.getTime() - timestamp;
+  const tense = diffMs < 0 ? "from now" : "ago";
+  let remainingSeconds = Math.floor(Math.abs(diffMs) / 1000);
+
+  if (remainingSeconds < 60) {
+    return "just now";
+  }
+
+  const units = [
+    ["y", 365 * 24 * 60 * 60],
+    ["mo", 30 * 24 * 60 * 60],
+    ["d", 24 * 60 * 60],
+    ["h", 60 * 60],
+    ["m", 60],
+  ];
+  const parts = [];
+
+  for (const [label, seconds] of units) {
+    const value = Math.floor(remainingSeconds / seconds);
+
+    if (value === 0) {
+      continue;
+    }
+
+    parts.push(`${value}${label}`);
+    remainingSeconds -= value * seconds;
+
+    if (parts.length === 2) {
+      break;
+    }
+  }
+
+  return `${parts.join(" ")} ${tense}`;
+}
+
 function formatTable(records) {
   const columns = [
     ["Wrapper", (record) => record.wrapper],
@@ -203,6 +253,7 @@ function formatTable(records) {
     ["Field", (record) => record.field],
     ["Declared", (record) => record.declared],
     ["Latest", (record) => record.latest ?? "-"],
+    ["Published", (record) => record.latestPublishedAge ?? "-"],
     ["Status", (record) => record.status],
   ];
 
@@ -266,13 +317,14 @@ for (const packageJsonFile of packageJsonFiles) {
   }
 }
 
-const latestByDependency = new Map();
+const latestInfoByDependency = new Map();
 const errors = [];
+const now = new Date();
 
 await Promise.all(
   uniqueDependencies(records).map(async (dependency) => {
     try {
-      latestByDependency.set(dependency, await fetchLatestVersion(dependency));
+      latestInfoByDependency.set(dependency, await fetchLatestPackageInfo(dependency));
     } catch (error) {
       errors.push({ dependency, message: error.message });
     }
@@ -280,7 +332,10 @@ await Promise.all(
 );
 
 for (const record of records) {
-  record.latest = latestByDependency.get(record.dependency) ?? null;
+  const latestInfo = latestInfoByDependency.get(record.dependency);
+  record.latest = latestInfo?.latest ?? null;
+  record.latestPublishedAt = latestInfo?.latestPublishedAt ?? null;
+  record.latestPublishedAge = formatRelativeTime(record.latestPublishedAt, now);
   record.status = "unknown";
 
   if (record.latest && record.declaredVersion) {

@@ -31,7 +31,7 @@ export function ToolsPage(props: {
       aria-label="Tools"
     >
       <header className="border-b border-border/80 bg-background/70 px-6 py-5 backdrop-blur">
-        <div className="mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
           <div className="grid min-w-0 gap-2">
             <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
               Agent capabilities
@@ -62,7 +62,7 @@ export function ToolsPage(props: {
       </header>
 
       <div className="min-h-0 overflow-auto px-6 py-6">
-        <div className="mx-auto grid max-w-[1500px] gap-4">
+        <div className="grid w-full gap-4">
           {!props.enabled ? (
             <EmptyState
               title="Tools unavailable"

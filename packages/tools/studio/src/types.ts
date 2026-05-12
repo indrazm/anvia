@@ -353,8 +353,15 @@ export type StudioTraceStore = {
 export type StudioKnowledgeSourceKind = "static_context" | "dynamic_context" | "dynamic_tools";
 
 export type StudioKnowledgeSourceSummary = {
+  sourceId?: string;
   kind: StudioKnowledgeSourceKind;
+  label?: string;
   count: number;
+  registrationIndex?: number;
+  topK?: number;
+  threshold?: number;
+  inspectable?: boolean;
+  itemCount?: number;
 };
 
 export type StudioStaticKnowledgeDocument = {
@@ -388,6 +395,30 @@ export type StudioAgentKnowledgeConfig = {
   agentName?: string;
   sources: StudioKnowledgeSourceSummary[];
   staticContext: StudioStaticKnowledgeDocument[];
+};
+
+export type StudioKnowledgeItemKind = "static_context" | "dynamic_context" | "dynamic_tool";
+
+export type StudioKnowledgeItem = {
+  id: string;
+  kind: StudioKnowledgeItemKind;
+  text?: string;
+  document?: JsonValue;
+  toolName?: string;
+  description?: string;
+  parameterKeys?: string[];
+  metadata?: JsonObject;
+};
+
+export type StudioKnowledgeItemsPage = {
+  agentId: string;
+  sourceId: string;
+  kind: StudioKnowledgeSourceKind;
+  inspectable: boolean;
+  items: StudioKnowledgeItem[];
+  nextCursor?: string;
+  totalCount?: number;
+  message?: string;
 };
 
 export type StudioKnowledgeSummary = {

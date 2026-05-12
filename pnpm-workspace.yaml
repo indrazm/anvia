@@ -3,6 +3,7 @@ packages:
   - "packages/*/*"
   - "apps/*"
   - "examples/*"
+minimumReleaseAge: 10080
 overrides:
   '@anvia/core': "workspace:*"
 allowBuilds:

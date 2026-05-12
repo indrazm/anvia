@@ -18,6 +18,7 @@ import {
   type EmbeddingModel,
   embedDocuments,
   InMemoryVectorStore,
+  type JsonObject,
   type McpClient,
   Message,
   PipelineBuilder,
@@ -27,6 +28,9 @@ import {
   ToolContent,
   Usage,
   UserContent,
+  type VectorSearchIndex,
+  type VectorSearchRequest,
+  type VectorSearchToolOptions,
 } from "@anvia/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Studio } from "../src/index";
@@ -51,6 +55,15 @@ class QueueModel {
   readonly requests: CompletionRequest[] = [];
 
   constructor(private readonly responses: CompletionResponse[]) {}
+
+  traceRequest(request: CompletionRequest, options: { stream?: boolean } = {}): JsonObject {
+    return {
+      provider: this.provider,
+      stream: options.stream === true,
+      model: request.model ?? this.defaultModel,
+      messageCount: request.chatHistory.length,
+    };
+  }
 
   async completion(request: CompletionRequest): Promise<CompletionResponse> {
     this.requests.push(request);
@@ -80,6 +93,15 @@ class StreamingQueueModel implements StreamingCompletionModel {
 
   async completion(): Promise<CompletionResponse> {
     throw new Error("completion should not be called");
+  }
+
+  traceRequest(request: CompletionRequest, options: { stream?: boolean } = {}): JsonObject {
+    return {
+      provider: this.provider,
+      stream: options.stream === true,
+      model: request.model ?? this.defaultModel,
+      messageCount: request.chatHistory.length,
+    };
   }
 
   async *streamCompletion(request: CompletionRequest): AsyncIterable<CompletionStreamEvent> {
@@ -506,7 +528,10 @@ describe("Anvia studio", () => {
       }>;
     };
     expect(runsBody.runs).toHaveLength(1);
-    const savedRun = runsBody.runs[0]!;
+    const [savedRun] = runsBody.runs;
+    if (savedRun === undefined) {
+      throw new Error("Expected a saved pipeline run");
+    }
     expect(savedRun).toMatchObject({
       pipelineId: "audit-pipeline",
       status: "success",
@@ -514,7 +539,11 @@ describe("Anvia studio", () => {
       output: { reply: "RAW SECRET PAYLOAD" },
     });
 
-    const db = new DatabaseSync(process.env.ANVIA_STUDIO_DB!);
+    const studioDbPath = process.env.ANVIA_STUDIO_DB;
+    if (studioDbPath === undefined) {
+      throw new Error("Expected ANVIA_STUDIO_DB to be set");
+    }
+    const db = new DatabaseSync(studioDbPath);
     try {
       const row = db
         .prepare(
@@ -811,12 +840,135 @@ describe("Anvia studio", () => {
     expect(knowledge.agents).toEqual([
       expect.objectContaining({
         agentId: "support",
+        sources: expect.arrayContaining([
+          expect.objectContaining({
+            sourceId: "static-context",
+            kind: "static_context",
+            inspectable: true,
+            itemCount: 1,
+          }),
+        ]),
         staticContext: [{ id: "refund-policy", text: "Refund policy is 30 days." }],
       }),
     ]);
 
+    const items = (await (
+      await runner.fetch(
+        new Request("http://runner.test/knowledge/items?agentId=support&sourceId=static-context"),
+      )
+    ).json()) as unknown;
+    expect(items).toEqual({
+      agentId: "support",
+      sourceId: "static-context",
+      kind: "static_context",
+      inspectable: true,
+      items: [{ id: "refund-policy", kind: "static_context", text: "Refund policy is 30 days." }],
+      totalCount: 1,
+    });
+
     const evaluations = await runner.fetch(new Request("http://runner.test/evaluations"));
     expect(evaluations.status).toBe(404);
+  });
+
+  it("exposes inspectable dynamic knowledge items and unsupported source states", async () => {
+    const embeddings = new KeywordEmbeddingModel();
+    const embedded = await embedDocuments(
+      embeddings,
+      [
+        { id: "refund-policy", text: "Refund policy is 30 days." },
+        { id: "shipping-policy", text: "Shipping updates go to operations." },
+      ],
+      {
+        id: (document) => document.id,
+        content: (document) => document.text,
+      },
+    );
+    const inspectableIndex = InMemoryVectorStore.fromDocuments(embedded).index(embeddings);
+    const unsupportedIndex: VectorSearchIndex<{ text: string }> = {
+      search: async (_request: VectorSearchRequest) => [],
+      searchIds: async (_request: VectorSearchRequest) => [],
+      asTool: (_options: VectorSearchToolOptions) => lookupPolicyTool,
+    };
+    const toolIndex = await createToolIndex(embeddings, [lookupPolicyTool]);
+    const agent = new AgentBuilder("support", new QueueModel([]))
+      .dynamicContext(inspectableIndex, { topK: 1 })
+      .dynamicContext(unsupportedIndex, { topK: 1 })
+      .dynamicTools(toolIndex, { topK: 1 })
+      .build();
+    const runner = new Studio([agent]);
+
+    const knowledge = (await (
+      await runner.fetch(new Request("http://runner.test/knowledge"))
+    ).json()) as {
+      agents: Array<{
+        sources: Array<{ sourceId: string; inspectable: boolean; itemCount?: number }>;
+      }>;
+    };
+    expect(knowledge.agents[0]?.sources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: "dynamic-context-0",
+          inspectable: true,
+          itemCount: 2,
+        }),
+        expect.objectContaining({ sourceId: "dynamic-context-1", inspectable: false }),
+        expect.objectContaining({ sourceId: "dynamic-tools-0", inspectable: true, itemCount: 1 }),
+      ]),
+    );
+
+    const dynamicItems = (await (
+      await runner.fetch(
+        new Request(
+          "http://runner.test/knowledge/items?agentId=support&sourceId=dynamic-context-0&limit=1",
+        ),
+      )
+    ).json()) as unknown;
+    expect(dynamicItems).toMatchObject({
+      agentId: "support",
+      sourceId: "dynamic-context-0",
+      kind: "dynamic_context",
+      inspectable: true,
+      nextCursor: "1",
+      totalCount: 2,
+      items: [{ id: "refund-policy", kind: "dynamic_context", text: "Refund policy is 30 days." }],
+    });
+
+    const toolItems = (await (
+      await runner.fetch(
+        new Request("http://runner.test/knowledge/items?agentId=support&sourceId=dynamic-tools-0"),
+      )
+    ).json()) as unknown;
+    expect(toolItems).toMatchObject({
+      agentId: "support",
+      sourceId: "dynamic-tools-0",
+      kind: "dynamic_tools",
+      inspectable: true,
+      totalCount: 1,
+      items: [
+        {
+          id: "lookup_policy",
+          kind: "dynamic_tool",
+          toolName: "lookup_policy",
+          description: "Look up policy documents",
+          parameterKeys: ["query"],
+        },
+      ],
+    });
+
+    const unsupported = (await (
+      await runner.fetch(
+        new Request(
+          "http://runner.test/knowledge/items?agentId=support&sourceId=dynamic-context-1",
+        ),
+      )
+    ).json()) as unknown;
+    expect(unsupported).toMatchObject({
+      agentId: "support",
+      sourceId: "dynamic-context-1",
+      kind: "dynamic_context",
+      inspectable: false,
+      items: [],
+    });
   });
 
   it("starts a served runner from configured agents", async () => {
@@ -1747,6 +1899,10 @@ describe("Anvia studio", () => {
       "/ui/pipelines",
       "/ui/mcps",
       "/ui/knowledge",
+      "/ui/knowledge/static-context",
+      "/ui/knowledge/dynamic-context",
+      "/ui/knowledge/dynamic-tools",
+      "/ui/knowledge/retrieval-log",
     ]) {
       const routeShell = await runner.fetch(new Request(`http://runner.test${path}`));
       expect(routeShell.status).toBe(200);
@@ -2194,7 +2350,38 @@ describe("Anvia studio", () => {
     await expect(trace.json()).resolves.toMatchObject({
       sessionId: session.id,
       status: "success",
-      observations: [{ kind: "generation", name: "model.turn.1", status: "success" }],
+      observations: [
+        {
+          kind: "generation",
+          name: "model.turn.1",
+          status: "success",
+          metadata: expect.objectContaining({
+            provider: "test",
+            model: "test",
+            defaultModel: "test",
+            toolCount: 0,
+            toolNames: [],
+            documentCount: 0,
+            historyCount: 1,
+            modelInfo: expect.objectContaining({
+              provider: "test",
+              model: "test",
+              capabilities: expect.objectContaining({ streaming: false }),
+            }),
+            modelCall: expect.objectContaining({
+              providerRequest: expect.objectContaining({
+                provider: "test",
+                stream: false,
+                model: "test",
+              }),
+            }),
+            response: expect.objectContaining({
+              usage: expect.any(Object),
+              contentTypes: ["text"],
+            }),
+          }),
+        },
+      ],
     });
   });
 
@@ -2291,14 +2478,69 @@ describe("Anvia studio", () => {
           kind: "generation",
           name: "model.turn.1",
           status: "success",
-          metadata: expect.objectContaining({ firstDeltaMs: expect.any(Number) }),
+          metadata: expect.objectContaining({
+            provider: "test",
+            model: "test",
+            defaultModel: "test",
+            toolCount: 1,
+            toolNames: ["add"],
+            documentCount: 0,
+            historyCount: 1,
+            firstDeltaMs: expect.any(Number),
+            modelInfo: expect.objectContaining({
+              provider: "test",
+              model: "test",
+              capabilities: expect.objectContaining({ streaming: true }),
+            }),
+            modelCall: expect.objectContaining({
+              providerRequest: expect.objectContaining({
+                provider: "test",
+                stream: true,
+                model: "test",
+              }),
+            }),
+          }),
         },
-        { kind: "tool", name: "add", status: "success", output: 7 },
+        {
+          kind: "tool",
+          name: "add",
+          status: "success",
+          output: 7,
+          metadata: expect.objectContaining({
+            internalCallId: expect.any(String),
+            argumentBytes: expect.any(Number),
+            resultBytes: expect.any(Number),
+            parameterKeys: ["x", "y"],
+            requiredParameterKeys: ["x", "y"],
+            approvalRequired: false,
+            tools: expect.objectContaining({
+              name: "add",
+              parameterKeys: ["x", "y"],
+              requiredParameterKeys: ["x", "y"],
+              approvalRequired: false,
+            }),
+          }),
+        },
         {
           kind: "generation",
           name: "model.turn.2",
           status: "success",
-          metadata: expect.objectContaining({ firstDeltaMs: expect.any(Number) }),
+          metadata: expect.objectContaining({
+            provider: "test",
+            model: "test",
+            defaultModel: "test",
+            toolCount: 1,
+            toolNames: ["add"],
+            documentCount: 0,
+            historyCount: 3,
+            firstDeltaMs: expect.any(Number),
+            modelCall: expect.objectContaining({
+              providerRequest: expect.objectContaining({
+                stream: true,
+                messageCount: 3,
+              }),
+            }),
+          }),
         },
       ],
     });

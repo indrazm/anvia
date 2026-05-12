@@ -26,6 +26,7 @@ export type ActivePage =
   | "mcps"
   | "pipelines"
   | "knowledge";
+export type KnowledgeTab = "static-context" | "dynamic-context" | "dynamic-tools" | "retrieval-log";
 export type TraceStatusFilter = "all" | StudioTrace["status"];
 export type TraceInspectorKey = "trace" | "agent" | `turn:${number}` | `observation:${string}`;
 export type PageLocation = {
@@ -33,4 +34,5 @@ export type PageLocation = {
   sessionId?: string;
   traceId?: string;
   traceSessionId?: string;
+  knowledgeTab?: KnowledgeTab;
 };

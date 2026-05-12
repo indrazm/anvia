@@ -47,8 +47,10 @@ import {
   titleFromText,
 } from "./modules/shared/format";
 import {
+  defaultKnowledgeTab,
   logoSrc,
   pageLocationFromLocation,
+  updateKnowledgePath,
   updatePagePath,
   updateSessionPath,
   updateTracePath,
@@ -69,6 +71,7 @@ import {
 } from "./modules/shared/transcript";
 import type {
   ActivePage,
+  KnowledgeTab,
   RunState,
   SessionLoadState,
   ToolApprovalUpdate,
@@ -125,6 +128,9 @@ export function StudioConsole() {
   const [pipelineRunOutput, setPipelineRunOutput] = useState("");
   const [activePipelineRunId, setActivePipelineRunId] = useState("");
   const [activePage, setActivePage] = useState<ActivePage>(() => initialLocation.page);
+  const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTab>(
+    () => initialLocation.knowledgeTab ?? defaultKnowledgeTab,
+  );
   const [selectedTraceId, setSelectedTraceId] = useState(() => initialLocation.traceId ?? "");
   const [traceSessionDetailId, setTraceSessionDetailId] = useState<string | undefined>(
     () => initialLocation.traceSessionId,
@@ -188,6 +194,13 @@ export function StudioConsole() {
   const mcpsEnabled = config?.capabilities.mcps?.enabled === true;
   const toolsEnabled = config?.capabilities.tools?.enabled === true;
   const pipelinesEnabled = config?.capabilities.pipelines?.enabled === true;
+  const agents = config?.agents ?? [];
+  const pipelines = config?.pipelines ?? [];
+  const hasAgents = agents.length > 0;
+  const selectedAgent =
+    agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? undefined;
+  const selectedAgentQuickPrompts = selectedAgent?.quickPrompts ?? [];
+  const hasMessages = messages.length > 0;
 
   useEffect(() => {
     applyDarkTheme();
@@ -680,6 +693,7 @@ export function StudioConsole() {
 
     const location = pageLocationFromLocation();
     setActivePage(location.page);
+    setKnowledgeTab(location.knowledgeTab ?? defaultKnowledgeTab);
     setSelectedTraceId(location.traceId ?? "");
     setTraceSessionDetailId(location.traceSessionId);
     if (location.page === "tracing" && location.traceSessionId !== undefined) {
@@ -700,6 +714,7 @@ export function StudioConsole() {
     function handlePopState() {
       const location = pageLocationFromLocation();
       setActivePage(location.page);
+      setKnowledgeTab(location.knowledgeTab ?? defaultKnowledgeTab);
       setSelectedTraceId(location.traceId ?? "");
       setTraceSessionDetailId(location.traceSessionId);
       if (location.page === "tracing" && location.traceSessionId !== undefined) {
@@ -1334,14 +1349,11 @@ export function StudioConsole() {
     void runPrompt(prompt);
   }
 
-  const agents = config?.agents ?? [];
-  const pipelines = config?.pipelines ?? [];
-  const selectedAgent =
-    agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? undefined;
-  const selectedAgentQuickPrompts = selectedAgent?.quickPrompts ?? [];
-  const hasMessages = messages.length > 0;
-
   function navigatePage(page: ActivePage) {
+    if (page === "playground" && !hasAgents) {
+      return;
+    }
+
     setActivePage(page);
     if (page === "pipelines") {
       const pipelineId = selectedPipelineId || pipelines[0]?.id || "";
@@ -1356,6 +1368,12 @@ export function StudioConsole() {
       updatePagePath("tracing");
       return;
     }
+    if (page === "knowledge") {
+      setSelectedTraceId("");
+      setTraceSessionDetailId(undefined);
+      updateKnowledgePath(knowledgeTab);
+      return;
+    }
     setSelectedTraceId("");
     setTraceSessionDetailId(undefined);
     if (page === "playground" && selectedSessionId.length > 0) {
@@ -1364,6 +1382,54 @@ export function StudioConsole() {
     }
     updatePagePath(page);
   }
+
+  function navigateKnowledgeTab(tab: KnowledgeTab) {
+    setActivePage("knowledge");
+    setKnowledgeTab(tab);
+    setSelectedTraceId("");
+    setTraceSessionDetailId(undefined);
+    updateKnowledgePath(tab);
+  }
+
+  useEffect(() => {
+    if (config === undefined || hasAgents || activePage !== "playground") {
+      return;
+    }
+
+    const nextPage: ActivePage = pipelinesEnabled
+      ? "pipelines"
+      : sessionsEnabled
+        ? "sessions"
+        : tracesEnabled
+          ? "tracing"
+          : "agents";
+
+    resetTranscriptSequence();
+    setSelectedSessionId("");
+    setSessionLogs([]);
+    setMessages([]);
+    setPrompt("");
+    setActivePage(nextPage);
+    updatePagePath(nextPage);
+
+    if (nextPage === "pipelines") {
+      const pipelineId = selectedPipelineId || pipelines[0]?.id || "";
+      if (pipelineId.length > 0) {
+        setSelectedPipelineId(pipelineId);
+        void loadPipeline(pipelineId);
+      }
+    }
+  }, [
+    activePage,
+    config,
+    hasAgents,
+    loadPipeline,
+    pipelines,
+    pipelinesEnabled,
+    selectedPipelineId,
+    sessionsEnabled,
+    tracesEnabled,
+  ]);
 
   function selectTrace(traceId: string) {
     setActivePage("tracing");
@@ -1397,6 +1463,7 @@ export function StudioConsole() {
             active={activePage === "playground"}
             icon="message"
             label="Chat"
+            disabled={!hasAgents}
             onClick={() => navigatePage("playground")}
           />
           <NavButton
@@ -1458,14 +1525,14 @@ export function StudioConsole() {
           {allSessions.slice(0, 8).map((session) => (
             <div
               className={cn(
-                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_24px] items-center gap-1 rounded-sm border border-transparent pr-1 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent",
+                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-1 rounded-sm border border-transparent pr-1 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent focus-within:border-sidebar-border focus-within:bg-sidebar-accent",
                 session.id === selectedSessionId && "border-sidebar-border bg-sidebar-accent",
               )}
               key={session.id}
             >
               <Button
                 className={cn(
-                  "grid h-auto min-h-8 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-sm border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
+                  "grid h-auto min-h-8 min-w-0 justify-start rounded-sm border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
                   session.id === selectedSessionId && "text-sidebar-accent-foreground",
                 )}
                 type="button"
@@ -1475,21 +1542,23 @@ export function StudioConsole() {
                 <span className="min-w-0 truncate text-xs font-medium">
                   {session.title ?? "Untitled chat"}
                 </span>
-                <time className="font-mono text-[10px] font-medium tabular-nums text-muted-foreground">
+              </Button>
+              <div className="relative grid h-8 min-w-0 place-items-end">
+                <time className="self-center justify-self-end font-mono text-[10px] font-medium tabular-nums text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
                   {formatRelativeTime(session.updatedAt)}
                 </time>
-              </Button>
-              <Button
-                aria-label={`Delete ${session.title ?? "Untitled chat"}`}
-                className="h-6 min-h-6 w-6 border-0 bg-transparent p-0 text-muted-foreground opacity-55 shadow-none hover:bg-transparent hover:text-destructive hover:opacity-100 group-hover:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
-                size="icon"
-                type="button"
-                variant="ghost"
-                disabled={runState === "running"}
-                onClick={() => setDeleteCandidate(session)}
-              >
-                <Trash2 aria-hidden="true" />
-              </Button>
+                <Button
+                  aria-label={`Delete ${session.title ?? "Untitled chat"}`}
+                  className="absolute right-0 top-1/2 hidden h-6 min-h-6 w-6 -translate-y-1/2 border-0 bg-transparent p-0 text-muted-foreground opacity-70 shadow-none hover:bg-transparent hover:text-destructive hover:opacity-100 group-hover:grid group-focus-within:grid [&_svg]:h-3.5 [&_svg]:w-3.5"
+                  size="icon"
+                  type="button"
+                  variant="ghost"
+                  disabled={runState === "running"}
+                  onClick={() => setDeleteCandidate(session)}
+                >
+                  <Trash2 aria-hidden="true" />
+                </Button>
+              </div>
             </div>
           ))}
         </nav>
@@ -1609,17 +1678,7 @@ export function StudioConsole() {
                     placeholder="Ask anything..."
                   />
                   <div className="flex min-w-0 items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Button
-                        aria-label="Attach context"
-                        className="h-8 min-h-8 w-8 rounded-sm border-border bg-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                        size="icon"
-                        type="button"
-                        variant="secondary"
-                      >
-                        <Plus aria-hidden="true" />
-                      </Button>
-                    </div>
+                    <div />
                     <div className="flex min-w-0 items-center gap-2">
                       {agents.length > 1 ? (
                         <Select
@@ -1755,11 +1814,13 @@ export function StudioConsole() {
 
         {activePage === "knowledge" ? (
           <KnowledgePage
+            activeTab={knowledgeTab}
             enabled={knowledgeEnabled}
             summary={knowledge}
             loading={knowledgeLoadState === "loading"}
             onOpenTrace={selectTrace}
             onRefresh={() => void loadKnowledge()}
+            onSelectTab={navigateKnowledgeTab}
           />
         ) : null}
       </main>

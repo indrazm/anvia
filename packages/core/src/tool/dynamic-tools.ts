@@ -1,7 +1,12 @@
 import type { ToolDefinition } from "../completion";
 import type { EmbeddedDocument, EmbeddingModel, VectorMetadata } from "../embeddings";
 import { embedDocuments } from "../embeddings";
-import type { VectorSearchResult, VectorSearchToolOptions } from "../vector-store";
+import type {
+  VectorInspectPage,
+  VectorInspectRequest,
+  VectorSearchResult,
+  VectorSearchToolOptions,
+} from "../vector-store";
 import {
   InMemoryVectorStore,
   type VectorSearchIndex,
@@ -86,10 +91,21 @@ export function isDynamicToolIndex(value: unknown): value is DynamicToolIndex {
 class DynamicToolSearchIndex<Metadata extends VectorMetadata>
   implements DynamicToolIndex<Metadata>
 {
+  readonly inspect?: (
+    request: VectorInspectRequest,
+  ) => Promise<VectorInspectPage<ToolSearchDocument<Metadata>, Metadata>>;
+
   constructor(
     private readonly index: VectorSearchIndex<ToolSearchDocument<Metadata>, Metadata>,
     readonly toolSet: ToolSet,
-  ) {}
+  ) {
+    if (index.inspect !== undefined) {
+      this.inspect = (request) =>
+        index.inspect?.(request) as Promise<
+          VectorInspectPage<ToolSearchDocument<Metadata>, Metadata>
+        >;
+    }
+  }
 
   search(
     request: VectorSearchRequest,

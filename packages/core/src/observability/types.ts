@@ -1,8 +1,11 @@
 import type {
+  CompletionModelCapabilities,
   CompletionRequest,
   CompletionResponse,
+  JsonObject,
   Message,
   ToolCall,
+  ToolDefinition,
   Usage,
 } from "../completion";
 import type { ToolCallStreamEvent } from "../tool";
@@ -48,6 +51,12 @@ export type AgentRunErrorArgs = {
 export type AgentGenerationStartArgs = {
   turn: number;
   request: CompletionRequest;
+  providerRequest?: JsonObject | undefined;
+  modelInfo?: {
+    provider: string;
+    defaultModel: string;
+    capabilities?: CompletionModelCapabilities | undefined;
+  };
 };
 
 export type AgentGenerationEndArgs<RawResponse = unknown> = {
@@ -68,6 +77,8 @@ export type AgentToolStartArgs = {
   args: string;
   internalCallId: string;
   toolCallId?: string | undefined;
+  toolDefinition?: ToolDefinition | undefined;
+  toolMetadata?: JsonObject | undefined;
 };
 
 export type AgentToolEndArgs = AgentToolStartArgs & {

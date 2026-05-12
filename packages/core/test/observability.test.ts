@@ -17,6 +17,7 @@ import {
   type CompletionStreamEvent,
   createHook,
   createTool,
+  type JsonObject,
   type StreamingCompletionModel,
   skipTool,
   Usage,
@@ -41,6 +42,15 @@ class QueueModel implements CompletionModel {
   readonly requests: CompletionRequest[] = [];
 
   constructor(private readonly responses: CompletionResponse[]) {}
+
+  traceRequest(request: CompletionRequest): JsonObject {
+    return {
+      provider: this.provider,
+      stream: false,
+      model: request.model ?? this.defaultModel,
+      messageCount: request.chatHistory.length,
+    };
+  }
 
   async completion(request: CompletionRequest): Promise<CompletionResponse> {
     this.requests.push(request);
@@ -70,6 +80,15 @@ class StreamingQueueModel implements StreamingCompletionModel {
 
   async completion(): Promise<CompletionResponse> {
     throw new Error("completion should not be called");
+  }
+
+  traceRequest(request: CompletionRequest, options: { stream?: boolean } = {}): JsonObject {
+    return {
+      provider: this.provider,
+      stream: options.stream === true,
+      model: request.model ?? this.defaultModel,
+      messageCount: request.chatHistory.length,
+    };
   }
 
   async *streamCompletion(request: CompletionRequest): AsyncIterable<CompletionStreamEvent> {
@@ -159,6 +178,24 @@ describe("agent observability", () => {
         },
       },
     });
+    expect(observer.events).toContainEqual(
+      expect.objectContaining({
+        type: "generation_start",
+        args: expect.objectContaining({
+          modelInfo: {
+            provider: "test",
+            defaultModel: "test",
+            capabilities: expect.objectContaining({ streaming: false }),
+          },
+          providerRequest: expect.objectContaining({
+            provider: "test",
+            stream: false,
+            model: "test",
+            messageCount: 1,
+          }),
+        }),
+      }),
+    );
   });
 
   it("records multiple turns and tool calls", async () => {
@@ -181,6 +218,20 @@ describe("agent observability", () => {
       "generation_end",
       "run_end",
     ]);
+    expect(observer.events).toContainEqual(
+      expect.objectContaining({
+        type: "tool_start",
+        args: expect.objectContaining({
+          toolDefinition: expect.objectContaining({
+            name: "add",
+            description: "Add numbers",
+          }),
+          toolMetadata: expect.objectContaining({
+            approvalRequired: false,
+          }),
+        }),
+      }),
+    );
     expect(observer.events).toContainEqual(
       expect.objectContaining({
         type: "tool_end",
@@ -265,6 +316,23 @@ describe("agent observability", () => {
       "generation_end",
       "run_end",
     ]);
+    expect(observer.events).toContainEqual(
+      expect.objectContaining({
+        type: "generation_start",
+        args: expect.objectContaining({
+          modelInfo: {
+            provider: "test",
+            defaultModel: "test",
+            capabilities: expect.objectContaining({ streaming: true }),
+          },
+          providerRequest: expect.objectContaining({
+            provider: "test",
+            stream: true,
+            model: "test",
+          }),
+        }),
+      }),
+    );
     expect(observer.events).toContainEqual(
       expect.objectContaining({
         type: "generation_end",

@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Textarea } from "../../components/ui/textarea";
+import { JsonSyntax } from "../shared/renderers";
 
 const nodeTypes = {
   pipelineStage: PipelineStageNode,
@@ -219,7 +220,7 @@ function PipelineInspectorSidebar(props: {
             </span>
           </div>
           <Select value={props.selectedPipelineId} onValueChange={props.onSelectPipeline}>
-            <SelectTrigger className="h-8 w-full rounded-sm border-border bg-background font-mono text-[11px]">
+            <SelectTrigger className="h-8 w-full rounded-sm border-primary/55 bg-background font-mono text-[11px] hover:border-primary focus:border-primary focus:ring-primary/25">
               <SelectValue placeholder="Select pipeline" />
             </SelectTrigger>
             <SelectContent>
@@ -482,7 +483,7 @@ function PipelineRunOutputBlock(props: { title: string; output: string }) {
         </span>
       </div>
       <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-sm border border-border/80 bg-background/55 p-3 font-mono text-xs leading-5 text-foreground">
-        {props.output.length > 0 ? props.output : "No output saved."}
+        {props.output.length > 0 ? <JsonSyntax text={props.output} /> : "No output saved."}
       </pre>
     </div>
   );

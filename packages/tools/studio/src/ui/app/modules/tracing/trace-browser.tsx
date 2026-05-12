@@ -1,6 +1,18 @@
-import { ArrowLeft, Bot, Cpu, GitBranch, Route, Wrench } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  Cpu,
+  GitBranch,
+  MessageSquareText,
+  Reply,
+  Route,
+  Settings2,
+  Wrench,
+} from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { StudioConfig, StudioTrace } from "../../../../types";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { ScrollArea } from "../../components/ui/scroll-area";
@@ -284,7 +296,7 @@ function TracePanel(props: {
                   isLastSibling={true}
                   level={0}
                   tone="trace"
-                  title={trace.name ?? "support-ticket-summary"}
+                  title={trace.name ?? "Agent"}
                   subtitle={formatDuration(trace.durationMs)}
                   onSelect={() => selectTimelineItem(trace.id, "trace")}
                 />
@@ -542,16 +554,14 @@ function TraceDetailPane(props: {
                 </div>
               </div>
             </div>
-            {selected.usage.length > 0 ? (
-              <div className="shrink-0 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                {selected.usage}
-              </div>
-            ) : null}
           </div>
           <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-px overflow-hidden border border-border/80 bg-border/80">
             <TraceMetric label="Duration" value={formatDuration(selected.durationMs)} />
             {selected.firstDeltaMs === undefined ? null : (
               <TraceMetric label="First delta" value={formatDuration(selected.firstDeltaMs)} />
+            )}
+            {selected.usage.length === 0 ? null : (
+              <TraceMetric label="Usage" value={selected.usage} />
             )}
             <button
               className="grid min-w-0 gap-1 bg-background px-4 py-3 text-left transition duration-200 hover:bg-accent hover:text-accent-foreground"
@@ -579,7 +589,7 @@ function TraceDetailPane(props: {
           {selected.error === undefined ? null : (
             <TraceDataSection title="Error" value={selected.error} tone="error" />
           )}
-          <TraceDataSection title="Metadata" value={selected.metadata} compact />
+          <TraceDataSection title="Metadata" value={selected.metadata} rawJson />
         </div>
       </div>
     </section>
@@ -604,6 +614,7 @@ function TraceDataSection(props: {
   value: unknown;
   tone?: "success" | "error";
   compact?: boolean;
+  rawJson?: boolean;
 }) {
   const rows = plainTraceValue(props.title, props.value);
   return (
@@ -612,39 +623,213 @@ function TraceDataSection(props: {
         <h3 className="m-0 text-lg font-semibold leading-tight text-foreground">{props.title}</h3>
         <span className="h-px flex-1 bg-border/80" aria-hidden="true" />
       </div>
-      <div className="grid min-w-0 gap-3">
-        {rows.map((item) => (
-          <article
-            className={cn(
-              "grid min-w-0 gap-3 bg-card/65 px-4 py-4",
-              props.compact &&
-                "grid-cols-[150px_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1",
-              props.tone === "success" && "bg-primary/[0.08]",
-              props.tone === "error" && "bg-destructive/10",
-            )}
-            key={`${item.label}-${item.text}`}
-          >
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              {item.label}
-            </span>
-            <p
+      {props.rawJson ? (
+        <pre className="m-0 overflow-x-auto bg-card/65 px-4 py-4 font-mono text-[13px] leading-6 text-foreground">
+          {highlightTraceJson(props.value)}
+        </pre>
+      ) : (
+        <div className="grid min-w-0 gap-3">
+          {rows.map((item) => (
+            <article
               className={cn(
-                "m-0 whitespace-pre-wrap text-[15px] leading-7 text-foreground [overflow-wrap:anywhere]",
-                props.compact && "font-mono text-[13px] leading-6",
-                props.tone === "success" && "text-primary",
-                props.tone === "error" && "text-destructive",
+                "grid min-w-0 gap-3 bg-card/65 px-4 py-4",
+                props.compact &&
+                  "grid-cols-[150px_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1",
+                props.tone === "success" && "bg-primary/[0.08]",
+                props.tone === "error" && "bg-destructive/10",
               )}
+              key={`${item.label}-${item.text}`}
             >
-              {item.text}
-            </p>
-          </article>
-        ))}
-      </div>
+              <span className="flex min-w-0 items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                <TraceRowIcon label={item.label} />
+                {item.label}
+              </span>
+              <TraceRowContent compact={props.compact} item={item} tone={props.tone} />
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-function plainTraceValue(title: string, value: unknown): Array<{ label: string; text: string }> {
+function TraceRowContent(props: {
+  compact?: boolean | undefined;
+  item: { label: string; text: string };
+  tone?: "success" | "error" | undefined;
+}) {
+  const historyItems = conversationHistoryItems(props.item);
+  if (historyItems.length > 0) {
+    return (
+      <div className="grid min-w-0 gap-5">
+        {historyItems.map((item) => (
+          <div className="grid min-w-0 gap-2" key={`${item.index}-${item.role}-${item.text}`}>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="font-mono text-xs font-semibold tabular-nums text-muted-foreground">
+                {item.index}
+              </span>
+              <Badge
+                className={cn(
+                  "px-1.5 py-0.5",
+                  item.role === "User" && "border-chart-2/40 bg-chart-2/15 text-chart-2",
+                  item.role === "Assistant" && "border-chart-1/40 bg-chart-1/15 text-chart-1",
+                  item.role === "Tool" && "border-chart-5/40 bg-chart-5/15 text-chart-5",
+                )}
+              >
+                {item.role}
+              </Badge>
+            </div>
+            <p className="m-0 whitespace-pre-wrap text-[15px] leading-7 text-foreground [overflow-wrap:anywhere]">
+              {item.text}
+            </p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <p
+      className={cn(
+        "m-0 whitespace-pre-wrap text-[15px] leading-7 text-foreground [overflow-wrap:anywhere]",
+        props.compact && "font-mono text-[13px] leading-6",
+        props.tone === "success" && !isNeutralTraceRow(props.item) && "text-primary",
+        props.tone === "error" && "text-destructive",
+      )}
+    >
+      {props.item.text}
+    </p>
+  );
+}
+
+function conversationHistoryItems(row: {
+  label: string;
+  text: string;
+}): Array<{ index: string; role: string; text: string }> {
+  if (!row.label.startsWith("Conversation history")) {
+    return [];
+  }
+  return row.text
+    .split("\n\n")
+    .flatMap((block): Array<{ index: string; role: string; text: string }> => {
+      const [heading, ...content] = block.split("\n");
+      const match = /^(\d+)\.\s+(.+)$/.exec(heading ?? "");
+      if (match === null) {
+        return [];
+      }
+      return [
+        {
+          index: match[1] ?? "",
+          role: match[2] ?? "Message",
+          text: content.join("\n"),
+        },
+      ];
+    });
+}
+
+export function rawTraceJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) ?? "undefined";
+  } catch {
+    return String(value);
+  }
+}
+
+function highlightTraceJson(value: unknown): ReactNode {
+  return jsonSyntaxTokens(rawTraceJson(value)).map((token) => (
+    <span className={jsonTokenClass(token.type)} key={`${token.start}-${token.text}`}>
+      {token.text}
+    </span>
+  ));
+}
+
+export function jsonSyntaxTokens(
+  json: string,
+): Array<{ text: string; type: JsonTokenType; start: number }> {
+  const tokenPattern =
+    /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(?=\s*:)|"(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b)/g;
+  const tokens: Array<{ text: string; type: JsonTokenType; start: number }> = [];
+  let cursor = 0;
+  for (const match of json.matchAll(tokenPattern)) {
+    const text = match[0];
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      tokens.push({ text: json.slice(cursor, index), type: "plain", start: cursor });
+    }
+    tokens.push({
+      text,
+      type: jsonTokenType(text, json.slice(index + text.length)),
+      start: index,
+    });
+    cursor = index + text.length;
+  }
+  if (cursor < json.length) {
+    tokens.push({ text: json.slice(cursor), type: "plain", start: cursor });
+  }
+  return tokens;
+}
+
+type JsonTokenType = "plain" | "key" | "string" | "number" | "boolean" | "null";
+
+function jsonTokenType(text: string, followingText: string): JsonTokenType {
+  if (text.startsWith('"')) {
+    return followingText.trimStart().startsWith(":") ? "key" : "string";
+  }
+  if (text === "true" || text === "false") {
+    return "boolean";
+  }
+  if (text === "null") {
+    return "null";
+  }
+  return "number";
+}
+
+function jsonTokenClass(type: JsonTokenType): string {
+  switch (type) {
+    case "key":
+      return "text-chart-2";
+    case "string":
+      return "text-primary";
+    case "number":
+      return "text-chart-1";
+    case "boolean":
+      return "text-chart-4";
+    case "null":
+      return "text-muted-foreground";
+    case "plain":
+      return "text-foreground";
+  }
+}
+
+function isNeutralTraceRow(row: { label: string }): boolean {
+  return row.label === "Message Id";
+}
+
+function TraceRowIcon(props: { label: string }) {
+  const className = "h-3.5 w-3.5 shrink-0";
+  switch (props.label) {
+    case "System prompt":
+      return <Settings2 aria-hidden="true" className={className} />;
+    case "Prompt":
+      return <MessageSquareText aria-hidden="true" className={className} />;
+    case "Output":
+    case "Assistant output":
+      return <Reply aria-hidden="true" className={className} />;
+    default:
+      return null;
+  }
+}
+
+export function plainTraceValue(
+  title: string,
+  value: unknown,
+): Array<{ label: string; text: string }> {
+  if (title === "Output") {
+    const outputRows = plainTraceOutput(value);
+    if (outputRows.length > 0) {
+      return outputRows;
+    }
+  }
   const messageRows = plainTraceInput(value, title);
   if (messageRows.length > 0) {
     return messageRows;
@@ -665,14 +850,33 @@ function plainTraceValue(title: string, value: unknown): Array<{ label: string; 
   return rows.length > 0 ? rows : [{ label: title, text: "Empty object" }];
 }
 
+function plainTraceOutput(value: unknown): Array<{ label: string; text: string }> {
+  if (!isRecord(value)) {
+    return [];
+  }
+  const rows: Array<{ label: string; text: string }> = [];
+  const choiceRows = plainTraceInput(value.choice, "choice");
+  rows.push(...choiceRows);
+  if (typeof value.messageId === "string" && value.messageId.length > 0) {
+    rows.push({ label: "Message Id", text: value.messageId });
+  }
+  return rows;
+}
+
 function plainTraceInput(
   value: unknown,
   parentKey?: string,
 ): Array<{ label: string; text: string }> {
-  if (typeof value === "string") {
+  if (typeof value === "string" && parentKey === undefined) {
     return [{ label: "Value", text: value }];
   }
   if (Array.isArray(value)) {
+    if (parentKey === "chatHistory") {
+      return chatHistoryRows(value);
+    }
+    if (parentKey === "history") {
+      return conversationHistoryRows(value);
+    }
     return value
       .map((item, index) => ({
         label: traceArrayItemLabel(item, index, parentKey),
@@ -709,6 +913,49 @@ function plainTraceInput(
   }
 
   return rows;
+}
+
+function chatHistoryRows(value: unknown[]): Array<{ label: string; text: string }> {
+  const messages = value
+    .map((item, index) => ({
+      label: traceArrayItemLabel(item, index, "chatHistory"),
+      text: messageText(item) || formatToolValue(item),
+    }))
+    .filter((item) => item.text.length > 0);
+  const current = messages.at(-1);
+  const history = messages.slice(0, -1);
+  const rows: Array<{ label: string; text: string }> = [];
+  if (history.length > 0) {
+    rows.push({
+      label: `Conversation history (${history.length})`,
+      text: history.map((item, index) => `${index + 1}. ${item.label}\n${item.text}`).join("\n\n"),
+    });
+  }
+  if (current !== undefined) {
+    rows.push({
+      label: history.length > 0 ? "Current prompt" : "Prompt",
+      text: current.text,
+    });
+  }
+  return rows;
+}
+
+function conversationHistoryRows(value: unknown[]): Array<{ label: string; text: string }> {
+  const messages = value
+    .map((item, index) => ({
+      label: traceArrayItemLabel(item, index, "history"),
+      text: messageText(item) || formatToolValue(item),
+    }))
+    .filter((item) => item.text.length > 0);
+  if (messages.length === 0) {
+    return [];
+  }
+  return [
+    {
+      label: `Conversation history (${messages.length})`,
+      text: messages.map((item, index) => `${index + 1}. ${item.label}\n${item.text}`).join("\n\n"),
+    },
+  ];
 }
 
 function traceArrayItemLabel(item: unknown, index: number, parentKey: string | undefined): string {
@@ -850,7 +1097,7 @@ function selectedTraceDetail(
       input: trace.input,
       output: trace.output,
       error: trace.error,
-      metadata: trace.metadata ?? {},
+      metadata: traceDetailMetadata(trace),
     };
   }
   if (activeKey.startsWith("turn:")) {
@@ -865,10 +1112,7 @@ function selectedTraceDetail(
       usage: turnUsageText(turn?.observations ?? []),
       input: turn?.observations[0]?.input,
       output: turn?.observations.at(-1)?.output,
-      metadata: {
-        turn: turnNumber,
-        observations: turn?.observations.length ?? 0,
-      },
+      metadata: turnDetailMetadata(turnNumber, turn?.observations ?? []),
     };
   }
   if (activeKey.startsWith("observation:")) {
@@ -885,19 +1129,12 @@ function selectedTraceDetail(
         input: observation.input,
         output: observation.output,
         error: observation.error,
-        metadata: {
-          status: observation.status,
-          parentObservationId: observation.parentObservationId ?? null,
-          turn: observation.turn,
-          startedAt: observation.startedAt,
-          endedAt: observation.endedAt ?? null,
-          ...(observation.metadata ?? {}),
-        },
+        metadata: observationDetailMetadata(observation),
       };
     }
   }
   return {
-    title: trace.name ?? "support-ticket-summary",
+    title: trace.name ?? "Agent",
     tone: "trace",
     startedAt: formatTraceTime(trace.startedAt),
     durationMs: trace.durationMs,
@@ -906,8 +1143,174 @@ function selectedTraceDetail(
     input: trace.input,
     output: trace.output,
     error: trace.error,
-    metadata: trace.metadata ?? {},
+    metadata: traceDetailMetadata(trace),
   };
+}
+
+function traceDetailMetadata(trace: StudioTrace): Record<string, unknown> {
+  const metadata = isRecord(trace.metadata) ? trace.metadata : {};
+  const traceGroup = compactTraceMetadata({
+    status: trace.status,
+    traceId: trace.trace?.traceId ?? trace.id,
+    observationId: trace.trace?.observationId,
+    sessionId: trace.sessionId,
+    observationCount: trace.observationCount,
+    messageCount: traceMessageCount(metadata.messages),
+    startedAt: trace.startedAt,
+    endedAt: trace.endedAt,
+    durationMs: trace.durationMs,
+  });
+  return compactTraceMetadata({
+    ...metadata,
+    status: trace.status,
+    traceId: trace.trace?.traceId ?? trace.id,
+    observationId: trace.trace?.observationId,
+    sessionId: trace.sessionId,
+    observationCount: trace.observationCount,
+    messageCount: traceMessageCount(metadata.messages),
+    startedAt: trace.startedAt,
+    endedAt: trace.endedAt,
+    durationMs: trace.durationMs,
+    trace: isRecord(metadata.trace) ? metadata.trace : traceGroup,
+  });
+}
+
+function turnDetailMetadata(
+  turn: number,
+  observations: TraceObservationItem[],
+): Record<string, unknown> {
+  return compactTraceMetadata({
+    turn,
+    observationCount: observations.length,
+    generationCount: observations.filter((observation) => observation.kind === "generation").length,
+    toolCount: observations.filter((observation) => observation.kind === "tool").length,
+    agentCount: observations.filter((observation) => observation.kind === "agent").length,
+    firstDeltaMs: firstDeltaMsFromObservations(observations),
+    status: observationStatusSummary(observations),
+    startedAt: observations[0]?.startedAt,
+    endedAt: observations.at(-1)?.endedAt,
+  });
+}
+
+function observationDetailMetadata(observation: TraceObservationItem): Record<string, unknown> {
+  const metadata = isRecord(observation.metadata) ? observation.metadata : {};
+  const base = compactTraceMetadata({
+    ...metadata,
+    status: observation.status,
+    kind: observation.kind,
+    turn: observation.turn,
+    parentObservationId: observation.parentObservationId ?? null,
+    startedAt: observation.startedAt,
+    endedAt: observation.endedAt ?? null,
+    durationMs: observation.durationMs,
+  });
+  return compactTraceMetadata({
+    ...base,
+    trace: isRecord(base.trace)
+      ? base.trace
+      : compactTraceMetadata({
+          status: observation.status,
+          kind: observation.kind,
+          turn: observation.turn,
+          parentObservationId: observation.parentObservationId ?? null,
+          startedAt: observation.startedAt,
+          endedAt: observation.endedAt ?? null,
+          durationMs: observation.durationMs,
+        }),
+    modelInfo: isRecord(base.modelInfo) ? base.modelInfo : modelInfoMetadata(base),
+    modelCall: isRecord(base.modelCall) ? base.modelCall : modelCallMetadata(base),
+    response: isRecord(base.response) ? base.response : responseMetadata(base),
+    tools: isRecord(base.tools) ? base.tools : toolsMetadata(base),
+    timing: isRecord(base.timing) ? base.timing : timingMetadata(base),
+  });
+}
+
+function modelInfoMetadata(metadata: Record<string, unknown>): Record<string, unknown> | undefined {
+  const group = compactTraceMetadata({
+    provider: metadata.provider,
+    model: metadata.model,
+    requestedModel: metadata.requestedModel,
+    defaultModel: metadata.defaultModel,
+  });
+  return Object.keys(group).length === 0 ? undefined : group;
+}
+
+function modelCallMetadata(metadata: Record<string, unknown>): Record<string, unknown> | undefined {
+  const request = compactTraceMetadata({
+    messageCount: metadata.historyCount,
+    documentCount: metadata.documentCount,
+    toolCount: metadata.toolCount,
+    toolNames: metadata.toolNames,
+    temperature: metadata.temperature,
+    maxTokens: metadata.maxTokens,
+    toolChoice: metadata.toolChoice,
+    hasOutputSchema: metadata.hasOutputSchema,
+    additionalParamKeys: metadata.additionalParamKeys,
+  });
+  const group = compactTraceMetadata({
+    request: Object.keys(request).length === 0 ? undefined : request,
+    providerRequest: metadata.providerRequest,
+  });
+  return Object.keys(group).length === 0 ? undefined : group;
+}
+
+function responseMetadata(metadata: Record<string, unknown>): Record<string, unknown> | undefined {
+  const group = compactTraceMetadata({
+    messageId: metadata.messageId,
+    usage: metadata.usage,
+    providerResponse: metadata.providerResponse,
+  });
+  return Object.keys(group).length === 0 ? undefined : group;
+}
+
+function toolsMetadata(metadata: Record<string, unknown>): Record<string, unknown> | undefined {
+  const group = compactTraceMetadata({
+    count: metadata.toolCount,
+    names: metadata.toolNames,
+    toolChoice: metadata.toolChoice,
+    internalCallId: metadata.internalCallId,
+    toolCallId: metadata.toolCallId,
+    skipped: metadata.skipped,
+    description: metadata.toolDescription,
+    parameterKeys: metadata.parameterKeys,
+    requiredParameterKeys: metadata.requiredParameterKeys,
+    approvalRequired: metadata.approvalRequired,
+    mcpServerName: metadata.mcpServerName,
+    argumentBytes: metadata.argumentBytes,
+    resultBytes: metadata.resultBytes,
+  });
+  return Object.keys(group).length === 0 ? undefined : group;
+}
+
+function timingMetadata(metadata: Record<string, unknown>): Record<string, unknown> | undefined {
+  const group = compactTraceMetadata({
+    firstDeltaMs: metadata.firstDeltaMs,
+    durationMs: metadata.durationMs,
+    startedAt: metadata.startedAt,
+    endedAt: metadata.endedAt,
+  });
+  return Object.keys(group).length === 0 ? undefined : group;
+}
+
+function observationStatusSummary(observations: TraceObservationItem[]): string {
+  if (observations.length === 0) {
+    return "empty";
+  }
+  if (observations.some((observation) => observation.status === "error")) {
+    return "error";
+  }
+  if (observations.some((observation) => observation.status === "running")) {
+    return "running";
+  }
+  return "success";
+}
+
+function traceMessageCount(value: unknown): number | undefined {
+  return Array.isArray(value) ? value.length : undefined;
+}
+
+function compactTraceMetadata(values: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined));
 }
 
 function traceObservationLabel(observation: TraceObservationItem): string {

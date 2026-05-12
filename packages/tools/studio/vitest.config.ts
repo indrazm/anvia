@@ -4,6 +4,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@anvia/core": new URL("../../core/src/index.ts", import.meta.url).pathname,
+      "@": new URL("./src/ui/app", import.meta.url).pathname,
     },
   },
   test: {
