@@ -1,0 +1,11 @@
+{
+  "title": "Multi-agent Patterns",
+  "defaultOpen": false,
+  "collapsible": true,
+  "pages": [
+    "index",
+    "build-streaming-specialists",
+    "consume-nested-events",
+    "persistence-and-testing"
+  ]
+}
