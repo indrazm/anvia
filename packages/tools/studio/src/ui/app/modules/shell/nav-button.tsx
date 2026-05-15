@@ -24,7 +24,7 @@ export function NavButton(props: {
   return (
     <Button
       className={cn(
-        "h-8 min-h-8 w-full justify-start gap-3 rounded-sm border border-transparent bg-transparent px-2 text-sm font-medium text-sidebar-foreground/62 shadow-none hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground [&_svg]:h-3.5 [&_svg]:w-3.5",
+        "h-8 min-h-8 w-full justify-start gap-3 rounded-xl border border-transparent bg-transparent px-2 text-sm font-medium text-sidebar-foreground/62 shadow-none hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground [&_svg]:h-3.5 [&_svg]:w-3.5",
         props.active &&
           "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
       )}

@@ -54,6 +54,7 @@ export function PipelinesPage(props: {
   runState: "idle" | "running";
   runInput: string;
   runOutput: string;
+  theme: "light" | "dark";
   onSelectPipeline: (pipelineId: string) => void;
   onRunInputChange: (value: string) => void;
   onRun: () => void;
@@ -92,9 +93,9 @@ export function PipelinesPage(props: {
         {props.detailLoading && graph === undefined ? (
           <div className="grid h-full min-h-96 place-items-center p-6">
             <div className="grid w-full max-w-lg gap-3">
-              <div className="h-4 w-40 animate-pulse rounded-sm bg-muted" />
-              <div className="h-16 animate-pulse rounded-sm bg-muted/60" />
-              <div className="h-16 w-4/5 animate-pulse rounded-sm bg-muted/60" />
+              <div className="h-4 w-40 animate-pulse rounded-lg bg-muted" />
+              <div className="h-16 animate-pulse rounded-lg bg-muted/60" />
+              <div className="h-16 w-4/5 animate-pulse rounded-lg bg-muted/60" />
             </div>
           </div>
         ) : null}
@@ -124,7 +125,7 @@ export function PipelinesPage(props: {
             fitViewOptions={{ padding: 0.18, maxZoom: 0.96 }}
             minZoom={0.48}
             maxZoom={1.35}
-            colorMode="dark"
+            colorMode={props.theme}
             nodeTypes={nodeTypes}
             proOptions={{ hideAttribution: true }}
             defaultEdgeOptions={{
@@ -220,7 +221,7 @@ function PipelineInspectorSidebar(props: {
             </span>
           </div>
           <Select value={props.selectedPipelineId} onValueChange={props.onSelectPipeline}>
-            <SelectTrigger className="h-8 w-full rounded-sm border-primary/55 bg-background font-mono text-[11px] hover:border-primary focus:border-primary focus:ring-primary/25">
+            <SelectTrigger className="h-8 w-full rounded-lg border-primary/55 bg-background font-mono text-[11px] hover:border-primary focus:border-primary focus:ring-primary/25">
               <SelectValue placeholder="Select pipeline" />
             </SelectTrigger>
             <SelectContent>
@@ -291,7 +292,7 @@ function PipelineSidebarTabs(props: {
 }) {
   return (
     <div
-      className="grid grid-cols-4 border border-border/80 bg-background"
+      className="grid grid-cols-4 gap-1 rounded-xl border border-border/80 bg-background p-1"
       role="tablist"
       aria-label="Pipeline sidebar"
     >
@@ -299,7 +300,7 @@ function PipelineSidebarTabs(props: {
         <button
           aria-selected={props.activeTab === tab.id}
           className={[
-            "h-8 border-r border-border/80 px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] transition duration-200 last:border-r-0",
+            "h-8 rounded-lg px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] transition duration-200",
             props.activeTab === tab.id
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
@@ -318,7 +319,7 @@ function PipelineSidebarTabs(props: {
 
 function Metric(props: { label: string; value: string }) {
   return (
-    <div className="min-w-0 border-r border-border/80 px-2.5 py-2.5 last:border-r-0">
+    <div className="min-w-0 rounded-lg bg-background/55 px-2.5 py-2.5">
       <div className="truncate font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {props.label}
       </div>
@@ -348,7 +349,7 @@ function PipelineInputPanel(props: {
           </p>
         </div>
         <Button
-          className="h-8 shrink-0 rounded-sm px-3 text-xs font-semibold"
+          className="h-8 shrink-0 rounded-lg px-3 text-xs font-semibold"
           disabled={props.runState === "running" || props.disabled}
           onClick={props.onRun}
         >
@@ -364,7 +365,7 @@ function PipelineInputPanel(props: {
           id="pipeline-run-input"
           value={props.runInput}
           onChange={(event) => props.onRunInputChange(event.target.value)}
-          className="min-h-44 resize-y rounded-sm border-border bg-card/30 font-mono text-xs leading-5 text-foreground"
+          className="min-h-44 resize-y rounded-lg border-border bg-card/30 font-mono text-xs leading-5 text-foreground"
           spellCheck={false}
         />
       </label>
@@ -388,7 +389,7 @@ function PipelineMetadataPanel(props: {
   return (
     <section className="grid gap-5">
       {props.graphStats === undefined ? null : (
-        <div className="grid grid-cols-5 border-y border-border/80">
+        <div className="grid grid-cols-5 gap-2">
           <Metric label="Nodes" value={String(props.graphStats.nodes)} />
           <Metric label="Edges" value={String(props.graphStats.edges)} />
           <Metric label="Agents" value={String(props.graphStats.agents)} />
@@ -426,8 +427,8 @@ function PipelineRunsPanel(props: {
       <div className="grid gap-2">
         {props.loading && props.runs.length === 0 ? (
           <div className="grid gap-2 py-3">
-            <div className="h-4 w-32 animate-pulse rounded-sm bg-muted" />
-            <div className="h-4 w-56 max-w-full animate-pulse rounded-sm bg-muted/60" />
+            <div className="h-4 w-32 animate-pulse rounded-lg bg-muted" />
+            <div className="h-4 w-56 max-w-full animate-pulse rounded-lg bg-muted/60" />
           </div>
         ) : null}
         {!props.loading && props.runs.length === 0 ? (
@@ -446,7 +447,7 @@ function PipelineRunsPanel(props: {
 function PipelineRunRow(props: { run: StudioPipelineRunRecord }) {
   const output = pipelineRunOutputText(props.run);
   return (
-    <article className="grid gap-3 rounded-sm border border-border/80 bg-card/25 p-3">
+    <article className="grid gap-3 rounded-lg border border-border/80 bg-card/25 p-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <span className="truncate font-mono text-[11px] font-semibold text-foreground">
           {props.run.runId}
@@ -482,7 +483,7 @@ function PipelineRunOutputBlock(props: { title: string; output: string }) {
           {props.output.length} bytes
         </span>
       </div>
-      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-sm border border-border/80 bg-background/55 p-3 font-mono text-xs leading-5 text-foreground">
+      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/80 bg-background/55 p-3 font-mono text-xs leading-5 text-foreground">
         {props.output.length > 0 ? <JsonSyntax text={props.output} /> : "No output saved."}
       </pre>
     </div>
@@ -539,7 +540,7 @@ function NodeInspector(props: {
         </div>
       </div>
       {props.node.description === undefined ? null : (
-        <p className="m-0 border-l border-primary/45 pl-3 text-sm leading-6 text-muted-foreground">
+        <p className="m-0 rounded-lg bg-primary/10 px-3 py-2 text-sm leading-6 text-muted-foreground">
           {props.node.description}
         </p>
       )}
@@ -613,7 +614,7 @@ function PipelineLogsSection(props: {
         </span>
       </div>
       <div
-        className="min-h-0 overflow-auto border-y border-border/65 font-mono"
+        className="min-h-0 overflow-auto rounded-xl border border-border/65 bg-background/45 p-2 font-mono"
         ref={scrollerRef}
         onScroll={updateStickiness}
       >
@@ -624,9 +625,9 @@ function PipelineLogsSection(props: {
         ) : null}
         {props.selectedPipelineId.length > 0 && props.loading && props.logs.length === 0 ? (
           <div className="grid gap-2 py-4">
-            <div className="h-4 w-32 animate-pulse rounded-sm bg-muted" />
-            <div className="h-4 w-64 max-w-full animate-pulse rounded-sm bg-muted/60" />
-            <div className="h-4 w-52 max-w-full animate-pulse rounded-sm bg-muted/60" />
+            <div className="h-4 w-32 animate-pulse rounded-lg bg-muted" />
+            <div className="h-4 w-64 max-w-full animate-pulse rounded-lg bg-muted/60" />
+            <div className="h-4 w-52 max-w-full animate-pulse rounded-lg bg-muted/60" />
           </div>
         ) : null}
         {props.selectedPipelineId.length > 0 && !props.loading && props.logs.length === 0 ? (
@@ -650,7 +651,7 @@ function PipelineLogRow(props: { log: StudioPipelineLogEntry }) {
   return (
     <article
       className={[
-        "w-max min-w-full whitespace-nowrap border-l-2 px-3 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
+        "w-max min-w-full whitespace-nowrap rounded-lg border-l-2 px-3 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
         logLevelBorderClass(props.log.level),
       ].join(" ")}
     >
@@ -673,7 +674,7 @@ function DetailList(props: { items: Array<[string, string | undefined]> }) {
     return null;
   }
   return (
-    <div className="grid gap-2 border-y border-border/80 py-4">
+    <div className="grid gap-2 rounded-xl bg-background/45 p-3">
       {items.map(([label, value]) => (
         <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-2 text-xs" key={label}>
           <span className="truncate font-mono text-muted-foreground">{label}</span>
@@ -686,7 +687,7 @@ function DetailList(props: { items: Array<[string, string | undefined]> }) {
 
 function Badge(props: { children: string }) {
   return (
-    <span className="rounded-sm border border-border/70 bg-background/70 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+    <span className="rounded-full border border-border/70 bg-background/70 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
       {props.children}
     </span>
   );
@@ -705,7 +706,7 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
   return (
     <article
       className={[
-        "group relative min-h-[74px] w-[210px] rounded-md border bg-card px-4 py-3 text-left shadow-[inset_0_1px_0_hsl(var(--foreground)/0.06)] transition duration-200",
+        "group relative min-h-[74px] w-[210px] rounded-xl border bg-card px-4 py-3 text-left shadow-[inset_0_1px_0_hsl(var(--foreground)/0.06)] transition duration-200",
         props.selected ? "border-primary" : "border-border/80",
         status === "running" ? "translate-y-[-1px] border-amber-400" : "",
         status === "completed" ? "border-primary/70" : "",
@@ -734,7 +735,7 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
         </div>
         {status === undefined ? null : (
           <span
-            className="rounded-sm border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
+            className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
             style={{ color: props.data.statusColor }}
           >
             {status}

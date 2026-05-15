@@ -56,17 +56,17 @@ export function PipelineLogsPanel(props: {
         ) : null}
         {props.selectedPipelineId.length > 0 && props.loading && props.logs.length === 0 ? (
           <div className="grid gap-2 px-4 py-4">
-            <div className="h-4 w-32 animate-pulse rounded-sm bg-muted" />
-            <div className="h-4 w-64 animate-pulse rounded-sm bg-muted/60" />
-            <div className="h-4 w-52 animate-pulse rounded-sm bg-muted/60" />
+            <div className="h-4 w-32 animate-pulse rounded-lg bg-muted" />
+            <div className="h-4 w-64 animate-pulse rounded-lg bg-muted/60" />
+            <div className="h-4 w-52 animate-pulse rounded-lg bg-muted/60" />
           </div>
         ) : null}
         {props.selectedPipelineId.length > 0 && !props.loading && props.logs.length === 0 ? (
-          <div className="border-b border-border/70 px-5 py-5 text-sm font-medium text-muted-foreground">
+          <div className="px-5 py-5 text-sm font-medium text-muted-foreground">
             No logs yet. Run the pipeline to populate this console.
           </div>
         ) : null}
-        <div className="grid min-w-full border-t border-border/65 font-mono">
+        <div className="grid min-w-full gap-1 p-2 font-mono">
           {props.logs.map((log) => (
             <LogRow log={log} key={log.id} />
           ))}
@@ -91,7 +91,7 @@ function LogRow(props: { log: StudioPipelineLogEntry }) {
   return (
     <article
       className={cn(
-        "w-max min-w-full whitespace-nowrap border-l-2 px-4 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
+        "w-max min-w-full whitespace-nowrap rounded-lg border-l-2 px-4 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
         levelBorderClass(props.log.level),
       )}
       title={line}

@@ -1,4 +1,4 @@
-import { ArrowUp, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { ArrowUp, ExternalLink, Moon, Plus, Sun, Trash2 } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -83,9 +83,40 @@ import { NavButton } from "./modules/shell/nav-button";
 import { ToolsPage } from "./modules/tools/tools-page";
 import { TraceBrowser } from "./modules/tracing/trace-browser";
 
-function applyDarkTheme(): void {
-  document.documentElement.classList.add("dark");
+type StudioTheme = "light" | "dark";
+
+const studioThemeStorageKey = "anvia-studio-theme";
+
+function readInitialStudioTheme(): StudioTheme {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+  try {
+    const stored = window.localStorage.getItem(studioThemeStorageKey);
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  } catch {
+    return "dark";
+  }
 }
+
+function applyStudioTheme(theme: StudioTheme): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.style.colorScheme = theme;
+}
+
+function storeStudioTheme(theme: StudioTheme): void {
+  try {
+    window.localStorage.setItem(studioThemeStorageKey, theme);
+  } catch {
+    // Ignore storage failures so private or restricted browsing still toggles the UI.
+  }
+}
+
+const initialStudioTheme = readInitialStudioTheme();
+applyStudioTheme(initialStudioTheme);
 
 async function responseErrorMessage(response: Response, label: string): Promise<string> {
   let detail = "";
@@ -128,6 +159,7 @@ export function StudioConsole() {
   const [pipelineRunOutput, setPipelineRunOutput] = useState("");
   const [activePipelineRunId, setActivePipelineRunId] = useState("");
   const [activePage, setActivePage] = useState<ActivePage>(() => initialLocation.page);
+  const [theme, setTheme] = useState<StudioTheme>(() => initialStudioTheme);
   const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTab>(
     () => initialLocation.knowledgeTab ?? defaultKnowledgeTab,
   );
@@ -203,8 +235,9 @@ export function StudioConsole() {
   const hasMessages = messages.length > 0;
 
   useEffect(() => {
-    applyDarkTheme();
-  }, []);
+    applyStudioTheme(theme);
+    storeStudioTheme(theme);
+  }, [theme]);
 
   const loadAllSessions = useCallback(async () => {
     if (!sessionsEnabled) {
@@ -1455,7 +1488,7 @@ export function StudioConsole() {
             </span>
           </div>
         </div>
-        <nav className="grid gap-1 border-b border-sidebar-border/80 px-3 py-3" aria-label="Main">
+        <nav className="mx-3 mt-3 grid gap-1 rounded-xl bg-sidebar-accent/35 p-2" aria-label="Main">
           <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Workspace
           </div>
@@ -1486,7 +1519,10 @@ export function StudioConsole() {
             onClick={() => navigatePage("tracing")}
           />
         </nav>
-        <nav className="grid gap-1 border-b border-sidebar-border/80 px-3 py-3" aria-label="Studio">
+        <nav
+          className="mx-3 mt-3 grid gap-1 rounded-xl bg-sidebar-accent/25 p-2"
+          aria-label="Studio"
+        >
           <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Inspect
           </div>
@@ -1516,7 +1552,7 @@ export function StudioConsole() {
           />
         </nav>
         <nav
-          className="grid min-h-0 gap-1 overflow-auto border-b border-sidebar-border/80 px-3 py-3"
+          className="mx-3 mt-3 grid min-h-0 gap-1 overflow-auto rounded-xl bg-sidebar-accent/20 p-2"
           aria-label="Recent sessions"
         >
           <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -1525,14 +1561,14 @@ export function StudioConsole() {
           {allSessions.slice(0, 8).map((session) => (
             <div
               className={cn(
-                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-1 rounded-sm border border-transparent pr-1 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent focus-within:border-sidebar-border focus-within:bg-sidebar-accent",
+                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-1 rounded-xl border border-transparent pr-1 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent focus-within:border-sidebar-border focus-within:bg-sidebar-accent",
                 session.id === selectedSessionId && "border-sidebar-border bg-sidebar-accent",
               )}
               key={session.id}
             >
               <Button
                 className={cn(
-                  "grid h-auto min-h-8 min-w-0 justify-start rounded-sm border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
+                  "grid h-auto min-h-8 min-w-0 justify-start rounded-xl border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
                   session.id === selectedSessionId && "text-sidebar-accent-foreground",
                 )}
                 type="button"
@@ -1587,6 +1623,17 @@ export function StudioConsole() {
             </div>
             <div className="flex items-center gap-1">
               <Button
+                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                className="h-8 min-h-8 w-8 border-transparent bg-transparent p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                type="button"
+                variant="secondary"
+                size="icon"
+                onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+              >
+                {theme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+              </Button>
+              <Button
                 className="h-8 min-h-8 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 type="button"
                 variant="secondary"
@@ -1595,7 +1642,7 @@ export function StudioConsole() {
                 Sessions
               </Button>
               <Button
-                className="h-8 min-h-8 gap-1.5 rounded-sm border-0 bg-primary px-3 font-mono text-xs text-primary-foreground hover:bg-primary/90"
+                className="h-8 min-h-8 gap-1.5 rounded-lg border-0 bg-primary px-3 font-mono text-xs text-primary-foreground hover:bg-primary/90"
                 type="button"
                 onClick={() => startNewChat()}
               >
@@ -1653,7 +1700,7 @@ export function StudioConsole() {
                   <div className="mx-auto grid w-full max-w-235 grid-cols-3 gap-2 max-md:grid-cols-1">
                     {selectedAgentQuickPrompts.map((quickPrompt) => (
                       <Button
-                        className="h-auto min-h-16 justify-start whitespace-normal rounded-sm border border-border/80 bg-card/85 px-3 py-2.5 text-left text-sm font-medium leading-5 text-foreground shadow-sm hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
+                        className="h-auto min-h-16 justify-start whitespace-normal rounded-xl border border-border/80 bg-card/85 px-3 py-2.5 text-left text-sm font-medium leading-5 text-foreground shadow-sm hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
                         type="button"
                         variant="ghost"
                         disabled={runState === "running" || selectedAgentId.length === 0}
@@ -1667,9 +1714,9 @@ export function StudioConsole() {
                     ))}
                   </div>
                 )}
-                <div className="mx-auto grid w-full max-w-235 gap-2 rounded-md border border-border/80 bg-card/95 p-2.5 shadow-xl shadow-black/35 backdrop-blur focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                <div className="mx-auto grid w-full max-w-235 gap-2 rounded-2xl border border-border/80 bg-card/95 p-2.5 shadow-xl shadow-black/35 backdrop-blur focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
                   <Textarea
-                    className="min-h-16 min-w-0 resize-none rounded-sm border-0 bg-transparent px-3 py-3 text-[15px] leading-7 text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/70 focus:border-transparent focus:ring-0"
+                    className="min-h-16 min-w-0 resize-none rounded-lg border-0 bg-transparent px-3 py-3 text-[15px] leading-7 text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/70 focus:border-transparent focus:ring-0"
                     ref={promptRef}
                     rows={1}
                     value={prompt}
@@ -1701,13 +1748,13 @@ export function StudioConsole() {
                           </SelectContent>
                         </Select>
                       ) : (
-                        <span className="hidden max-w-60 truncate rounded-sm px-2 py-1 font-mono text-xs font-medium text-muted-foreground sm:block">
+                        <span className="hidden max-w-60 truncate rounded-lg px-2 py-1 font-mono text-xs font-medium text-muted-foreground sm:block">
                           {selectedAgent?.name ?? selectedAgent?.id ?? "Agent"}
                         </span>
                       )}
                       <Button
                         aria-label={runState === "running" ? "Running" : "Send message"}
-                        className="h-9 min-h-9 w-9 rounded-sm border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                        className="h-9 min-h-9 w-9 rounded-lg border-primary bg-primary text-primary-foreground hover:bg-primary/90"
                         size="icon"
                         type="submit"
                         disabled={runState === "running" || selectedAgentId.length === 0}
@@ -1787,6 +1834,7 @@ export function StudioConsole() {
             runState={pipelineRunState}
             runInput={pipelineRunInput}
             runOutput={pipelineRunOutput}
+            theme={theme}
             onSelectPipeline={(pipelineId) => {
               setSelectedPipelineId(pipelineId);
               setPipelineRunOutput("");
@@ -1840,7 +1888,7 @@ export function StudioConsole() {
 function SidebarLink(props: { href: string; label: string }) {
   return (
     <a
-      className="flex h-8 min-h-8 items-center justify-between rounded-sm border border-transparent px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      className="flex h-8 min-h-8 items-center justify-between rounded-lg border border-transparent px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground"
       href={props.href}
       target="_blank"
       rel="noreferrer"

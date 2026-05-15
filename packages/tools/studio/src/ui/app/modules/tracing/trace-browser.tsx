@@ -43,7 +43,7 @@ export function TraceBrowser(props: {
 }) {
   if (!props.tracesEnabled) {
     return (
-      <div className="w-full rounded-sm border border-dashed border-border p-8 text-sm font-medium text-muted-foreground">
+      <div className="w-full rounded-lg border border-dashed border-border p-8 text-sm font-medium text-muted-foreground">
         Tracing is disabled
       </div>
     );
@@ -89,12 +89,12 @@ function TraceTable(props: {
 }) {
   return (
     <Card
-      className="min-h-0 overflow-hidden rounded-none border-x-0 border-t-0 border-border/80 bg-card/80"
+      className="min-h-0 overflow-hidden rounded-xl border-border/80 bg-card/80"
       aria-label="Traces"
     >
       <ScrollArea className="h-full min-h-0">
-        <div className="min-w-280">
-          <div className="sticky top-0 z-10 grid min-h-11 grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center gap-4 border-b border-border/80 bg-card/95 px-6 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+        <div className="grid min-w-280 gap-1 p-2">
+          <div className="sticky top-0 z-10 grid min-h-11 grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center gap-4 rounded-lg border border-border/60 bg-card/95 px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
             <span>Trace</span>
             <span>Session</span>
             <span>Agent</span>
@@ -116,7 +116,7 @@ function TraceTable(props: {
           ) : null}
           {props.traces.map((trace) => (
             <Button
-              className="grid h-auto min-h-14 w-full grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center justify-start gap-4 whitespace-normal rounded-none border-0 border-b border-border/75 bg-transparent px-6 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:bg-accent/70 hover:text-accent-foreground"
+              className="grid h-auto min-h-14 w-full grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center justify-start gap-4 whitespace-normal rounded-lg border border-transparent bg-transparent px-4 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:border-primary/20 hover:bg-accent/70 hover:text-accent-foreground"
               type="button"
               variant="ghost"
               key={trace.id}
@@ -209,13 +209,13 @@ function TraceDetailRoute(props: {
             )}
           </span>
         </div>
-        <span className="hidden max-w-[42vw] truncate rounded-sm bg-muted px-2 py-1 font-mono text-xs font-medium text-muted-foreground md:block">
+        <span className="hidden max-w-[42vw] truncate rounded-lg bg-muted px-2 py-1 font-mono text-xs font-medium text-muted-foreground md:block">
           {props.selectedTraceId}
         </span>
       </header>
       <div className="min-h-0 min-w-0 overflow-hidden">
         {props.selectedTrace === undefined ? (
-          <Card className="grid h-full place-items-center rounded-sm border-border bg-card p-6 text-sm font-medium text-muted-foreground">
+          <Card className="grid h-full place-items-center rounded-lg border-border bg-card p-6 text-sm font-medium text-muted-foreground">
             {props.traceLoadState === "loading" ? "Loading trace" : "Trace not found"}
           </Card>
         ) : (
@@ -371,7 +371,7 @@ function TraceTreeRow(props: {
   return (
     <Button
       className={cn(
-        "relative grid h-auto min-h-0 w-full min-w-0 grid-cols-[20px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal rounded-none border-0 bg-transparent px-3 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:bg-accent/70 hover:text-accent-foreground",
+        "relative grid h-auto min-h-0 w-full min-w-0 grid-cols-[20px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:bg-accent/70 hover:text-accent-foreground",
         props.active && "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary",
       )}
       type="button"
@@ -430,7 +430,7 @@ function TraceTreeRow(props: {
       ) : null}
       <span
         className={cn(
-          "relative z-10 grid h-5 w-5 place-items-center rounded-sm bg-transparent [&_svg]:h-3 [&_svg]:w-3 [&_svg]:opacity-100",
+          "relative z-10 grid h-5 w-5 place-items-center rounded-lg bg-transparent [&_svg]:h-3 [&_svg]:w-3 [&_svg]:opacity-100",
           traceToneIconClass(props.tone),
         )}
       >
@@ -555,7 +555,7 @@ function TraceDetailPane(props: {
               </div>
             </div>
           </div>
-          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-px overflow-hidden border border-border/80 bg-border/80">
+          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
             <TraceMetric label="Duration" value={formatDuration(selected.durationMs)} />
             {selected.firstDeltaMs === undefined ? null : (
               <TraceMetric label="First delta" value={formatDuration(selected.firstDeltaMs)} />
@@ -564,7 +564,7 @@ function TraceDetailPane(props: {
               <TraceMetric label="Usage" value={selected.usage} />
             )}
             <button
-              className="grid min-w-0 gap-1 bg-background px-4 py-3 text-left transition duration-200 hover:bg-accent hover:text-accent-foreground"
+              className="grid min-w-0 gap-1 rounded-lg bg-background px-4 py-3 text-left transition duration-200 hover:bg-accent hover:text-accent-foreground"
               type="button"
               onClick={() => props.onShowSessionTraces(props.trace.sessionId)}
             >
@@ -598,7 +598,7 @@ function TraceDetailPane(props: {
 
 function TraceMetric(props: { label: string; value: string }) {
   return (
-    <div className="grid min-w-0 gap-1 bg-background px-4 py-3">
+    <div className="grid min-w-0 gap-1 rounded-lg bg-background px-4 py-3">
       <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {props.label}
       </span>

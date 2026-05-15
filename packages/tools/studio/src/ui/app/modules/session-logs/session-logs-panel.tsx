@@ -55,7 +55,7 @@ export function SessionLogsPanel(props: {
         {props.selectedSessionId.length > 0 && !props.loading && props.logs.length === 0 ? (
           <div className="px-2 py-3 text-sm font-medium text-muted-foreground">No logs yet</div>
         ) : null}
-        <div className="grid min-w-full border-t border-border/65 font-mono">
+        <div className="grid min-w-full gap-1 p-2 font-mono">
           {props.logs.map((log) => (
             <LogRow log={log} key={log.id} />
           ))}
@@ -80,7 +80,7 @@ function LogRow(props: { log: StudioSessionLogEntry }) {
   return (
     <article
       className={cn(
-        "w-max min-w-full whitespace-nowrap border-l-2 px-3 py-1 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
+        "w-max min-w-full whitespace-nowrap rounded-lg border-l-2 px-3 py-1 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
         levelBorderClass(props.log.level),
       )}
       title={line}

@@ -27,7 +27,7 @@ export function AgentsPage(props: { agents: StudioConfig["agents"]; selectedAgen
       <div className="min-h-0 overflow-auto px-6 py-6">
         <div className="grid w-full gap-4">
           {props.agents.length === 0 ? (
-            <div className="grid min-h-80 place-items-center border border-dashed border-border/80 bg-card/35 px-6 text-center">
+            <div className="grid min-h-80 place-items-center rounded-xl border border-dashed border-border/80 bg-card/35 px-6 text-center">
               <div className="grid max-w-md gap-2">
                 <h2 className="m-0 text-base font-semibold text-foreground">No agents</h2>
                 <p className="m-0 text-sm leading-6 text-muted-foreground">
@@ -58,12 +58,12 @@ function AgentDossier(props: { agent: StudioConfig["agents"][number]; active: bo
   return (
     <article
       className={cn(
-        "grid overflow-hidden border border-border/80 bg-card/45 shadow-sm transition duration-200 hover:border-border hover:bg-card/60",
+        "grid overflow-hidden rounded-xl border border-border/80 bg-card/45 p-2 shadow-sm transition duration-200 hover:border-border hover:bg-card/60",
         props.active && "border-primary/35 bg-card/70 shadow-[inset_0_1px_0_hsl(0_0%_100%_/_0.08)]",
       )}
     >
-      <div className="grid gap-0 xl:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)_minmax(280px,0.7fr)]">
-        <section className="grid content-between gap-8 border-b border-border/70 p-5 xl:border-b-0 xl:border-r">
+      <div className="grid gap-2 xl:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)_minmax(280px,0.7fr)]">
+        <section className="grid content-between gap-8 rounded-lg bg-background/35 p-5">
           <div className="grid gap-3">
             <div className="flex min-w-0 items-center justify-between gap-3">
               <Badge
@@ -90,7 +90,7 @@ function AgentDossier(props: { agent: StudioConfig["agents"][number]; active: bo
           <div className="h-px w-20 bg-primary/55" />
         </section>
 
-        <section className="grid content-start gap-5 border-b border-border/70 p-5 xl:border-b-0 xl:border-r">
+        <section className="grid content-start gap-5 rounded-lg bg-background/35 p-5">
           <div className="grid gap-2">
             <SectionLabel>description</SectionLabel>
             <p className="m-0 max-w-[72ch] text-sm leading-6 text-muted-foreground">
@@ -100,14 +100,14 @@ function AgentDossier(props: { agent: StudioConfig["agents"][number]; active: bo
           <div className="grid gap-2">
             <SectionLabel>quick prompts</SectionLabel>
             {props.agent.quickPrompts.length === 0 ? (
-              <div className="border border-dashed border-border/80 bg-background/35 px-3 py-2 text-sm text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-border/80 bg-background/45 px-3 py-2 text-sm text-muted-foreground">
                 None configured
               </div>
             ) : (
               <div className="grid gap-2">
                 {props.agent.quickPrompts.map((prompt, index) => (
                   <div
-                    className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 border border-border/70 bg-background/35 px-3 py-2 text-sm leading-6 text-foreground"
+                    className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 rounded-lg border border-border/70 bg-background/45 px-3 py-2 text-sm leading-6 text-foreground"
                     key={prompt}
                   >
                     <span className="font-mono text-[11px] font-semibold text-muted-foreground">
@@ -121,17 +121,17 @@ function AgentDossier(props: { agent: StudioConfig["agents"][number]; active: bo
           </div>
         </section>
 
-        <section className="grid content-start gap-3 p-5">
+        <section className="grid content-start gap-3 rounded-lg bg-background/35 p-5">
           <SectionLabel>metadata</SectionLabel>
           {metadata.length === 0 ? (
-            <div className="border border-dashed border-border/80 bg-background/35 px-3 py-2 text-sm text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border/80 bg-background/45 px-3 py-2 text-sm text-muted-foreground">
               None
             </div>
           ) : (
-            <div className="grid divide-y divide-border/70 border border-border/70 bg-background/35">
+            <div className="grid gap-1">
               {metadata.map(([key, value]) => (
                 <div
-                  className="grid min-w-0 grid-cols-[minmax(110px,0.75fr)_minmax(0,1fr)] gap-3 px-3 py-2 text-sm"
+                  className="grid min-w-0 grid-cols-[minmax(110px,0.75fr)_minmax(0,1fr)] gap-3 rounded-lg bg-muted/20 px-3 py-2 text-sm"
                   key={key}
                 >
                   <span className="min-w-0 truncate font-medium text-muted-foreground" title={key}>

@@ -46,7 +46,7 @@ export function ToolsPage(props: {
           </div>
           {props.agents.length > 1 ? (
             <Select value={selectedAgent?.id ?? ""} onValueChange={props.onSelectAgent}>
-              <SelectTrigger className="h-9 min-h-9 w-64 rounded-sm border-border bg-card/80 font-mono text-xs max-md:w-full">
+              <SelectTrigger className="h-9 min-h-9 w-64 rounded-lg border-border bg-card/80 font-mono text-xs max-md:w-full">
                 <SelectValue placeholder="Agent" />
               </SelectTrigger>
               <SelectContent align="end">
@@ -73,8 +73,8 @@ export function ToolsPage(props: {
           ) : tools.length === 0 ? (
             <EmptyState title="No tools" message="The selected agent has no registered tools." />
           ) : (
-            <div className="grid overflow-hidden border border-border/80 bg-card/55 shadow-sm">
-              <div className="grid min-h-10 grid-cols-[minmax(260px,0.75fr)_minmax(0,1fr)] items-center border-b border-border/80 bg-muted/20 px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground max-lg:hidden">
+            <div className="grid gap-1 overflow-hidden rounded-xl border border-border/80 bg-card/55 p-2 shadow-sm">
+              <div className="grid min-h-10 grid-cols-[minmax(260px,0.75fr)_minmax(0,1fr)] items-center rounded-lg border border-border/60 bg-muted/20 px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground max-lg:hidden">
                 <span>Definition</span>
                 <span>Parameter schema</span>
               </div>
@@ -92,8 +92,8 @@ export function ToolsPage(props: {
 function ToolDefinitionRow(props: { tool: StudioAgentToolMetadata }) {
   const propertyCount = schemaPropertyCount(props.tool.parameters);
   return (
-    <article className="grid grid-cols-[minmax(300px,0.75fr)_minmax(0,1fr)] border-b border-border/70 last:border-b-0 max-lg:grid-cols-1">
-      <div className="grid content-start gap-4 border-r border-border/70 p-4 max-lg:border-b max-lg:border-r-0">
+    <article className="grid grid-cols-[minmax(300px,0.75fr)_minmax(0,1fr)] gap-2 rounded-lg border border-transparent bg-background/25 p-2 transition duration-200 hover:border-border/70 hover:bg-background/35 max-lg:grid-cols-1">
+      <div className="grid content-start gap-4 rounded-lg bg-card/25 p-3">
         <div className="grid gap-1">
           <h2 className="m-0 truncate font-mono text-[15px] font-semibold text-foreground">
             {props.tool.name}
@@ -121,7 +121,7 @@ function ToolDefinitionRow(props: { tool: StudioAgentToolMetadata }) {
           </Badge>
         </div>
         {props.tool.approval.reason === undefined ? null : (
-          <p className="m-0 border-l border-primary/40 pl-3 text-xs leading-5 text-muted-foreground">
+          <p className="m-0 rounded-lg bg-primary/10 px-3 py-2 text-xs leading-5 text-muted-foreground">
             {props.tool.approval.reason}
           </p>
         )}
@@ -133,8 +133,8 @@ function ToolDefinitionRow(props: { tool: StudioAgentToolMetadata }) {
 
 function SchemaBlock(props: { value: unknown }) {
   return (
-    <section className="grid min-w-0 content-start bg-background/35">
-      <div className="flex min-h-9 items-center justify-between gap-3 border-b border-border/70 px-4">
+    <section className="grid min-w-0 content-start overflow-hidden rounded-lg bg-background/45">
+      <div className="flex min-h-9 items-center justify-between gap-3 bg-muted/20 px-4">
         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           JSON schema
         </span>
@@ -153,7 +153,7 @@ function SchemaBlock(props: { value: unknown }) {
 
 function EmptyState(props: { title: string; message: string }) {
   return (
-    <div className="grid min-h-80 place-items-center border border-dashed border-border/80 bg-card/35 px-6 text-center">
+    <div className="grid min-h-80 place-items-center rounded-xl border border-dashed border-border/80 bg-card/35 px-6 text-center">
       <div className="grid max-w-md gap-2">
         <h2 className="m-0 text-base font-semibold text-foreground">{props.title}</h2>
         <p className="m-0 text-sm leading-6 text-muted-foreground">{props.message}</p>
