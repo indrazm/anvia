@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { ArrowClockwise } from "@phosphor-icons/react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import type {
   StudioAgentKnowledgeConfig,
@@ -164,7 +164,7 @@ export function KnowledgePage(props: {
           variant="secondary"
           onClick={props.onRefresh}
         >
-          <RefreshCw aria-hidden="true" />
+          <ArrowClockwise aria-hidden="true" />
           Refresh
         </Button>
       </header>

@@ -1,4 +1,4 @@
-import { Route, Wrench } from "lucide-react";
+import { Path, Wrench } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -64,7 +64,7 @@ export function TranscriptItem(props: {
           onClick={() => props.onOpenTrace(traceId)}
         >
           <span className="grid h-5 w-5 shrink-0 place-items-center bg-primary text-background [&_svg]:h-3 [&_svg]:w-3">
-            <Route aria-hidden="true" />
+            <Path aria-hidden="true" />
           </span>
           <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
             Trace

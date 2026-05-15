@@ -1,4 +1,4 @@
-import { ArrowUp, ExternalLink, Moon, Plus, Sun, Trash2 } from "lucide-react";
+import { ArrowSquareOut, ArrowUp, Moon, Plus, Sun, Trash } from "@phosphor-icons/react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -1477,8 +1477,8 @@ export function StudioConsole() {
 
   return (
     <div className="grid min-h-[100dvh] overflow-hidden bg-background text-foreground lg:grid-cols-[228px_minmax(0,1fr)]">
-      <aside className="flex min-h-[100dvh] flex-col border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-xl shadow-black/20">
-        <div className="flex h-15 items-center border-b border-sidebar-border/80 px-4">
+      <aside className="flex min-h-[100dvh] flex-col bg-sidebar text-sidebar-foreground">
+        <div className="flex h-15 items-center px-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <img className="h-7 w-7 shrink-0 object-contain" src={logoSrc} alt="" />
             <span className="min-w-0 truncate">
@@ -1488,8 +1488,8 @@ export function StudioConsole() {
             </span>
           </div>
         </div>
-        <nav className="mx-3 mt-3 grid gap-1 rounded-xl bg-sidebar-accent/35 p-2" aria-label="Main">
-          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <nav className="grid gap-0.5 px-3 py-3" aria-label="Main">
+          <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Workspace
           </div>
           <NavButton
@@ -1519,11 +1519,8 @@ export function StudioConsole() {
             onClick={() => navigatePage("tracing")}
           />
         </nav>
-        <nav
-          className="mx-3 mt-3 grid gap-1 rounded-xl bg-sidebar-accent/25 p-2"
-          aria-label="Studio"
-        >
-          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <nav className="grid gap-0.5 px-3 py-3" aria-label="Studio">
+          <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Inspect
           </div>
           <NavButton
@@ -1551,24 +1548,21 @@ export function StudioConsole() {
             onClick={() => navigatePage("knowledge")}
           />
         </nav>
-        <nav
-          className="mx-3 mt-3 grid min-h-0 gap-1 overflow-auto rounded-xl bg-sidebar-accent/20 p-2"
-          aria-label="Recent sessions"
-        >
-          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <nav className="grid min-h-0 gap-1 overflow-auto px-3 py-3" aria-label="Recent sessions">
+          <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Recent
           </div>
           {allSessions.slice(0, 8).map((session) => (
             <div
               className={cn(
-                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-1 rounded-xl border border-transparent pr-1 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent focus-within:border-sidebar-border focus-within:bg-sidebar-accent",
-                session.id === selectedSessionId && "border-sidebar-border bg-sidebar-accent",
+                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-1 rounded-lg pr-1 transition duration-200 hover:bg-sidebar-accent/80 focus-within:bg-sidebar-accent/80",
+                session.id === selectedSessionId && "bg-sidebar-accent",
               )}
               key={session.id}
             >
               <Button
                 className={cn(
-                  "grid h-auto min-h-8 min-w-0 justify-start rounded-xl border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
+                  "grid h-auto min-h-8 min-w-0 justify-start rounded-lg border-0 bg-transparent px-2.5 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
                   session.id === selectedSessionId && "text-sidebar-accent-foreground",
                 )}
                 type="button"
@@ -1592,13 +1586,13 @@ export function StudioConsole() {
                   disabled={runState === "running"}
                   onClick={() => setDeleteCandidate(session)}
                 >
-                  <Trash2 aria-hidden="true" />
+                  <Trash aria-hidden="true" />
                 </Button>
               </div>
             </div>
           ))}
         </nav>
-        <div className="mt-auto border-t border-sidebar-border/80 px-3 py-3">
+        <div className="mt-auto px-3 py-3">
           <nav className="grid gap-1" aria-label="Anvia links">
             <SidebarLink href="https://anvia.dev/docs" label="Anvia Docs" />
             <SidebarLink href="https://anvia.dev" label="Anvia Web" />
@@ -1888,13 +1882,13 @@ export function StudioConsole() {
 function SidebarLink(props: { href: string; label: string }) {
   return (
     <a
-      className="flex h-8 min-h-8 items-center justify-between rounded-lg border border-transparent px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      className="flex h-8 min-h-8 items-center justify-between rounded-lg px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       href={props.href}
       target="_blank"
       rel="noreferrer"
     >
       <span>{props.label}</span>
-      <ExternalLink aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
+      <ArrowSquareOut aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
     </a>
   );
 }

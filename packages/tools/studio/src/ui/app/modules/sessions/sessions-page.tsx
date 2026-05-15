@@ -1,4 +1,4 @@
-import { Activity, Trash2 } from "lucide-react";
+import { ActivityIcon as Activity, Trash } from "@phosphor-icons/react";
 import type { StudioConfig, StudioSessionSummary } from "../../../../types";
 import { Button } from "../../components/ui/button";
 import {
@@ -107,7 +107,7 @@ export function SessionsPage(props: {
                   props.onDeleteSession(session);
                 }}
               >
-                <Trash2 aria-hidden="true" />
+                <Trash aria-hidden="true" />
               </Button>
             </span>
           </div>

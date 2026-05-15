@@ -6,7 +6,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: hsl(82 20% 96%);
+  --background: hsl(82 20% 94%);
   --foreground: hsl(208 22% 12%);
   --card: hsl(80 24% 99%);
   --card-foreground: hsl(208 22% 12%);
@@ -41,7 +41,7 @@
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif, system-ui;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 1rem;
+  --radius: 0.5rem;
   --shadow-x: 0;
   --shadow-y: 1px;
   --shadow-blur: 3px;
@@ -61,7 +61,7 @@
 }
 
 .dark {
-  --background: hsl(210 8% 7%);
+  --background: hsl(210 8% 8%);
   --foreground: hsl(88 18% 91%);
   --card: hsl(210 8% 9.5%);
   --card-foreground: hsl(88 18% 91%);
@@ -96,7 +96,7 @@
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif, system-ui;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
-  --radius: 1rem;
+  --radius: 0.5rem;
   --shadow-x: 0;
   --shadow-y: 1px;
   --shadow-blur: 3px;
@@ -289,7 +289,7 @@
 
   *::-webkit-scrollbar-thumb {
     background-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
-    border-radius: 9999px;
+    border-radius: 0.5rem;
   }
 
   *::-webkit-scrollbar-thumb:hover {

@@ -11,7 +11,7 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Play } from "lucide-react";
+import { Play } from "@phosphor-icons/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type {
   StudioConfig,
@@ -687,7 +687,7 @@ function DetailList(props: { items: Array<[string, string | undefined]> }) {
 
 function Badge(props: { children: string }) {
   return (
-    <span className="rounded-full border border-border/70 bg-background/70 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+    <span className="rounded-lg border border-border/70 bg-background/70 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
       {props.children}
     </span>
   );
@@ -725,7 +725,7 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
           </div>
           <div className="mt-1 flex items-center gap-1.5">
             <span
-              className="h-1.5 w-1.5 rounded-full"
+              className="h-1.5 w-1.5 rounded-lg"
               style={{ backgroundColor: props.data.statusColor }}
             />
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
@@ -735,7 +735,7 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
         </div>
         {status === undefined ? null : (
           <span
-            className="rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
+            className="rounded-lg border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
             style={{ color: props.data.statusColor }}
           >
             {status}

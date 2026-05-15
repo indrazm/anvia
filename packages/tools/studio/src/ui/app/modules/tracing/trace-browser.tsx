@@ -1,14 +1,14 @@
 import {
+  ArrowBendUpLeft,
   ArrowLeft,
-  Bot,
+  ChatText,
   Cpu,
+  GearSix,
   GitBranch,
-  MessageSquareText,
-  Reply,
-  Route,
-  Settings2,
+  Path,
+  Robot,
   Wrench,
-} from "lucide-react";
+} from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { StudioConfig, StudioTrace } from "../../../../types";
@@ -133,7 +133,7 @@ function TraceTable(props: {
               </span>
               <span className="flex min-w-0 items-center gap-2 text-xs font-medium capitalize">
                 <span
-                  className={cn("h-2.5 w-2.5 shrink-0 rounded-full", statusDotClass(trace.status))}
+                  className={cn("h-2.5 w-2.5 shrink-0 rounded-lg", statusDotClass(trace.status))}
                 />
                 <span className="min-w-0 truncate">{trace.status}</span>
               </span>
@@ -193,7 +193,7 @@ function TraceDetailRoute(props: {
               <>
                 <span
                   className={cn(
-                    "h-2 w-2 shrink-0 rounded-full",
+                    "h-2 w-2 shrink-0 rounded-lg",
                     statusDotClass(props.selectedTrace.status),
                   )}
                 />
@@ -809,12 +809,12 @@ function TraceRowIcon(props: { label: string }) {
   const className = "h-3.5 w-3.5 shrink-0";
   switch (props.label) {
     case "System prompt":
-      return <Settings2 aria-hidden="true" className={className} />;
+      return <GearSix aria-hidden="true" className={className} />;
     case "Prompt":
-      return <MessageSquareText aria-hidden="true" className={className} />;
+      return <ChatText aria-hidden="true" className={className} />;
     case "Output":
     case "Assistant output":
-      return <Reply aria-hidden="true" className={className} />;
+      return <ArrowBendUpLeft aria-hidden="true" className={className} />;
     default:
       return null;
   }
@@ -1353,9 +1353,9 @@ function TraceToneIcon(props: {
 }) {
   switch (props.tone) {
     case "trace":
-      return <Route aria-hidden="true" />;
+      return <Path aria-hidden="true" />;
     case "agent":
-      return <Bot aria-hidden="true" />;
+      return <Robot aria-hidden="true" />;
     case "turn":
       return <GitBranch aria-hidden="true" />;
     case "generation":
