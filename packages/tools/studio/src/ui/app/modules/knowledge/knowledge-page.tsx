@@ -150,25 +150,32 @@ export function KnowledgePage(props: {
   }
 
   return (
-    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background/45">
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border/80 bg-card/70 px-6 shadow-sm">
-        <div className="min-w-0">
-          <h1 className="m-0 text-sm font-semibold text-foreground">Knowledge</h1>
-          <p className="m-0 text-xs font-medium text-muted-foreground">
-            Browse configured context, dynamic chunks, dynamic tools, and retrieval evidence.
-          </p>
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background/55">
+      <header className="bg-background/70 pb-5 pl-0 pr-6 pt-0 backdrop-blur">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
+          <div className="grid min-w-0 gap-2">
+            <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
+              Agent context
+            </div>
+            <h1 className="m-0 text-2xl font-semibold leading-none tracking-tight text-foreground">
+              Knowledge
+            </h1>
+            <p className="m-0 max-w-[62ch] text-sm leading-6 text-muted-foreground">
+              Browse configured context, dynamic chunks, dynamic tools, and retrieval evidence.
+            </p>
+          </div>
+          <Button
+            className="h-8 min-h-8 gap-2"
+            type="button"
+            variant="secondary"
+            onClick={props.onRefresh}
+          >
+            <ArrowClockwise aria-hidden="true" />
+            Refresh
+          </Button>
         </div>
-        <Button
-          className="h-8 min-h-8 gap-2"
-          type="button"
-          variant="secondary"
-          onClick={props.onRefresh}
-        >
-          <ArrowClockwise aria-hidden="true" />
-          Refresh
-        </Button>
       </header>
-      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden p-6">
+      <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden pb-6 pl-0 pr-6 pt-0">
         <KnowledgeTabs
           activeTab={props.activeTab}
           sources={sources}
@@ -262,7 +269,7 @@ function SourceWorkspace(props: {
       ].join(" ")}
     >
       {showSources ? (
-        <div className="min-w-0 overflow-x-auto rounded-xl border border-border/80 bg-card/35">
+        <div className="min-w-0 overflow-x-auto rounded-xl border border-border/80 bg-card/55">
           <div className="flex min-h-11 min-w-max items-center gap-2 px-3">
             <span className="mr-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {tabLabel(props.activeTab)}
@@ -312,7 +319,7 @@ function ItemBrowser(props: {
   return (
     <section
       className={[
-        "grid min-h-0 overflow-hidden rounded-xl border border-border/80 bg-card/20",
+        "grid min-h-0 overflow-hidden rounded-xl border border-border/80 bg-card/55",
         showHeader ? "grid-rows-[auto_minmax(0,1fr)_auto]" : "grid-rows-[minmax(0,1fr)_auto]",
       ].join(" ")}
     >

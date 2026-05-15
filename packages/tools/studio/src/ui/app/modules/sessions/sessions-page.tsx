@@ -32,7 +32,7 @@ export function SessionsPage(props: {
   }
 
   return (
-    <section className="grid min-h-0 w-full overflow-auto px-6 py-6" aria-label="Sessions">
+    <section className="grid min-h-0 w-full overflow-auto pb-6 pl-0 pr-6" aria-label="Sessions">
       <div className="min-w-225 overflow-hidden rounded-xl border border-border/80 bg-card/70 p-2 shadow-sm">
         <div className="sticky top-0 z-10 grid min-h-11 grid-cols-[minmax(220px,1.3fr)_180px_120px_120px_72px] items-center gap-4 rounded-lg border border-border/60 bg-card/95 px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
           <span>Session</span>

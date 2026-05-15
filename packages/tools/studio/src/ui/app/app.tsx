@@ -1604,8 +1604,8 @@ export function StudioConsole() {
       </aside>
 
       <main className="grid h-[100dvh] min-w-0 grid-rows-[52px_minmax(0,1fr)] overflow-hidden bg-background/80">
-        <header className="grid min-h-13 border-b border-border/80 bg-background/88 backdrop-blur">
-          <div className="grid min-h-13 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-6">
+        <header className="grid min-h-13 bg-background/88 backdrop-blur">
+          <div className="grid min-h-13 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-0 pl-0 pr-6">
             <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
               <span className="text-primary">
                 {activePage === "playground" ? "Agents" : "Studio"}

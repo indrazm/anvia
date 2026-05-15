@@ -8,7 +8,7 @@ export function AgentsPage(props: { agents: StudioConfig["agents"]; selectedAgen
       className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background/55"
       aria-label="Agents"
     >
-      <header className="border-b border-border/80 bg-background/70 px-6 py-5 backdrop-blur">
+      <header className="bg-background/70 pb-5 pl-0 pr-6 pt-0 backdrop-blur">
         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
           <div className="grid min-w-0 gap-2">
             <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
@@ -24,7 +24,7 @@ export function AgentsPage(props: { agents: StudioConfig["agents"]; selectedAgen
         </div>
       </header>
 
-      <div className="min-h-0 overflow-auto px-6 py-6">
+      <div className="min-h-0 overflow-auto pb-6 pl-0 pr-6">
         <div className="grid w-full gap-4">
           {props.agents.length === 0 ? (
             <div className="grid min-h-80 place-items-center rounded-xl border border-dashed border-border/80 bg-card/35 px-6 text-center">
