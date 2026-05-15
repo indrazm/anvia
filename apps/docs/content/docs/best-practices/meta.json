@@ -6,6 +6,8 @@
   "pages": [
     "index",
     "common-patterns",
+    "long-process-pipelines",
+    "multi-agent-patterns",
     "tool-patterns",
     "mcp-patterns",
     "knowledge-patterns",
