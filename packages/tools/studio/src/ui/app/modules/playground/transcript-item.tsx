@@ -1,4 +1,4 @@
-import { Route, Wrench } from "lucide-react";
+import { Path, Wrench } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -44,38 +44,53 @@ export function TranscriptItem(props: {
   }
 
   const traceId = props.entry.role === "assistant" ? props.entry.traceId : undefined;
+  const hasTable = props.entry.role === "assistant" && hasMarkdownTable(props.entry.text);
 
   return (
     <article
       className={cn(
-        "max-w-[min(82ch,100%)] self-start",
+        "self-start",
+        hasTable ? "w-full max-w-full" : "max-w-[min(82ch,100%)]",
         props.entry.role === "assistant" && "justify-self-start text-foreground",
         props.entry.role === "user" &&
-          "w-fit max-w-[min(64ch,82%)] justify-self-end rounded-sm bg-primary/10 px-4 py-2.5 text-foreground shadow-sm shadow-primary/10",
+          "w-fit max-w-[min(64ch,82%)] justify-self-end rounded-2xl bg-primary/10 px-4 py-2.5 text-foreground shadow-sm shadow-primary/10",
       )}
       data-entry-id={String(props.entry.entryId)}
     >
       <MarkdownText text={props.entry.text} />
       {traceId !== undefined ? (
         <Button
-          className="group mt-3 h-auto min-h-0 max-w-full gap-2 rounded-sm border-0 bg-transparent px-0 py-1 font-mono text-xs font-semibold text-muted-foreground shadow-none transition duration-200 hover:bg-transparent hover:text-primary"
+          className="group mt-3 h-7 min-h-7 max-w-full gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1 font-mono text-xs font-semibold text-muted-foreground shadow-none transition duration-200 hover:border-primary/45 hover:bg-primary/15 hover:text-primary"
           type="button"
           variant="ghost"
           onClick={() => props.onOpenTrace(traceId)}
         >
-          <span className="grid h-5 w-5 shrink-0 place-items-center bg-primary text-background [&_svg]:h-3 [&_svg]:w-3">
-            <Route aria-hidden="true" />
+          <span className="grid h-4 w-4 shrink-0 place-items-center text-primary [&_svg]:h-3 [&_svg]:w-3">
+            <Path aria-hidden="true" />
           </span>
-          <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+          <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
             Trace
           </span>
-          <span className="min-w-0 truncate border-l border-border/80 pl-2 text-muted-foreground transition-colors group-hover:text-primary">
+          <span className="h-4 w-px shrink-0 bg-primary/25" aria-hidden="true" />
+          <span className="min-w-0 truncate text-muted-foreground transition-colors group-hover:text-primary">
             {traceId}
           </span>
         </Button>
       ) : null}
     </article>
   );
+}
+
+function hasMarkdownTable(text: string): boolean {
+  const lines = text.split("\n");
+  return lines.some((line, index) => {
+    const next = lines[index + 1];
+    return (
+      line.includes("|") &&
+      next !== undefined &&
+      /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(next)
+    );
+  });
 }
 
 function ToolEntry(props: {
@@ -107,18 +122,18 @@ function ToolEntry(props: {
 
   return (
     <article
-      className="w-full justify-self-start overflow-hidden rounded-sm border border-border/80 bg-card/90 text-foreground shadow-sm shadow-black/20"
+      className="w-full justify-self-start overflow-hidden rounded-xl border border-border/80 bg-card/90 text-foreground shadow-sm shadow-black/20"
       data-entry-id={String(props.entry.entryId)}
     >
       <div
         className={cn(
           "flex min-w-0 items-center gap-2 px-3 py-2.5",
-          !collapsed && hasPayload && "border-b border-border/80",
+          !collapsed && hasPayload && "bg-muted/20",
         )}
       >
         <Button
           aria-expanded={!collapsed}
-          className="h-auto min-h-0 min-w-0 flex-1 justify-between rounded-none border-0 bg-transparent p-0 text-left text-inherit shadow-none hover:bg-transparent hover:text-inherit"
+          className="h-auto min-h-0 min-w-0 flex-1 justify-between border-0 bg-transparent p-0 text-left text-inherit shadow-none hover:bg-transparent hover:text-inherit"
           type="button"
           variant="ghost"
           onClick={() => setCollapsed((current) => !current)}
@@ -145,7 +160,7 @@ function ToolEntry(props: {
           />
         ) : null}
         {pendingQuestion ? (
-          <Badge className="rounded-sm border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase text-primary">
+          <Badge className="border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase text-primary">
             Waiting for input
           </Badge>
         ) : null}
@@ -193,8 +208,8 @@ function ToolEntry(props: {
 
 function ChildAgentActivity(props: { events: NonNullable<ToolMessage["childEvents"]> }) {
   return (
-    <div className="rounded-sm border border-border/80 bg-background/65">
-      <div className="border-b border-border/80 bg-muted/20 px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+    <div className="overflow-hidden rounded-xl border border-border/80 bg-background/65">
+      <div className="bg-muted/20 px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         Subagent activity
       </div>
       <div className="grid gap-3 p-3">
@@ -203,11 +218,11 @@ function ChildAgentActivity(props: { events: NonNullable<ToolMessage["childEvent
           if (event.kind === "message" || event.kind === "reasoning") {
             return (
               <div
-                className="grid gap-1 rounded-sm border border-border/80 bg-card/90 p-3"
+                className="grid gap-1 rounded-xl border border-border/80 bg-card/90 p-3"
                 key={`${event.kind}-${event.agentId}-${event.text}`}
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <Badge className="rounded-sm border-border bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                  <Badge className="border-border bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                     {event.kind === "reasoning" ? "Reasoning" : "Response"}
                   </Badge>
                   <span className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
@@ -220,11 +235,11 @@ function ChildAgentActivity(props: { events: NonNullable<ToolMessage["childEvent
           }
           return (
             <div
-              className="grid gap-2 rounded-sm border border-border/80 bg-card/90 p-3"
+              className="grid gap-2 rounded-xl border border-border/80 bg-card/90 p-3"
               key={`${event.kind}-${event.agentId}-${event.toolName}-${event.callId ?? event.args ?? event.result ?? ""}`}
             >
               <div className="flex min-w-0 items-center gap-2">
-                <Badge className="rounded-sm border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase text-primary">
+                <Badge className="border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase text-primary">
                   Tool
                 </Badge>
                 <span className="min-w-0 truncate text-xs font-semibold text-muted-foreground">
@@ -277,7 +292,7 @@ function ToolQuestionPanel(props: {
 
   if (activeQuestion === undefined) {
     return (
-      <div className="rounded-sm border border-border bg-background p-4 text-sm font-medium text-muted-foreground">
+      <div className="rounded-xl border border-border bg-background p-4 text-sm font-medium text-muted-foreground">
         No questions
       </div>
     );
@@ -306,7 +321,7 @@ function ToolQuestionPanel(props: {
         {...(lastQuestion ? {} : { onAdvance: goNext })}
       />
       {pending ? (
-        <div className="flex min-w-0 items-center justify-between gap-3 border-t border-border pt-3">
+        <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-muted/20 px-3 py-2">
           <div className="min-w-0 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             {answeredCount}/{total} answered
           </div>
@@ -338,7 +353,7 @@ function ToolQuestionPanel(props: {
           </div>
         </div>
       ) : total > 1 ? (
-        <div className="flex min-w-0 items-center justify-between gap-3 border-t border-border pt-3">
+        <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-muted/20 px-3 py-2">
           <div className="min-w-0 font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
             Answered
           </div>
@@ -378,7 +393,7 @@ function QuestionPromptControl(props: {
     submittedAnswer !== undefined ? "Answered" : draftAnswer.length > 0 ? "Ready" : "Waiting";
 
   return (
-    <section className="grid gap-4 rounded-sm border border-border/80 bg-background/70 p-4">
+    <section className="grid gap-4 rounded-xl border border-border/80 bg-background/70 p-4">
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="grid min-w-0 gap-2">
           <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -400,7 +415,7 @@ function QuestionPromptControl(props: {
         </span>
       </div>
       {submittedAnswer === undefined ? null : (
-        <div className="rounded-sm border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-foreground">
+        <div className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-sm font-medium text-foreground">
           {submittedAnswer}
         </div>
       )}
@@ -411,7 +426,7 @@ function QuestionPromptControl(props: {
             return (
               <Button
                 key={choice.value}
-                className={cn("h-8 min-h-8 rounded-sm px-3 text-xs", active && "border-primary")}
+                className={cn("h-8 min-h-8 px-3 text-xs", active && "border-primary")}
                 disabled={props.disabled}
                 size="sm"
                 type="button"
@@ -462,7 +477,7 @@ function ToolApprovalPanel(props: {
 }) {
   const pending = props.approval.status === "pending";
   return (
-    <div className="grid gap-3 rounded-sm border border-border/80 bg-muted/35 p-3">
+    <div className="grid gap-3 rounded-xl border border-border/80 bg-muted/35 p-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-semibold uppercase text-muted-foreground">Approval</div>

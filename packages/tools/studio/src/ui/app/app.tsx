@@ -1,4 +1,4 @@
-import { ArrowUp, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { Archive, ArrowSquareOut, ArrowUp, Moon, Plus, Sun } from "@phosphor-icons/react";
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -83,9 +83,40 @@ import { NavButton } from "./modules/shell/nav-button";
 import { ToolsPage } from "./modules/tools/tools-page";
 import { TraceBrowser } from "./modules/tracing/trace-browser";
 
-function applyDarkTheme(): void {
-  document.documentElement.classList.add("dark");
+type StudioTheme = "light" | "dark";
+
+const studioThemeStorageKey = "anvia-studio-theme";
+
+function readInitialStudioTheme(): StudioTheme {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+  try {
+    const stored = window.localStorage.getItem(studioThemeStorageKey);
+    return stored === "light" || stored === "dark" ? stored : "dark";
+  } catch {
+    return "dark";
+  }
 }
+
+function applyStudioTheme(theme: StudioTheme): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.style.colorScheme = theme;
+}
+
+function storeStudioTheme(theme: StudioTheme): void {
+  try {
+    window.localStorage.setItem(studioThemeStorageKey, theme);
+  } catch {
+    // Ignore storage failures so private or restricted browsing still toggles the UI.
+  }
+}
+
+const initialStudioTheme = readInitialStudioTheme();
+applyStudioTheme(initialStudioTheme);
 
 async function responseErrorMessage(response: Response, label: string): Promise<string> {
   let detail = "";
@@ -128,6 +159,7 @@ export function StudioConsole() {
   const [pipelineRunOutput, setPipelineRunOutput] = useState("");
   const [activePipelineRunId, setActivePipelineRunId] = useState("");
   const [activePage, setActivePage] = useState<ActivePage>(() => initialLocation.page);
+  const [theme, setTheme] = useState<StudioTheme>(() => initialStudioTheme);
   const [knowledgeTab, setKnowledgeTab] = useState<KnowledgeTab>(
     () => initialLocation.knowledgeTab ?? defaultKnowledgeTab,
   );
@@ -157,6 +189,35 @@ export function StudioConsole() {
   const [pipelineRunLoadState, setPipelineRunLoadState] = useState<"idle" | "loading">("idle");
   const [pipelineRunState, setPipelineRunState] = useState<RunState>("idle");
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const transcriptScrollerRef = useRef<HTMLElement | null>(null);
+  const transcriptStickToBottomRef = useRef(true);
+
+  function updateTranscriptStickiness() {
+    const node = transcriptScrollerRef.current;
+    if (node === null) {
+      return;
+    }
+    transcriptStickToBottomRef.current =
+      node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+  }
+
+  useEffect(() => {
+    if (
+      activePage !== "playground" ||
+      messages.length === 0 ||
+      !transcriptStickToBottomRef.current
+    ) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const node = transcriptScrollerRef.current;
+      if (node === null) {
+        return;
+      }
+      node.scrollTop = node.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activePage, messages]);
 
   const loadConfig = useCallback(async () => {
     setStatus("Loading");
@@ -203,8 +264,9 @@ export function StudioConsole() {
   const hasMessages = messages.length > 0;
 
   useEffect(() => {
-    applyDarkTheme();
-  }, []);
+    applyStudioTheme(theme);
+    storeStudioTheme(theme);
+  }, [theme]);
 
   const loadAllSessions = useCallback(async () => {
     if (!sessionsEnabled) {
@@ -746,6 +808,7 @@ export function StudioConsole() {
     setActivePage("playground");
     setError("");
     setPrompt("");
+    transcriptStickToBottomRef.current = true;
     requestAnimationFrame(() => resizeTextarea(promptRef.current));
     setMessages((current) => [
       ...current,
@@ -1443,9 +1506,9 @@ export function StudioConsole() {
   }
 
   return (
-    <div className="grid min-h-[100dvh] overflow-hidden bg-background text-foreground lg:grid-cols-[228px_minmax(0,1fr)]">
-      <aside className="flex min-h-[100dvh] flex-col border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-xl shadow-black/20">
-        <div className="flex h-15 items-center border-b border-sidebar-border/80 px-4">
+    <div className="grid h-[100dvh] min-h-0 overflow-hidden bg-background text-foreground lg:grid-cols-[228px_minmax(0,1fr)]">
+      <aside className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
+        <div className="flex h-15 items-center px-4">
           <div className="flex min-w-0 items-center gap-2.5">
             <img className="h-7 w-7 shrink-0 object-contain" src={logoSrc} alt="" />
             <span className="min-w-0 truncate">
@@ -1455,8 +1518,8 @@ export function StudioConsole() {
             </span>
           </div>
         </div>
-        <nav className="grid gap-1 border-b border-sidebar-border/80 px-3 py-3" aria-label="Main">
-          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <nav className="grid gap-0.5 px-3 py-3" aria-label="Main">
+          <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Workspace
           </div>
           <NavButton
@@ -1486,8 +1549,8 @@ export function StudioConsole() {
             onClick={() => navigatePage("tracing")}
           />
         </nav>
-        <nav className="grid gap-1 border-b border-sidebar-border/80 px-3 py-3" aria-label="Studio">
-          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <nav className="grid gap-0.5 px-3 py-3" aria-label="Studio">
+          <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Inspect
           </div>
           <NavButton
@@ -1515,24 +1578,21 @@ export function StudioConsole() {
             onClick={() => navigatePage("knowledge")}
           />
         </nav>
-        <nav
-          className="grid min-h-0 gap-1 overflow-auto border-b border-sidebar-border/80 px-3 py-3"
-          aria-label="Recent sessions"
-        >
-          <div className="px-2 pb-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <nav className="grid min-h-0 gap-0.5 overflow-auto px-3 py-3" aria-label="Recent sessions">
+          <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Recent
           </div>
           {allSessions.slice(0, 8).map((session) => (
             <div
               className={cn(
-                "group grid min-h-9 min-w-0 grid-cols-[minmax(0,1fr)_44px] items-center gap-1 rounded-sm border border-transparent pr-1 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent focus-within:border-sidebar-border focus-within:bg-sidebar-accent",
-                session.id === selectedSessionId && "border-sidebar-border bg-sidebar-accent",
+                "group grid min-h-7 min-w-0 grid-cols-[minmax(0,1fr)_36px] items-center gap-1 rounded-lg pr-1 transition duration-200 hover:bg-sidebar-accent/80 focus-within:bg-sidebar-accent/80",
+                session.id === selectedSessionId && "bg-sidebar-accent",
               )}
               key={session.id}
             >
               <Button
                 className={cn(
-                  "grid h-auto min-h-8 min-w-0 justify-start rounded-sm border-0 bg-transparent px-2 py-1 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
+                  "grid h-auto min-h-7 min-w-0 justify-start rounded-lg border-0 bg-transparent px-2.5 py-0.5 text-left text-sidebar-foreground/72 shadow-none hover:bg-transparent hover:text-sidebar-foreground",
                   session.id === selectedSessionId && "text-sidebar-accent-foreground",
                 )}
                 type="button"
@@ -1543,8 +1603,8 @@ export function StudioConsole() {
                   {session.title ?? "Untitled chat"}
                 </span>
               </Button>
-              <div className="relative grid h-8 min-w-0 place-items-end">
-                <time className="self-center justify-self-end font-mono text-[10px] font-medium tabular-nums text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
+              <div className="relative grid h-7 min-w-0 place-items-end">
+                <time className="grid h-6 min-w-6 place-items-center self-center justify-self-end rounded-lg px-1.5 font-mono text-[10px] font-medium tabular-nums text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
                   {formatRelativeTime(session.updatedAt)}
                 </time>
                 <Button
@@ -1556,13 +1616,13 @@ export function StudioConsole() {
                   disabled={runState === "running"}
                   onClick={() => setDeleteCandidate(session)}
                 >
-                  <Trash2 aria-hidden="true" />
+                  <Archive aria-hidden="true" />
                 </Button>
               </div>
             </div>
           ))}
         </nav>
-        <div className="mt-auto border-t border-sidebar-border/80 px-3 py-3">
+        <div className="mt-auto px-3 py-3">
           <nav className="grid gap-1" aria-label="Anvia links">
             <SidebarLink href="https://anvia.dev/docs" label="Anvia Docs" />
             <SidebarLink href="https://anvia.dev" label="Anvia Web" />
@@ -1574,8 +1634,8 @@ export function StudioConsole() {
       </aside>
 
       <main className="grid h-[100dvh] min-w-0 grid-rows-[52px_minmax(0,1fr)] overflow-hidden bg-background/80">
-        <header className="grid min-h-13 border-b border-border/80 bg-background/88 backdrop-blur">
-          <div className="grid min-h-13 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-6">
+        <header className="grid min-h-13 bg-background/88 backdrop-blur">
+          <div className="grid min-h-13 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-0 pl-0 pr-6">
             <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
               <span className="text-primary">
                 {activePage === "playground" ? "Agents" : "Studio"}
@@ -1587,6 +1647,17 @@ export function StudioConsole() {
             </div>
             <div className="flex items-center gap-1">
               <Button
+                aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                className="h-8 min-h-8 w-8 border-transparent bg-transparent p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                type="button"
+                variant="secondary"
+                size="icon"
+                onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+              >
+                {theme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+              </Button>
+              <Button
                 className="h-8 min-h-8 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 type="button"
                 variant="secondary"
@@ -1595,7 +1666,7 @@ export function StudioConsole() {
                 Sessions
               </Button>
               <Button
-                className="h-8 min-h-8 gap-1.5 rounded-sm border-0 bg-primary px-3 font-mono text-xs text-primary-foreground hover:bg-primary/90"
+                className="h-8 min-h-8 gap-1.5 rounded-lg border-0 bg-primary px-3 font-mono text-xs text-primary-foreground hover:bg-primary/90"
                 type="button"
                 onClick={() => startNewChat()}
               >
@@ -1607,117 +1678,123 @@ export function StudioConsole() {
         </header>
 
         {activePage === "playground" ? (
-          <section className="grid min-h-0 min-w-0 max-w-full grid-cols-[minmax(0,1fr)_minmax(0,460px)] overflow-hidden bg-background/45 max-xl:grid-cols-1">
-            <div className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
-              <section className="min-h-0 overflow-auto px-6 py-6">
-                <div className="mx-auto grid min-h-full w-full max-w-235 content-start items-start gap-6 pb-8">
-                  {!hasMessages ? (
-                    <div className="grid min-h-96 place-items-center text-sm font-medium text-muted-foreground">
-                      <div className="grid max-w-xl gap-4 text-center">
-                        <div className="mx-auto h-px w-28 bg-primary/45" />
-                        <h1 className="m-0 text-4xl font-semibold leading-tight text-foreground text-balance">
-                          What should this agent work on?
-                        </h1>
-                        <p className="m-0 text-base leading-7 text-muted-foreground text-pretty">
-                          Choose a prompt below or write a task. Studio will stream the response,
-                          tool calls, approvals, and trace data here.
-                        </p>
+          <section className="grid h-full min-h-0 min-w-0 max-h-full max-w-full grid-cols-[minmax(0,1fr)_minmax(0,460px)] overflow-hidden bg-background/45 max-xl:grid-cols-1">
+            <div className="grid min-h-0 min-w-0 pb-6 pr-6">
+              <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-border/80 bg-card/70 p-2 shadow-sm">
+                <section
+                  className="min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 [scrollbar-gutter:stable]"
+                  ref={transcriptScrollerRef}
+                  onScroll={updateTranscriptStickiness}
+                >
+                  <div className="mx-auto grid min-h-full w-full max-w-235 content-start items-start gap-6 pb-8">
+                    {!hasMessages ? (
+                      <div className="grid min-h-96 place-items-center text-sm font-medium text-muted-foreground">
+                        <div className="grid max-w-xl gap-4 text-center">
+                          <div className="mx-auto h-px w-28 bg-primary/45" />
+                          <h1 className="m-0 text-4xl font-semibold leading-tight text-foreground text-balance">
+                            What should this agent work on?
+                          </h1>
+                          <p className="m-0 text-base leading-7 text-muted-foreground text-pretty">
+                            Choose a prompt below or write a task. Studio will stream the response,
+                            tool calls, approvals, and trace data here.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
-                  {messages.map((message) => (
-                    <TranscriptItem
-                      key={message.entryId}
-                      entry={message}
-                      decidingApprovals={decidingApprovals}
-                      answeringQuestions={answeringQuestions}
-                      onApprovalDecision={(approvalId, approved) =>
-                        void decideToolApproval(approvalId, approved)
-                      }
-                      onQuestionAnswer={(questionId, answers) =>
-                        void answerToolQuestion(questionId, answers)
-                      }
-                      onOpenTrace={selectTrace}
-                    />
-                  ))}
-                </div>
-              </section>
-              <form
-                className="grid gap-3 bg-gradient-to-t from-background via-background/95 to-background/0 px-6 pb-6 pt-2"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void runPrompt(prompt);
-                }}
-              >
-                {hasMessages || selectedAgentQuickPrompts.length === 0 ? null : (
-                  <div className="mx-auto grid w-full max-w-235 grid-cols-3 gap-2 max-md:grid-cols-1">
-                    {selectedAgentQuickPrompts.map((quickPrompt) => (
-                      <Button
-                        className="h-auto min-h-16 justify-start whitespace-normal rounded-sm border border-border/80 bg-card/85 px-3 py-2.5 text-left text-sm font-medium leading-5 text-foreground shadow-sm hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
-                        type="button"
-                        variant="ghost"
-                        disabled={runState === "running" || selectedAgentId.length === 0}
-                        onClick={() => void runPrompt(quickPrompt)}
-                        key={quickPrompt}
-                      >
-                        <span className="min-w-0 whitespace-normal wrap-break-words">
-                          {quickPrompt}
-                        </span>
-                      </Button>
+                    ) : null}
+                    {messages.map((message) => (
+                      <TranscriptItem
+                        key={message.entryId}
+                        entry={message}
+                        decidingApprovals={decidingApprovals}
+                        answeringQuestions={answeringQuestions}
+                        onApprovalDecision={(approvalId, approved) =>
+                          void decideToolApproval(approvalId, approved)
+                        }
+                        onQuestionAnswer={(questionId, answers) =>
+                          void answerToolQuestion(questionId, answers)
+                        }
+                        onOpenTrace={selectTrace}
+                      />
                     ))}
                   </div>
-                )}
-                <div className="mx-auto grid w-full max-w-235 gap-2 rounded-md border border-border/80 bg-card/95 p-2.5 shadow-xl shadow-black/35 backdrop-blur focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
-                  <Textarea
-                    className="min-h-16 min-w-0 resize-none rounded-sm border-0 bg-transparent px-3 py-3 text-[15px] leading-7 text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/70 focus:border-transparent focus:ring-0"
-                    ref={promptRef}
-                    rows={1}
-                    value={prompt}
-                    onChange={updatePrompt}
-                    onKeyDown={handlePromptKeyDown}
-                    placeholder="Ask anything..."
-                  />
-                  <div className="flex min-w-0 items-center justify-between gap-2">
-                    <div />
-                    <div className="flex min-w-0 items-center gap-2">
-                      {agents.length > 1 ? (
-                        <Select
-                          value={selectedAgent?.id ?? selectedAgentId}
-                          onValueChange={selectPlaygroundAgent}
-                          disabled={runState === "running"}
+                </section>
+                <form
+                  className="grid gap-3 bg-gradient-to-t from-card via-card/95 to-card/0 px-4 pb-4 pt-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void runPrompt(prompt);
+                  }}
+                >
+                  {hasMessages || selectedAgentQuickPrompts.length === 0 ? null : (
+                    <div className="mx-auto grid w-full max-w-235 grid-cols-3 gap-2 max-md:grid-cols-1">
+                      {selectedAgentQuickPrompts.map((quickPrompt) => (
+                        <Button
+                          className="h-auto min-h-16 justify-start whitespace-normal rounded-lg border border-border/80 bg-card/85 px-3 py-2.5 text-left text-sm font-medium leading-5 text-foreground shadow-sm hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
+                          type="button"
+                          variant="ghost"
+                          disabled={runState === "running" || selectedAgentId.length === 0}
+                          onClick={() => void runPrompt(quickPrompt)}
+                          key={quickPrompt}
                         >
-                          <SelectTrigger
-                            aria-label="Select agent"
-                            className="hidden h-8 min-h-8 w-auto max-w-64 gap-2 border-0 bg-transparent px-2 py-1 font-mono text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground sm:flex"
+                          <span className="min-w-0 whitespace-normal wrap-break-words">
+                            {quickPrompt}
+                          </span>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mx-auto grid w-full max-w-235 gap-2 rounded-lg border border-border/80 bg-card/95 p-2.5 shadow-xl shadow-black/35 backdrop-blur focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+                    <Textarea
+                      className="min-h-16 min-w-0 resize-none rounded-lg border-0 bg-transparent px-3 py-3 text-[15px] leading-7 text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/70 focus:border-transparent focus:ring-0"
+                      ref={promptRef}
+                      rows={1}
+                      value={prompt}
+                      onChange={updatePrompt}
+                      onKeyDown={handlePromptKeyDown}
+                      placeholder="Ask anything..."
+                    />
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <div />
+                      <div className="flex min-w-0 items-center gap-2">
+                        {agents.length > 1 ? (
+                          <Select
+                            value={selectedAgent?.id ?? selectedAgentId}
+                            onValueChange={selectPlaygroundAgent}
+                            disabled={runState === "running"}
                           >
-                            <SelectValue placeholder="Agent" />
-                          </SelectTrigger>
-                          <SelectContent align="end">
-                            {agents.map((agent) => (
-                              <SelectItem value={agent.id} key={agent.id}>
-                                {agent.name ?? agent.id}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="hidden max-w-60 truncate rounded-sm px-2 py-1 font-mono text-xs font-medium text-muted-foreground sm:block">
-                          {selectedAgent?.name ?? selectedAgent?.id ?? "Agent"}
-                        </span>
-                      )}
-                      <Button
-                        aria-label={runState === "running" ? "Running" : "Send message"}
-                        className="h-9 min-h-9 w-9 rounded-sm border-primary bg-primary text-primary-foreground hover:bg-primary/90"
-                        size="icon"
-                        type="submit"
-                        disabled={runState === "running" || selectedAgentId.length === 0}
-                      >
-                        <ArrowUp />
-                      </Button>
+                            <SelectTrigger
+                              aria-label="Select agent"
+                              className="hidden h-8 min-h-8 w-auto max-w-64 gap-2 border-0 bg-transparent px-2 py-1 font-mono text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-accent-foreground sm:flex"
+                            >
+                              <SelectValue placeholder="Agent" />
+                            </SelectTrigger>
+                            <SelectContent align="end">
+                              {agents.map((agent) => (
+                                <SelectItem value={agent.id} key={agent.id}>
+                                  {agent.name ?? agent.id}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className="hidden max-w-60 truncate rounded-lg px-2 py-1 font-mono text-xs font-medium text-muted-foreground sm:block">
+                            {selectedAgent?.name ?? selectedAgent?.id ?? "Agent"}
+                          </span>
+                        )}
+                        <Button
+                          aria-label={runState === "running" ? "Running" : "Send message"}
+                          className="h-9 min-h-9 w-9 rounded-lg border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                          size="icon"
+                          type="submit"
+                          disabled={runState === "running" || selectedAgentId.length === 0}
+                        >
+                          <ArrowUp />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </form>
+                </form>
+              </div>
             </div>
             <SessionLogsPanel
               logs={sessionLogs}
@@ -1787,6 +1864,7 @@ export function StudioConsole() {
             runState={pipelineRunState}
             runInput={pipelineRunInput}
             runOutput={pipelineRunOutput}
+            theme={theme}
             onSelectPipeline={(pipelineId) => {
               setSelectedPipelineId(pipelineId);
               setPipelineRunOutput("");
@@ -1840,13 +1918,13 @@ export function StudioConsole() {
 function SidebarLink(props: { href: string; label: string }) {
   return (
     <a
-      className="flex h-8 min-h-8 items-center justify-between rounded-sm border border-transparent px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      className="flex h-8 min-h-8 items-center justify-between rounded-lg px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       href={props.href}
       target="_blank"
       rel="noreferrer"
     >
       <span>{props.label}</span>
-      <ExternalLink aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
+      <ArrowSquareOut aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
     </a>
   );
 }

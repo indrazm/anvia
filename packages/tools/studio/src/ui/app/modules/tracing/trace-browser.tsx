@@ -1,15 +1,16 @@
 import {
+  ArrowBendUpLeft,
   ArrowLeft,
-  Bot,
+  CaretDown,
+  CaretRight,
+  ChatText,
   Cpu,
+  GearSix,
   GitBranch,
-  MessageSquareText,
-  Reply,
-  Route,
-  Settings2,
+  Path,
+  Robot,
   Wrench,
-} from "lucide-react";
-import type { ReactNode } from "react";
+} from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import type { StudioConfig, StudioTrace } from "../../../../types";
 import { Badge } from "../../components/ui/badge";
@@ -43,7 +44,7 @@ export function TraceBrowser(props: {
 }) {
   if (!props.tracesEnabled) {
     return (
-      <div className="w-full rounded-sm border border-dashed border-border p-8 text-sm font-medium text-muted-foreground">
+      <div className="w-full rounded-lg border border-dashed border-border p-8 text-sm font-medium text-muted-foreground">
         Tracing is disabled
       </div>
     );
@@ -59,7 +60,10 @@ export function TraceBrowser(props: {
       : props.traces.filter((trace) => trace.sessionId === selectedTrace.sessionId);
 
   return (
-    <section className="grid h-full min-h-0 w-full content-stretch" aria-label="Tracing">
+    <section
+      className="grid h-full min-h-0 w-full content-stretch pb-6 pl-0 pr-6"
+      aria-label="Tracing"
+    >
       {props.selectedTraceId.length === 0 ? (
         <TraceTable
           agents={props.agents}
@@ -89,12 +93,12 @@ function TraceTable(props: {
 }) {
   return (
     <Card
-      className="min-h-0 overflow-hidden rounded-none border-x-0 border-t-0 border-border/80 bg-card/80"
+      className="min-h-0 overflow-hidden rounded-xl border-border/80 bg-card/80"
       aria-label="Traces"
     >
       <ScrollArea className="h-full min-h-0">
-        <div className="min-w-280">
-          <div className="sticky top-0 z-10 grid min-h-11 grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center gap-4 border-b border-border/80 bg-card/95 px-6 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+        <div className="grid min-w-280 gap-1 p-2">
+          <div className="sticky top-0 z-10 grid min-h-11 grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center gap-4 rounded-lg border border-border/60 bg-card/95 px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
             <span>Trace</span>
             <span>Session</span>
             <span>Agent</span>
@@ -116,7 +120,7 @@ function TraceTable(props: {
           ) : null}
           {props.traces.map((trace) => (
             <Button
-              className="grid h-auto min-h-14 w-full grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center justify-start gap-4 whitespace-normal rounded-none border-0 border-b border-border/75 bg-transparent px-6 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:bg-accent/70 hover:text-accent-foreground"
+              className="grid h-auto min-h-14 w-full grid-cols-[minmax(220px,1.3fr)_150px_120px_120px_120px_120px_110px_90px] items-center justify-start gap-4 whitespace-normal rounded-lg border border-transparent bg-transparent px-4 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:border-primary/20 hover:bg-accent/70 hover:text-accent-foreground"
               type="button"
               variant="ghost"
               key={trace.id}
@@ -133,7 +137,7 @@ function TraceTable(props: {
               </span>
               <span className="flex min-w-0 items-center gap-2 text-xs font-medium capitalize">
                 <span
-                  className={cn("h-2.5 w-2.5 shrink-0 rounded-full", statusDotClass(trace.status))}
+                  className={cn("h-2.5 w-2.5 shrink-0 rounded-lg", statusDotClass(trace.status))}
                 />
                 <span className="min-w-0 truncate">{trace.status}</span>
               </span>
@@ -166,8 +170,8 @@ function TraceDetailRoute(props: {
   onShowSessionTraces: (sessionId: string) => void;
 }) {
   return (
-    <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-      <header className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden border-b border-border/80 bg-card/70 px-6 py-3 shadow-sm">
+    <div className="grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-2 overflow-hidden rounded-xl border border-border/80 bg-card/70 p-2 shadow-sm">
+      <header className="grid min-h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-lg border border-border/60 bg-card/95 px-4 py-3">
         <Button
           aria-label="Back to traces"
           className="h-8 min-h-8 w-8 text-muted-foreground hover:text-foreground"
@@ -193,7 +197,7 @@ function TraceDetailRoute(props: {
               <>
                 <span
                   className={cn(
-                    "h-2 w-2 shrink-0 rounded-full",
+                    "h-2 w-2 shrink-0 rounded-lg",
                     statusDotClass(props.selectedTrace.status),
                   )}
                 />
@@ -209,13 +213,13 @@ function TraceDetailRoute(props: {
             )}
           </span>
         </div>
-        <span className="hidden max-w-[42vw] truncate rounded-sm bg-muted px-2 py-1 font-mono text-xs font-medium text-muted-foreground md:block">
+        <span className="hidden max-w-[42vw] truncate rounded-lg bg-muted px-2 py-1 font-mono text-xs font-medium text-muted-foreground md:block">
           {props.selectedTraceId}
         </span>
       </header>
       <div className="min-h-0 min-w-0 overflow-hidden">
         {props.selectedTrace === undefined ? (
-          <Card className="grid h-full place-items-center rounded-sm border-border bg-card p-6 text-sm font-medium text-muted-foreground">
+          <Card className="grid h-full place-items-center rounded-lg border-border bg-card p-6 text-sm font-medium text-muted-foreground">
             {props.traceLoadState === "loading" ? "Loading trace" : "Trace not found"}
           </Card>
         ) : (
@@ -277,10 +281,10 @@ function TracePanel(props: {
     >
       <div className="grid h-full min-h-0 grid-cols-[320px_minmax(0,1fr)] overflow-hidden max-md:grid-cols-1">
         <nav
-          className="grid min-h-0 auto-rows-min content-start overflow-auto border-r border-border/80 bg-card/35 max-md:max-h-80 max-md:border-b max-md:border-r-0"
+          className="grid min-h-0 auto-rows-min content-start overflow-auto border-r border-border/80 bg-card/35 pr-2 max-md:max-h-80 max-md:border-b max-md:border-r-0"
           aria-label="Trace timeline"
         >
-          <div className="sticky top-0 z-30 flex min-h-11 items-center justify-between border-b border-border/80 bg-card/90 px-5 text-xs font-medium text-muted-foreground backdrop-blur">
+          <div className="sticky top-0 z-30 flex min-h-11 items-center justify-between bg-card/90 py-0 pl-0 pr-5 text-xs font-medium text-muted-foreground backdrop-blur">
             <span>Search</span>
             <strong className="text-foreground">Timeline</strong>
           </div>
@@ -371,7 +375,7 @@ function TraceTreeRow(props: {
   return (
     <Button
       className={cn(
-        "relative grid h-auto min-h-0 w-full min-w-0 grid-cols-[20px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal rounded-none border-0 bg-transparent px-3 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:bg-accent/70 hover:text-accent-foreground",
+        "relative grid h-auto min-h-0 w-full min-w-0 grid-cols-[20px_minmax(0,1fr)] items-start justify-start gap-2 whitespace-normal rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-muted-foreground shadow-none transition duration-200 hover:bg-accent/70 hover:text-accent-foreground",
         props.active && "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary",
       )}
       type="button"
@@ -430,7 +434,7 @@ function TraceTreeRow(props: {
       ) : null}
       <span
         className={cn(
-          "relative z-10 grid h-5 w-5 place-items-center rounded-sm bg-transparent [&_svg]:h-3 [&_svg]:w-3 [&_svg]:opacity-100",
+          "relative z-10 grid h-5 w-5 place-items-center rounded-lg bg-transparent [&_svg]:h-3 [&_svg]:w-3 [&_svg]:opacity-100",
           traceToneIconClass(props.tone),
         )}
       >
@@ -529,16 +533,16 @@ function TraceDetailPane(props: {
   const selected = selectedTraceDetail(props.trace, props.turns, props.activeKey);
   return (
     <section
-      className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background"
+      className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-card/70"
       aria-label="Trace detail"
     >
-      <header className="border-b border-border/80 bg-card/45 px-6 py-5">
+      <header className="border-b border-border/60 bg-card/70 px-6 py-5">
         <div className="grid min-w-0 gap-5">
           <div className="flex min-w-0 items-start justify-between gap-4">
             <div className="flex min-w-0 items-center gap-3">
               <span
                 className={cn(
-                  "grid h-8 w-8 shrink-0 place-items-center bg-primary text-primary-foreground [&_svg]:h-4 [&_svg]:w-4 [&_svg]:opacity-100",
+                  "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground [&_svg]:h-4 [&_svg]:w-4 [&_svg]:opacity-100",
                   selected.tone !== "trace" && "bg-muted text-foreground",
                   traceToneIconClass(selected.tone),
                 )}
@@ -555,7 +559,7 @@ function TraceDetailPane(props: {
               </div>
             </div>
           </div>
-          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-px overflow-hidden border border-border/80 bg-border/80">
+          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
             <TraceMetric label="Duration" value={formatDuration(selected.durationMs)} />
             {selected.firstDeltaMs === undefined ? null : (
               <TraceMetric label="First delta" value={formatDuration(selected.firstDeltaMs)} />
@@ -564,7 +568,7 @@ function TraceDetailPane(props: {
               <TraceMetric label="Usage" value={selected.usage} />
             )}
             <button
-              className="grid min-w-0 gap-1 bg-background px-4 py-3 text-left transition duration-200 hover:bg-accent hover:text-accent-foreground"
+              className="grid min-w-0 gap-1 rounded-lg bg-card/85 px-4 py-3 text-left transition duration-200 hover:bg-accent hover:text-accent-foreground"
               type="button"
               onClick={() => props.onShowSessionTraces(props.trace.sessionId)}
             >
@@ -598,7 +602,7 @@ function TraceDetailPane(props: {
 
 function TraceMetric(props: { label: string; value: string }) {
   return (
-    <div className="grid min-w-0 gap-1 bg-background px-4 py-3">
+    <div className="grid min-w-0 gap-1 rounded-lg bg-card/85 px-4 py-3">
       <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {props.label}
       </span>
@@ -624,19 +628,15 @@ function TraceDataSection(props: {
         <span className="h-px flex-1 bg-border/80" aria-hidden="true" />
       </div>
       {props.rawJson ? (
-        <pre className="m-0 overflow-x-auto bg-card/65 px-4 py-4 font-mono text-[13px] leading-6 text-foreground">
-          {highlightTraceJson(props.value)}
-        </pre>
+        <TraceJsonTree value={props.value} />
       ) : (
         <div className="grid min-w-0 gap-3">
           {rows.map((item) => (
             <article
               className={cn(
-                "grid min-w-0 gap-3 bg-card/65 px-4 py-4",
+                "grid min-w-0 gap-3 rounded-lg bg-card/85 px-4 py-4",
                 props.compact &&
                   "grid-cols-[150px_minmax(0,1fr)] items-start gap-4 max-lg:grid-cols-1",
-                props.tone === "success" && "bg-primary/[0.08]",
-                props.tone === "error" && "bg-destructive/10",
               )}
               key={`${item.label}-${item.text}`}
             >
@@ -735,12 +735,180 @@ export function rawTraceJson(value: unknown): string {
   }
 }
 
-function highlightTraceJson(value: unknown): ReactNode {
-  return jsonSyntaxTokens(rawTraceJson(value)).map((token) => (
-    <span className={jsonTokenClass(token.type)} key={`${token.start}-${token.text}`}>
-      {token.text}
-    </span>
-  ));
+function TraceJsonTree(props: { value: unknown }) {
+  return (
+    <div className="overflow-x-auto rounded-lg bg-card/85 px-4 py-4 font-mono text-[13px] leading-6 text-foreground">
+      <JsonNode depth={0} path="$" value={props.value} />
+    </div>
+  );
+}
+
+const jsonIndentSize = 16;
+const jsonDisclosureGutter = 20;
+
+function JsonNode(props: {
+  arrayIndex?: number | undefined;
+  depth: number;
+  path: string;
+  propertyKey?: string | undefined;
+  trailingComma?: boolean | undefined;
+  value: unknown;
+}) {
+  if (isJsonBranch(props.value)) {
+    return (
+      <JsonBranch
+        arrayIndex={props.arrayIndex}
+        depth={props.depth}
+        path={props.path}
+        propertyKey={props.propertyKey}
+        trailingComma={props.trailingComma}
+        value={props.value}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="min-w-max whitespace-pre"
+      style={{ paddingLeft: `${jsonContentIndent(props.depth)}px` }}
+    >
+      <JsonNodeLabel arrayIndex={props.arrayIndex} propertyKey={props.propertyKey} />
+      <JsonPrimitive value={props.value} />
+      {props.trailingComma ? <span className="text-foreground">,</span> : null}
+    </div>
+  );
+}
+
+function JsonBranch(props: {
+  arrayIndex?: number | undefined;
+  depth: number;
+  path: string;
+  propertyKey?: string | undefined;
+  trailingComma?: boolean | undefined;
+  value: Record<string, unknown> | unknown[];
+}) {
+  const [open, setOpen] = useState(props.depth === 0);
+  const arrayValue = Array.isArray(props.value) ? props.value : undefined;
+  const entries =
+    arrayValue === undefined
+      ? Object.entries(props.value as Record<string, unknown>)
+      : arrayValue.map((item, index): [string, unknown] => [String(index), item]);
+  const opening = arrayValue === undefined ? "{" : "[";
+  const closing = arrayValue === undefined ? "}" : "]";
+  const collapsed = arrayValue === undefined ? "{…}" : "[…]";
+
+  if (entries.length === 0) {
+    return (
+      <div
+        className="min-w-max whitespace-pre"
+        style={{ paddingLeft: `${jsonContentIndent(props.depth)}px` }}
+      >
+        <JsonNodeLabel arrayIndex={props.arrayIndex} propertyKey={props.propertyKey} />
+        <span className="text-foreground">
+          {opening}
+          {closing}
+          {props.trailingComma ? "," : ""}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid min-w-max">
+      <button
+        aria-expanded={open}
+        className="grid min-w-max grid-cols-[16px_auto] items-center gap-1 rounded-lg py-0.5 pr-2 text-left transition duration-200 hover:bg-accent/45 hover:text-accent-foreground"
+        onClick={() => setOpen((current) => !current)}
+        style={{ paddingLeft: `${props.depth * jsonIndentSize}px` }}
+        type="button"
+      >
+        <span className="grid h-4 w-4 place-items-center text-muted-foreground [&_svg]:h-3 [&_svg]:w-3">
+          {open ? <CaretDown aria-hidden="true" /> : <CaretRight aria-hidden="true" />}
+        </span>
+        <span className="whitespace-pre">
+          <JsonNodeLabel arrayIndex={props.arrayIndex} propertyKey={props.propertyKey} />
+          {open ? (
+            <span className="text-foreground">{opening}</span>
+          ) : (
+            <span className="text-muted-foreground">{collapsed}</span>
+          )}
+          {!open && props.trailingComma ? <span className="text-foreground">,</span> : null}
+        </span>
+      </button>
+      {open ? (
+        <>
+          {entries.map(([key, value], index) => (
+            <JsonNode
+              arrayIndex={arrayValue === undefined ? undefined : Number(key)}
+              depth={props.depth + 1}
+              key={`${props.path}.${key}`}
+              path={`${props.path}.${key}`}
+              propertyKey={arrayValue === undefined ? key : undefined}
+              trailingComma={index < entries.length - 1}
+              value={value}
+            />
+          ))}
+          <div
+            className="min-w-max whitespace-pre text-foreground"
+            style={{ paddingLeft: `${jsonContentIndent(props.depth)}px` }}
+          >
+            {closing}
+            {props.trailingComma ? "," : ""}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function jsonContentIndent(depth: number): number {
+  return depth * jsonIndentSize + jsonDisclosureGutter;
+}
+
+function JsonNodeLabel(props: {
+  arrayIndex?: number | undefined;
+  propertyKey?: string | undefined;
+}) {
+  if (props.propertyKey !== undefined) {
+    return (
+      <>
+        <span className="text-chart-2">{JSON.stringify(props.propertyKey)}</span>
+        <span className="text-foreground">: </span>
+      </>
+    );
+  }
+  if (props.arrayIndex !== undefined) {
+    return (
+      <>
+        <span className="text-muted-foreground">[{props.arrayIndex}]</span>
+        <span className="text-foreground"> </span>
+      </>
+    );
+  }
+  return null;
+}
+
+function JsonPrimitive(props: { value: unknown }) {
+  if (typeof props.value === "string") {
+    return <span className="text-primary">{JSON.stringify(props.value)}</span>;
+  }
+  if (typeof props.value === "number") {
+    return <span className="text-chart-1">{String(props.value)}</span>;
+  }
+  if (typeof props.value === "boolean") {
+    return <span className="text-chart-4">{String(props.value)}</span>;
+  }
+  if (props.value === null) {
+    return <span className="text-muted-foreground">null</span>;
+  }
+  if (props.value === undefined) {
+    return <span className="text-muted-foreground">undefined</span>;
+  }
+  return <span className="text-foreground">{rawTraceJson(props.value)}</span>;
+}
+
+function isJsonBranch(value: unknown): value is Record<string, unknown> | unknown[] {
+  return Array.isArray(value) || isRecord(value);
 }
 
 export function jsonSyntaxTokens(
@@ -784,23 +952,6 @@ function jsonTokenType(text: string, followingText: string): JsonTokenType {
   return "number";
 }
 
-function jsonTokenClass(type: JsonTokenType): string {
-  switch (type) {
-    case "key":
-      return "text-chart-2";
-    case "string":
-      return "text-primary";
-    case "number":
-      return "text-chart-1";
-    case "boolean":
-      return "text-chart-4";
-    case "null":
-      return "text-muted-foreground";
-    case "plain":
-      return "text-foreground";
-  }
-}
-
 function isNeutralTraceRow(row: { label: string }): boolean {
   return row.label === "Message Id";
 }
@@ -809,12 +960,12 @@ function TraceRowIcon(props: { label: string }) {
   const className = "h-3.5 w-3.5 shrink-0";
   switch (props.label) {
     case "System prompt":
-      return <Settings2 aria-hidden="true" className={className} />;
+      return <GearSix aria-hidden="true" className={className} />;
     case "Prompt":
-      return <MessageSquareText aria-hidden="true" className={className} />;
+      return <ChatText aria-hidden="true" className={className} />;
     case "Output":
     case "Assistant output":
-      return <Reply aria-hidden="true" className={className} />;
+      return <ArrowBendUpLeft aria-hidden="true" className={className} />;
     default:
       return null;
   }
@@ -1353,9 +1504,9 @@ function TraceToneIcon(props: {
 }) {
   switch (props.tone) {
     case "trace":
-      return <Route aria-hidden="true" />;
+      return <Path aria-hidden="true" />;
     case "agent":
-      return <Bot aria-hidden="true" />;
+      return <Robot aria-hidden="true" />;
     case "turn":
       return <GitBranch aria-hidden="true" />;
     case "generation":

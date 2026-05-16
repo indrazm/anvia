@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { JsonSyntax } from "../shared/renderers";
 
 export function McpsPage(props: {
   agents: StudioConfig["agents"];
@@ -31,7 +32,7 @@ export function McpsPage(props: {
       className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background/55"
       aria-label="MCPs"
     >
-      <header className="border-b border-border/80 bg-background/70 px-6 py-5 backdrop-blur">
+      <header className="bg-background/70 pb-5 pl-0 pr-6 pt-0 backdrop-blur">
         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
           <div className="grid min-w-0 gap-2">
             <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
@@ -50,7 +51,7 @@ export function McpsPage(props: {
             </Badge>
             {props.agents.length > 1 ? (
               <Select value={selectedAgent?.id ?? ""} onValueChange={props.onSelectAgent}>
-                <SelectTrigger className="h-9 min-h-9 w-64 rounded-sm border-border bg-card/80 font-mono text-xs max-md:w-full">
+                <SelectTrigger className="h-9 min-h-9 w-64 rounded-lg border-border bg-card/80 font-mono text-xs max-md:w-full">
                   <SelectValue placeholder="Agent" />
                 </SelectTrigger>
                 <SelectContent align="end">
@@ -66,7 +67,7 @@ export function McpsPage(props: {
         </div>
       </header>
 
-      <div className="min-h-0 overflow-auto px-6 py-6">
+      <div className="min-h-0 overflow-auto pb-6 pl-0 pr-6">
         <div className="grid w-full gap-5">
           {!props.enabled ? (
             <EmptyState
@@ -88,8 +89,8 @@ export function McpsPage(props: {
 
 function McpServerSection(props: { server: StudioAgentMcpServerMetadata }) {
   return (
-    <section className="overflow-hidden border border-border/80 bg-card/55 shadow-sm">
-      <header className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border/80 bg-muted/20 px-4">
+    <section className="overflow-hidden rounded-xl border border-border/80 bg-card/55 p-2 shadow-sm">
+      <header className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-lg border border-border/60 bg-muted/20 px-4">
         <div className="grid min-w-0 gap-1">
           <h2 className="m-0 truncate font-mono text-[15px] font-semibold text-foreground">
             {props.server.name}
@@ -102,7 +103,7 @@ function McpServerSection(props: { server: StudioAgentMcpServerMetadata }) {
           {props.server.toolCount} tools
         </Badge>
       </header>
-      <div className="grid divide-y divide-border/70">
+      <div className="mt-1 grid gap-1">
         {props.server.tools.map((tool) => (
           <McpToolRow tool={tool} key={`${tool.source}:${tool.name}`} />
         ))}
@@ -113,8 +114,8 @@ function McpServerSection(props: { server: StudioAgentMcpServerMetadata }) {
 
 function McpToolRow(props: { tool: StudioAgentMcpToolMetadata }) {
   return (
-    <article className="grid grid-cols-[minmax(300px,0.75fr)_minmax(0,1fr)] max-lg:grid-cols-1">
-      <div className="grid content-start gap-4 border-r border-border/70 p-4 max-lg:border-b max-lg:border-r-0">
+    <article className="grid grid-cols-[minmax(300px,0.75fr)_minmax(0,1fr)] gap-2 rounded-lg border border-transparent bg-background/25 p-2 transition duration-200 hover:border-border/70 hover:bg-background/35 max-lg:grid-cols-1">
+      <div className="grid content-start gap-4 rounded-lg bg-card/25 p-3">
         <div className="grid gap-1">
           <h3 className="m-0 truncate font-mono text-[15px] font-semibold text-foreground">
             {props.tool.name}
@@ -140,8 +141,8 @@ function McpToolRow(props: { tool: StudioAgentMcpToolMetadata }) {
 
 function SchemaBlock(props: { value: unknown }) {
   return (
-    <section className="grid min-w-0 content-start bg-background/35">
-      <div className="flex min-h-9 items-center justify-between gap-3 border-b border-border/70 px-4">
+    <section className="grid min-w-0 content-start overflow-hidden rounded-lg bg-background/45">
+      <div className="flex min-h-9 items-center justify-between gap-3 bg-muted/20 px-4">
         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           Parameter schema
         </span>
@@ -151,7 +152,9 @@ function SchemaBlock(props: { value: unknown }) {
       </div>
       <div className="min-w-0 overflow-x-auto">
         <pre className="m-0 max-h-80 min-w-max p-4 font-mono text-[12px] leading-5 text-foreground">
-          <code>{formatSchema(props.value)}</code>
+          <code>
+            <JsonSyntax text={formatSchema(props.value)} />
+          </code>
         </pre>
       </div>
     </section>
@@ -160,7 +163,7 @@ function SchemaBlock(props: { value: unknown }) {
 
 function EmptyState(props: { title: string; message: string }) {
   return (
-    <div className="grid min-h-80 place-items-center border border-dashed border-border/80 bg-card/35 px-6 text-center">
+    <div className="grid min-h-80 place-items-center rounded-xl border border-dashed border-border/80 bg-card/35 px-6 text-center">
       <div className="grid max-w-md gap-2">
         <h2 className="m-0 text-base font-semibold text-foreground">{props.title}</h2>
         <p className="m-0 text-sm leading-6 text-muted-foreground">{props.message}</p>
