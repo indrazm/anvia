@@ -1,0 +1,30 @@
+{
+  "title": "Changelog",
+  "description": "Package release notes",
+  "icon": "History",
+  "root": true,
+  "defaultOpen": false,
+  "collapsible": true,
+  "pages": [
+    "index",
+    "---Core---",
+    "core",
+    "---Providers---",
+    "anthropic",
+    "gemini",
+    "mistral",
+    "openai",
+    "---Embeddings---",
+    "fastembed",
+    "transformers",
+    "---Vector Stores---",
+    "chroma",
+    "pgvector",
+    "qdrant",
+    "---Observability---",
+    "langfuse",
+    "otel",
+    "---Tools---",
+    "studio"
+  ]
+}
