@@ -146,6 +146,7 @@
     "cookbook:multimodal:03": "pnpm --filter cookbook multimodal:03",
     "docs:typecheck": "pnpm --filter docs typecheck",
     "changeset": "changeset",
+    "github-releases": "node scripts/create-github-releases.mjs",
     "version-packages": "changeset version",
     "release": "pnpm --filter @anvia/core build && pnpm --filter './packages/**' --filter '!@anvia/core' build && node scripts/publish-packages.mjs",
     "check": "biome check .",

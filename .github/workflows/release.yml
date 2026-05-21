@@ -97,3 +97,8 @@ jobs:
 
       - name: Push release tags
         run: git push --follow-tags
+
+      - name: Create GitHub Releases
+        run: pnpm github-releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

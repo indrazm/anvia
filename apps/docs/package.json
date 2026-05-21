@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "pnpm run changelog:generate && vite build",
+    "changelog:generate": "node scripts/generate-changelogs.mjs",
     "cf-typegen": "wrangler types",
     "deploy": "pnpm run build && wrangler deploy",
-    "dev": "vite dev",
+    "dev": "pnpm run changelog:generate && vite dev",
     "preview": "vite preview",
     "reference-check": "node scripts/check-reference-coverage.mjs",
-    "typecheck": "pnpm run reference-check && fumadocs-mdx && tsr generate && tsc --noEmit"
+    "typecheck": "pnpm run changelog:generate && pnpm run reference-check && fumadocs-mdx && tsr generate && tsc --noEmit"
   },
   "dependencies": {
     "@tanstack/react-router": "^1.168.26",
