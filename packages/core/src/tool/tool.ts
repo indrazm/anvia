@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, ToolDefinition } from "../completion/types";
+import type { JsonObject, JsonValue, ToolDefinition, ToolResultContent } from "../completion/types";
 
 export type ToolApprovalRunContext = {
   agentId: string;
@@ -44,6 +44,14 @@ export type AnyTool = Omit<Tool<unknown, unknown>, "approval"> & {
   readonly approval?: unknown;
 };
 
+export type NormalizedToolOutput = string | ToolResultContent[];
+
+export const ToolOutput = {
+  content(content: ToolResultContent[]): ToolResultContent[] {
+    return content;
+  },
+};
+
 export function serializeToolOutput(output: unknown): string {
   if (typeof output === "string") {
     return output;
@@ -51,6 +59,41 @@ export function serializeToolOutput(output: unknown): string {
 
   const serialized = JSON.stringify(output);
   return serialized === undefined ? String(output) : serialized;
+}
+
+export function isToolResultContentArray(value: unknown): value is ToolResultContent[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => {
+      if (typeof item !== "object" || item === null || !("type" in item)) {
+        return false;
+      }
+      if (item.type === "text") {
+        return "text" in item && typeof item.text === "string";
+      }
+      if (item.type === "image") {
+        return (
+          "data" in item &&
+          typeof item.data === "string" &&
+          (!("mediaType" in item) ||
+            item.mediaType === undefined ||
+            typeof item.mediaType === "string")
+        );
+      }
+      return false;
+    })
+  );
+}
+
+export function normalizeToolResultOutput(output: unknown): NormalizedToolOutput {
+  return isToolResultContentArray(output) ? output : serializeToolOutput(output);
+}
+
+export function toolResultContentToText(content: ToolResultContent[]): string {
+  return content
+    .map((item) => (item.type === "text" ? item.text : `[image:${item.mediaType ?? "image/png"}]`))
+    .join("\n");
 }
 
 export function parseToolArgs(args: string): JsonValue {

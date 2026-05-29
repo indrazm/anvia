@@ -14,6 +14,7 @@ import {
   Message,
   PromptCancelledError,
   requestToolApproval,
+  ToolOutput,
   Usage,
 } from "../src/index";
 
@@ -161,6 +162,88 @@ describe("PromptRequest", () => {
           id: "call_1",
           callId: "fc_1",
           content: [{ type: "text", text: "stored:7" }],
+        },
+      ]),
+    );
+  });
+
+  it("sends structured tool result content to the next model turn", async () => {
+    const structuredContent = ToolOutput.content([
+      { type: "text", text: '{"coordMap":"0,0,100,100,100,100"}' },
+      { type: "image", data: "base64-png", mediaType: "image/png" },
+    ]);
+    const screenshotTool = createTool({
+      name: "computer_screenshot",
+      description: "Return screenshot",
+      input: z.object({}),
+      execute: () => structuredContent,
+    });
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "computer_screenshot", {}, "fc_1")]),
+      response([AssistantContent.text("done")]),
+    ]);
+    const events: string[] = [];
+    const hook = createHook({
+      onToolResult({ result, structuredResult }) {
+        events.push(`${result}:${structuredResult?.length ?? 0}`);
+      },
+    });
+    const agent = new AgentBuilder("test-agent", model).tool(screenshotTool).hook(hook).build();
+
+    await expect(agent.prompt("screenshot").send()).resolves.toMatchObject({ output: "done" });
+
+    expect(events).toEqual(['{"coordMap":"0,0,100,100,100,100"}\n[image:image/png]:2']);
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
+      Message.tool([
+        {
+          type: "tool_result",
+          id: "call_1",
+          callId: "fc_1",
+          content: structuredContent,
+        },
+      ]),
+    );
+  });
+
+  it("lets middleware observe structured results and replace them with text", async () => {
+    const structuredContent = ToolOutput.content([
+      { type: "text", text: "screen" },
+      { type: "image", data: "base64-png", mediaType: "image/png" },
+    ]);
+    const screenshotTool = createTool({
+      name: "computer_screenshot",
+      description: "Return screenshot",
+      input: z.object({}),
+      execute: () => structuredContent,
+    });
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "computer_screenshot", {})]),
+      response([AssistantContent.text("done")]),
+    ]);
+    const seen: string[] = [];
+    const agent = new AgentBuilder("test-agent", model)
+      .tool(screenshotTool)
+      .toolMiddleware(
+        createToolMiddleware({
+          onResult({ result, structuredResult, originalStructuredResult }) {
+            seen.push(
+              `${result}:${structuredResult?.length ?? 0}:${originalStructuredResult?.length ?? 0}`,
+            );
+            return "stored:screenshot";
+          },
+        }),
+      )
+      .build();
+
+    await expect(agent.prompt("screenshot").send()).resolves.toMatchObject({ output: "done" });
+
+    expect(seen).toEqual(["screen\n[image:image/png]:2:2"]);
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
+      Message.tool([
+        {
+          type: "tool_result",
+          id: "call_1",
+          content: [{ type: "text", text: "stored:screenshot" }],
         },
       ]),
     );

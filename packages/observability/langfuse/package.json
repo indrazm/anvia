@@ -32,8 +32,8 @@
   },
   "dependencies": {
     "@anvia/core": "^0.2.0",
-    "@langfuse/otel": "^5.3.0",
-    "@langfuse/tracing": "^5.3.0",
+    "@langfuse/otel": "^5.4.0",
+    "@langfuse/tracing": "^5.4.0",
     "@opentelemetry/sdk-node": "^0.218.0"
   },
   "devDependencies": {

@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@anvia/core": "workspace:*",
-    "@mistralai/mistralai": "^2.2.1"
+    "@mistralai/mistralai": "^2.2.5"
   },
   "devDependencies": {
     "@types/node": "^24.9.1",

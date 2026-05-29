@@ -10,6 +10,7 @@ import type {
   Pipeline,
   PipelineGraph,
   PromptResponse,
+  ToolResultContent,
   Usage,
 } from "@anvia/core";
 import type { Hono } from "hono";
@@ -150,6 +151,7 @@ export type StudioTranscriptToolEntry = {
   callId?: string;
   args?: string;
   result?: string;
+  structuredResult?: ToolResultContent[];
   childEvents?: StudioTranscriptChildAgentEvent[];
   approval?: StudioToolApprovalTranscript;
   question?: StudioToolQuestionTranscript;
@@ -177,6 +179,7 @@ export type StudioTranscriptChildAgentEvent =
       callId?: string;
       args?: string;
       result?: string;
+      structuredResult?: ToolResultContent[];
     };
 
 export type StudioTranscriptEntry =

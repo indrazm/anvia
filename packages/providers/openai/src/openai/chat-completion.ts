@@ -369,7 +369,9 @@ function toolContentToChatMessage(content: ToolContent): ChatMessage {
     role: "tool",
     tool_call_id: content.callId ?? content.id,
     content: content.content
-      .map((item) => (item.type === "text" ? item.text : item.data))
+      .map((item) =>
+        item.type === "text" ? item.text : `[image:${item.mediaType ?? "image/png"}]`,
+      )
       .join("\n"),
   };
 }

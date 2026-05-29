@@ -12,6 +12,7 @@ import {
   ToolContent,
   type ToolDefinition,
   type ToolResult,
+  type ToolResultContent,
   textFromAssistantContent,
   Usage,
 } from "../completion/index";
@@ -23,7 +24,12 @@ import {
 } from "../observability/group";
 import type { AgentTraceInfo, AgentTraceOptions } from "../observability/types";
 import { toReadableStream } from "../streaming";
-import type { AnyTool, ToolCallStreamEvent } from "../tool";
+import {
+  type AnyTool,
+  type NormalizedToolOutput,
+  type ToolCallStreamEvent,
+  toolResultContentToText,
+} from "../tool";
 import type { ToolMiddleware, ToolResultMiddlewareArgs } from "../tool/middleware";
 import type { Agent } from "./agent";
 import { MaxTurnsError, PromptCancelledError } from "./errors";
@@ -74,6 +80,7 @@ export type AgentChildStreamEvent<RawResponse = unknown> =
       internalCallId: string;
       args: string;
       result: string;
+      structuredResult?: ToolResultContent[] | undefined;
     }
   | {
       type: "turn_end";
@@ -556,7 +563,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         throw this.cancelled(newMessages, reason);
       }
 
-      let output: string;
+      let output: NormalizedToolOutput;
       let skipped = false;
       if (callAction?.type === "skip") {
         output = callAction.reason;
@@ -585,18 +592,28 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         }
       }
 
+      let result = toolOutputToText(output);
+      let structuredResult = toolOutputToStructuredResult(output);
       if (this.agent.shouldApplyToolMiddleware(toolCall.function.name)) {
-        output = await this.runToolResultMiddlewares({
+        const middlewareReplacement = await this.runToolResultMiddlewares({
           ...hookArgs,
-          result: output,
-          originalResult: output,
+          result,
+          originalResult: result,
+          structuredResult,
+          originalStructuredResult: structuredResult,
           turn: observation?.turn ?? 0,
         });
+        if (middlewareReplacement !== undefined) {
+          output = middlewareReplacement;
+          result = middlewareReplacement;
+          structuredResult = undefined;
+        }
       }
 
       const resultAction = await this.activeHook?.onToolResult?.({
         ...hookArgs,
-        result: output,
+        result,
+        structuredResult,
         run: runControl,
       });
       await toolObservers?.end({
@@ -605,7 +622,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         toolName: toolCall.function.name,
         internalCallId,
         args,
-        result: output,
+        result,
+        structuredResult,
         skipped,
         toolCallId: toolCall.callId,
       });
@@ -618,7 +636,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         toolName: toolCall.function.name,
         internalCallId,
         args,
-        result: output,
+        result,
+        structuredResult,
       };
       if (toolCall.callId !== undefined) {
         resultPayload.toolCallId = toolCall.callId;
@@ -628,8 +647,11 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     });
   }
 
-  private async runToolResultMiddlewares(args: ToolResultMiddlewareArgs): Promise<string> {
+  private async runToolResultMiddlewares(
+    args: ToolResultMiddlewareArgs,
+  ): Promise<string | undefined> {
     let result = args.result;
+    let replaced = false;
     for (const middleware of [...this.agent.toolMiddlewares, ...this.requestToolMiddlewares]) {
       const replacement = await middleware.onResult?.({
         ...args,
@@ -637,9 +659,10 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       });
       if (replacement !== undefined) {
         result = replacement;
+        replaced = true;
       }
     }
-    return result;
+    return replaced ? result : undefined;
   }
 
   private async startRunObservers(): Promise<ActiveAgentRunObservers> {
@@ -946,6 +969,7 @@ type ToolResultEventPayload = {
   internalCallId: string;
   args: string;
   result: string;
+  structuredResult?: ToolResultContent[] | undefined;
 };
 
 type AgentToolEventPayload = {
@@ -959,6 +983,16 @@ type AgentToolEventPayload = {
 };
 
 type ToolExecutionEventPayload = ToolResultEventPayload | AgentToolEventPayload;
+
+function toolOutputToText(output: NormalizedToolOutput): string {
+  return typeof output === "string" ? output : toolResultContentToText(output);
+}
+
+function toolOutputToStructuredResult(
+  output: NormalizedToolOutput,
+): ToolResultContent[] | undefined {
+  return typeof output === "string" ? undefined : output;
+}
 
 function agentToolEventPayload(
   toolCall: ToolCall,

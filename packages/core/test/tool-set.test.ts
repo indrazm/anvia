@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createTool, ToolCallError, ToolJsonError, ToolNotFoundError, ToolSet } from "../src/index";
+import {
+  createTool,
+  ToolCallError,
+  ToolJsonError,
+  ToolNotFoundError,
+  ToolOutput,
+  ToolSet,
+} from "../src/index";
 
 const addTool = createTool({
   name: "add",
@@ -125,6 +132,23 @@ describe("ToolSet", () => {
     ]);
 
     await expect(toolSet.call("object_output", "{}")).resolves.toBe('{"ok":true}');
+  });
+
+  it("passes through structured tool result content", async () => {
+    const content = ToolOutput.content([
+      { type: "text", text: '{"coordMap":"0,0,100,100,100,100"}' },
+      { type: "image", data: "base64-png", mediaType: "image/png" },
+    ]);
+    const toolSet = ToolSet.fromTools([
+      createTool({
+        name: "screenshot",
+        description: "Return screenshot",
+        input: z.object({}),
+        execute: () => content,
+      }),
+    ]);
+
+    await expect(toolSet.call("screenshot", "{}")).resolves.toEqual(content);
   });
 
   it("adds tool arrays and tool sets without duplicate definitions", async () => {

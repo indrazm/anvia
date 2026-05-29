@@ -376,7 +376,11 @@ function toolResultResponse(
   >,
 ): Record<string, unknown> {
   return {
-    content: content.map((item) => (item.type === "text" ? item.text : item.data)).join("\n"),
+    content: content
+      .map((item) =>
+        item.type === "text" ? item.text : `[image:${item.mediaType ?? "image/png"}]`,
+      )
+      .join("\n"),
   };
 }
 

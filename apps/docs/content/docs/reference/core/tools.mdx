@@ -193,15 +193,20 @@ Notable errors: validation errors can occur if the model calls it with invalid a
 ## Serialization Helpers
 
 ```ts
+type NormalizedToolOutput = string | ToolResultContent[];
+
 function serializeToolOutput(output: unknown): string;
+function isToolResultContentArray(value: unknown): value is ToolResultContent[];
+function normalizeToolResultOutput(output: unknown): NormalizedToolOutput;
+function toolResultContentToText(content: ToolResultContent[]): string;
 function parseToolArgs(args: string): JsonValue;
 ```
 
 Purpose: convert tool outputs and model-supplied argument strings.
 
-Return behavior: `parseToolArgs("")` returns `{}`; `serializeToolOutput(...)` returns strings unchanged and JSON-stringifies other values.
+Return behavior: `parseToolArgs("")` returns `{}`; `serializeToolOutput(...)` returns strings unchanged and JSON-stringifies other values. `normalizeToolResultOutput(...)` preserves `ToolResultContent[]` for multimodal tool results and serializes other values to text. `toolResultContentToText(...)` creates a display string for structured tool result content, rendering image blocks as media-type placeholders.
 
-Notable errors: `parseToolArgs(...)` throws `SyntaxError` for invalid JSON.
+Notable errors: `parseToolArgs(...)` throws `SyntaxError` for invalid JSON. `isToolResultContentArray(...)` only recognizes text and image tool result blocks.
 
 ## Error Classes
 

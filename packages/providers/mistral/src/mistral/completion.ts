@@ -317,7 +317,9 @@ function toolContentToMistralMessage(content: ToolContent): MistralChatMessage {
     toolCallId: content.callId ?? content.id,
     name: content.id,
     content: content.content
-      .map((item) => (item.type === "text" ? item.text : item.data))
+      .map((item) =>
+        item.type === "text" ? item.text : `[image:${item.mediaType ?? "image/png"}]`,
+      )
       .join("\n"),
   };
 }

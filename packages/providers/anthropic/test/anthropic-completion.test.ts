@@ -5,6 +5,7 @@ import {
   type CompletionStreamEvent,
   Message,
   type Tool,
+  ToolContent,
   Usage,
   UserContent,
 } from "@anvia/core";
@@ -94,6 +95,49 @@ describe("Anthropic Messages mapping", () => {
     expect(params.messages).toContainEqual({
       role: "user",
       content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "7" }],
+    });
+  });
+
+  it("maps multimodal tool results to Anthropic content blocks", () => {
+    const params = toAnthropicMessagesParams("claude-sonnet-4-20250514", {
+      chatHistory: [
+        Message.assistant([
+          AssistantContent.toolCall("toolu_1", "computer_screenshot", {}, "fc_1"),
+        ]),
+        Message.tool(
+          ToolContent.toolResult(
+            "toolu_1",
+            [
+              { type: "text", text: '{"coordMap":"0,0,100,100,100,100"}' },
+              { type: "image", data: "base64-png", mediaType: "image/png" },
+            ],
+            "fc_1",
+          ),
+        ),
+      ],
+      documents: [],
+      tools: [],
+    });
+
+    expect(params.messages).toContainEqual({
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "fc_1",
+          content: [
+            { type: "text", text: '{"coordMap":"0,0,100,100,100,100"}' },
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: "image/png",
+                data: "base64-png",
+              },
+            },
+          ],
+        },
+      ],
     });
   });
 

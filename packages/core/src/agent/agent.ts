@@ -13,7 +13,7 @@ import { createTool } from "../tool/create-tool";
 import type { ToolSearchDocument } from "../tool/dynamic-tools";
 import type { ToolMiddleware } from "../tool/middleware";
 import { isSkillTool } from "../tool/skill-tool-marker";
-import type { AnyTool, Tool, ToolCallContext } from "../tool/tool";
+import type { AnyTool, NormalizedToolOutput, Tool, ToolCallContext } from "../tool/tool";
 import { ToolSet } from "../tool/tool-set";
 import type { VectorFilter, VectorSearchIndex, VectorSearchResult } from "../vector-store";
 import type { PromptHook } from "./hooks";
@@ -227,7 +227,11 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     return undefined;
   }
 
-  async callTool(toolName: string, args: string, context?: ToolCallContext): Promise<string> {
+  async callTool(
+    toolName: string,
+    args: string,
+    context?: ToolCallContext,
+  ): Promise<NormalizedToolOutput> {
     if (this.toolSet.contains(toolName)) {
       return this.toolSet.call(toolName, args, context);
     }
