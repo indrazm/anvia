@@ -1358,8 +1358,11 @@ function transcriptFromMessagesFallback(messages: Message[]): StudioTranscriptEn
           toolName: "tool_result",
           callId: content.callId ?? content.id,
           result: content.content
-            .map((item) => ("text" in item ? item.text : "[image]"))
+            .map((item) =>
+              "text" in item ? item.text : `[image:${item.mediaType ?? "image/png"}]`,
+            )
             .join("\n"),
+          structuredResult: content.content,
         });
       }
       continue;

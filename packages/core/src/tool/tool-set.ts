@@ -1,6 +1,12 @@
 import type { ToolDefinition } from "../completion/types";
 import { ToolCallError, ToolJsonError, ToolNotFoundError } from "./errors";
-import { type AnyTool, parseToolArgs, serializeToolOutput, type ToolCallContext } from "./tool";
+import {
+  type AnyTool,
+  type NormalizedToolOutput,
+  normalizeToolResultOutput,
+  parseToolArgs,
+  type ToolCallContext,
+} from "./tool";
 
 export class ToolSet {
   private readonly tools = new Map<string, AnyTool>();
@@ -50,7 +56,11 @@ export class ToolSet {
     return defs;
   }
 
-  async call(toolName: string, args: string, context?: ToolCallContext): Promise<string> {
+  async call(
+    toolName: string,
+    args: string,
+    context?: ToolCallContext,
+  ): Promise<NormalizedToolOutput> {
     const tool = this.tools.get(toolName);
     if (tool === undefined) {
       throw new ToolNotFoundError(toolName);
@@ -65,7 +75,7 @@ export class ToolSet {
 
     try {
       const output = await tool.call(parsedArgs, context);
-      return serializeToolOutput(output);
+      return normalizeToolResultOutput(output);
     } catch (error) {
       if (error instanceof Error) {
         throw new ToolCallError(error.message, error);

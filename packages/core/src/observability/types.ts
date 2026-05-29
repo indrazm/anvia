@@ -6,6 +6,7 @@ import type {
   Message,
   ToolCall,
   ToolDefinition,
+  ToolResultContent,
   Usage,
 } from "../completion";
 import type { ToolCallStreamEvent } from "../tool";
@@ -83,6 +84,7 @@ export type AgentToolStartArgs = {
 
 export type AgentToolEndArgs = AgentToolStartArgs & {
   result: string;
+  structuredResult?: ToolResultContent[] | undefined;
   skipped: boolean;
 };
 

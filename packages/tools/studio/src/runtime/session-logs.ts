@@ -246,6 +246,10 @@ function logsFromStreamEvent(props: {
           internalCallId: event.internalCallId,
           argumentBytes: byteLength(event.args),
           resultBytes: byteLength(event.result),
+          structuredResultBytes:
+            event.structuredResult === undefined
+              ? undefined
+              : byteLength(JSON.stringify(event.structuredResult)),
         }),
       },
     ];
@@ -423,6 +427,10 @@ function childAgentLog(
           toolName: child.toolName,
           callId: child.toolCallId,
           resultBytes: byteLength(child.result),
+          structuredResultBytes:
+            child.structuredResult === undefined
+              ? undefined
+              : byteLength(JSON.stringify(child.structuredResult)),
         }),
       },
     ];

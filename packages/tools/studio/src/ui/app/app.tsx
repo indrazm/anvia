@@ -1,3 +1,4 @@
+import type { ToolResultContent } from "@anvia/core";
 import { Archive, ArrowSquareOut, ArrowUp, Moon, Plus, Sun } from "@phosphor-icons/react";
 import {
   type ChangeEvent,
@@ -956,6 +957,9 @@ export function StudioConsole() {
         callId: event.toolCallId,
         args: event.args,
         result: event.result,
+        ...(event.structuredResult === undefined
+          ? {}
+          : { structuredResult: event.structuredResult }),
       });
       return true;
     }
@@ -1218,6 +1222,7 @@ export function StudioConsole() {
     callId: string | undefined;
     args: string;
     result: string;
+    structuredResult?: ToolResultContent[];
   }) {
     setMessages((current) => {
       const next = [...current];
@@ -1229,6 +1234,9 @@ export function StudioConsole() {
             ...existing,
             args: existing.args ?? props.args,
             result: props.result,
+            ...(props.structuredResult === undefined
+              ? {}
+              : { structuredResult: props.structuredResult }),
           };
           return next;
         }
@@ -1241,6 +1249,9 @@ export function StudioConsole() {
         ...(props.callId === undefined ? {} : { callId: props.callId }),
         args: props.args,
         result: props.result,
+        ...(props.structuredResult === undefined
+          ? {}
+          : { structuredResult: props.structuredResult }),
       });
       return next;
     });
@@ -1321,6 +1332,9 @@ export function StudioConsole() {
         ...(child.toolCallId === undefined ? {} : { callId: child.toolCallId }),
         args: child.args,
         result: child.result,
+        ...(child.structuredResult === undefined
+          ? {}
+          : { structuredResult: child.structuredResult }),
       };
     }
     if (child.type === "error") {

@@ -14,6 +14,7 @@ import {
   createToolMiddleware,
   Message,
   type StreamingCompletionModel,
+  ToolOutput,
   toReadableStream,
 } from "../src/index";
 
@@ -212,6 +213,64 @@ describe("PromptRequest streaming", () => {
         },
       ]),
     );
+  });
+
+  it("streams structured tool results with a display string", async () => {
+    const structuredContent = ToolOutput.content([
+      { type: "text", text: "screen" },
+      { type: "image", data: "base64-png", mediaType: "image/png" },
+    ]);
+    const screenshotTool = createTool({
+      name: "computer_screenshot",
+      description: "Return screenshot",
+      input: z.object({}),
+      execute: () => structuredContent,
+    });
+    const model = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call",
+          toolCall: AssistantContent.toolCall("call_1", "computer_screenshot", {}),
+        },
+      ],
+      [{ type: "text_delta", delta: "done" }],
+    ]);
+    const eventStore = new RecordingEventStore();
+    const agent = new AgentBuilder("test-agent", model)
+      .tool(screenshotTool)
+      .eventStore(eventStore, { include: "all" })
+      .build();
+
+    const events = await collect(agent.prompt("screenshot").stream());
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool_result",
+        turn: 1,
+        toolName: "computer_screenshot",
+        result: "screen\n[image:image/png]",
+        structuredResult: structuredContent,
+      }),
+    );
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
+      Message.tool([
+        {
+          type: "tool_result",
+          id: "call_1",
+          content: structuredContent,
+        },
+      ]),
+    );
+    expect(
+      eventStore.appendCalls.some((call) => {
+        const event = JSON.parse(JSON.stringify(call.event)) as AgentStreamEvent;
+        return (
+          event.type === "tool_result" &&
+          event.result === "screen\n[image:image/png]" &&
+          event.structuredResult?.[1]?.type === "image"
+        );
+      }),
+    ).toBe(true);
   });
 
   it("streams concurrent tool results as each tool finishes", async () => {

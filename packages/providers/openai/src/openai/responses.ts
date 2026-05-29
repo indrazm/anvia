@@ -17,6 +17,7 @@ import {
   type ToolChoice,
   type ToolContent,
   type ToolDefinition,
+  type ToolResultContent,
   Usage,
   type UserContent,
 } from "@anvia/core/completion";
@@ -396,10 +397,27 @@ function toolContentToOpenAIResponsesItem(content: ToolContent): ResponsesInputI
   return {
     type: "function_call_output",
     call_id: content.callId ?? content.id,
-    output: content.content
-      .map((item) => (item.type === "text" ? item.text : item.data))
-      .join("\n"),
+    output: toolResultContentToOpenAIResponsesOutput(content.content),
   };
+}
+
+function toolResultContentToOpenAIResponsesOutput(
+  content: ToolResultContent[],
+): string | ResponsesInputItem[] {
+  if (content.every((item) => item.type === "text")) {
+    return content.map((item) => item.text).join("\n");
+  }
+
+  return content.map((item) => {
+    if (item.type === "text") {
+      return { type: "input_text", text: item.text };
+    }
+    return {
+      type: "input_image",
+      image_url: `data:${item.mediaType ?? "image/png"};base64,${item.data}`,
+      detail: "auto",
+    };
+  });
 }
 
 function reasoningItemToAssistantContent(item: Record<string, unknown>): Reasoning {

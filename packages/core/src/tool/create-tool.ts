@@ -5,6 +5,7 @@ import type { Tool, ToolApprovalPolicy, ToolCallContext } from "./tool";
 export type CreateToolOptions<
   InputSchema extends ZodSchema,
   OutputSchema extends ZodSchema | undefined = undefined,
+  Output = unknown,
 > = {
   name: string;
   description: string;
@@ -16,19 +17,29 @@ export type CreateToolOptions<
     context: ToolCallContext,
   ): OutputSchema extends ZodSchema
     ? z.input<OutputSchema> | Promise<z.input<OutputSchema>>
-    : unknown | Promise<unknown>;
+    : Output | Promise<Output>;
 };
 
-type ToolOutput<OutputSchema extends ZodSchema | undefined> = OutputSchema extends ZodSchema
-  ? z.output<OutputSchema>
-  : unknown;
+type CreateToolOutput<
+  OutputSchema extends ZodSchema | undefined,
+  Output,
+> = OutputSchema extends ZodSchema ? z.output<OutputSchema> : Output;
+
+export function createTool<InputSchema extends ZodSchema, Output = unknown>(
+  options: CreateToolOptions<InputSchema, undefined, Output> & { output?: undefined },
+): Tool<z.output<InputSchema>, Output>;
+
+export function createTool<InputSchema extends ZodSchema, OutputSchema extends ZodSchema>(
+  options: CreateToolOptions<InputSchema, OutputSchema>,
+): Tool<z.output<InputSchema>, z.output<OutputSchema>>;
 
 export function createTool<
   InputSchema extends ZodSchema,
   OutputSchema extends ZodSchema | undefined = undefined,
+  Output = unknown,
 >(
-  options: CreateToolOptions<InputSchema, OutputSchema>,
-): Tool<z.output<InputSchema>, ToolOutput<OutputSchema>> {
+  options: CreateToolOptions<InputSchema, OutputSchema, Output>,
+): Tool<z.output<InputSchema>, CreateToolOutput<OutputSchema, Output>> {
   const parameters = toProviderJsonSchema(options.input);
 
   return {
@@ -41,12 +52,12 @@ export function createTool<
         parameters,
       };
     },
-    async call(args, context = {}): Promise<ToolOutput<OutputSchema>> {
+    async call(args, context = {}): Promise<CreateToolOutput<OutputSchema, Output>> {
       const parsedArgs = options.input.parse(args);
       const result = await options.execute(parsedArgs, context);
       return (
         options.output === undefined ? result : options.output.parse(result)
-      ) as ToolOutput<OutputSchema>;
+      ) as CreateToolOutput<OutputSchema, Output>;
     },
     parseApprovalArgs(args): z.output<InputSchema> {
       return options.input.parse(args);

@@ -230,11 +230,17 @@ function acceptTranscriptStreamEvent(
         ...(event.toolCallId === undefined ? {} : { callId: event.toolCallId }),
         args: event.args,
         result: event.result,
+        ...(event.structuredResult === undefined
+          ? {}
+          : { structuredResult: event.structuredResult }),
       });
       return;
     }
     matched.args = matched.args ?? event.args;
     matched.result = event.result;
+    if (event.structuredResult !== undefined) {
+      matched.structuredResult = event.structuredResult;
+    }
   }
   if (event.type === "agent_tool_event") {
     const matched = findTranscriptToolEntry(transcript, event.toolName, event.toolCallId);
@@ -416,6 +422,7 @@ function childAgentTranscriptEvent(
       ...(child.toolCallId === undefined ? {} : { callId: child.toolCallId }),
       args: child.args,
       result: child.result,
+      ...(child.structuredResult === undefined ? {} : { structuredResult: child.structuredResult }),
     };
   }
   if (child.type === "error") {
@@ -487,8 +494,11 @@ export function transcriptFromMessages(messages: Message[]): StudioTranscriptEnt
           toolName: "tool_result",
           callId: content.callId ?? content.id,
           result: content.content
-            .map((item) => ("text" in item ? item.text : "[image]"))
+            .map((item) =>
+              "text" in item ? item.text : `[image:${item.mediaType ?? "image/png"}]`,
+            )
             .join("\n"),
+          structuredResult: content.content,
         });
       }
       continue;
@@ -614,7 +624,9 @@ function extractMessageText(message: string | Message): string {
         return [`${item.function.name}(${formatJson(item.function.arguments)})`];
       }
       if (item.type === "tool_result") {
-        return item.content.map((result) => ("text" in result ? result.text : "[image]"));
+        return item.content.map((result) =>
+          "text" in result ? result.text : `[image:${result.mediaType ?? "image/png"}]`,
+        );
       }
       return [];
     })

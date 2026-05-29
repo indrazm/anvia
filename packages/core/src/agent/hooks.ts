@@ -1,4 +1,4 @@
-import type { CompletionResponse, Message } from "../completion/index";
+import type { CompletionResponse, Message, ToolResultContent } from "../completion/index";
 
 export type HookAction = { type: "continue" } | { type: "terminate"; reason: string };
 export type ToolApprovalRequestOptions = {
@@ -59,6 +59,7 @@ export type ToolCallHookArgs = ToolHookArgs & {
 
 export type ToolResultHookArgs = ToolHookArgs & {
   result: string;
+  structuredResult?: ToolResultContent[] | undefined;
   run: RunControl;
 };
 

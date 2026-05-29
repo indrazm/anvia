@@ -1,4 +1,11 @@
-import { AssistantContent, type CompletionRequest, Message, Usage, UserContent } from "@anvia/core";
+import {
+  AssistantContent,
+  type CompletionRequest,
+  Message,
+  ToolContent,
+  Usage,
+  UserContent,
+} from "@anvia/core";
 import { describe, expect, it } from "vitest";
 import { OpenAIResponsesCompletionModel } from "../src/index";
 import {
@@ -67,6 +74,39 @@ describe("OpenAI Responses mapping", () => {
       type: "function_call_output",
       call_id: "fc_1",
       output: "7",
+    });
+  });
+
+  it("maps multimodal tool outputs to Responses API output content", () => {
+    const params = toOpenAIResponsesParams("gpt-5", {
+      chatHistory: [
+        Message.assistant([AssistantContent.toolCall("call_1", "computer_screenshot", {}, "fc_1")]),
+        Message.tool(
+          ToolContent.toolResult(
+            "call_1",
+            [
+              { type: "text", text: '{"coordMap":"0,0,100,100,100,100"}' },
+              { type: "image", data: "base64-png", mediaType: "image/png" },
+            ],
+            "fc_1",
+          ),
+        ),
+      ],
+      documents: [],
+      tools: [],
+    });
+
+    expect(params.input).toContainEqual({
+      type: "function_call_output",
+      call_id: "fc_1",
+      output: [
+        { type: "input_text", text: '{"coordMap":"0,0,100,100,100,100"}' },
+        {
+          type: "input_image",
+          image_url: "data:image/png;base64,base64-png",
+          detail: "auto",
+        },
+      ],
     });
   });
 

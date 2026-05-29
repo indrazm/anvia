@@ -17,6 +17,7 @@ import {
   type ToolChoice,
   type ToolContent,
   type ToolDefinition,
+  type ToolResultContent,
   Usage,
   type UserContent,
 } from "@anvia/core/completion";
@@ -391,10 +392,30 @@ function toolContentToAnthropicBlock(content: ToolContent): AnthropicContentBloc
   return {
     type: "tool_result",
     tool_use_id: content.callId ?? content.id,
-    content: content.content
-      .map((item) => (item.type === "text" ? item.text : item.data))
-      .join("\n"),
+    content: toolResultContentToAnthropicContent(content.content),
   };
+}
+
+function toolResultContentToAnthropicContent(
+  content: ToolResultContent[],
+): string | AnthropicContentBlock[] {
+  if (content.every((item) => item.type === "text")) {
+    return content.map((item) => item.text).join("\n");
+  }
+
+  return content.map((item) => {
+    if (item.type === "text") {
+      return { type: "text", text: item.text };
+    }
+    return {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: item.mediaType ?? "image/png",
+        data: item.data,
+      },
+    };
+  });
 }
 
 function reasoningContentToAnthropicBlocks(content: ReasoningContent): AnthropicContentBlock[] {
