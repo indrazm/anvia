@@ -1,6 +1,11 @@
 import { AgentBuilder } from "@anvia/core/agent";
 import { PipelineBuilder } from "@anvia/core/pipeline";
-import { createTool, ToolSet } from "@anvia/core/tool";
+import {
+  createTool,
+  type NormalizedToolOutput,
+  ToolSet,
+  toolResultContentToText,
+} from "@anvia/core/tool";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
@@ -89,14 +94,14 @@ const marketPipeline = new PipelineBuilder<string>()
     risksJson: riskFlags,
   })
   .step(({ quoteJson, newsJson, risksJson }) => {
-    const quote = JSON.parse(quoteJson) as {
+    const quote = JSON.parse(toolOutputText(quoteJson)) as {
       ticker: string;
       price: number;
       changePercent: number;
       volume: number;
     };
-    const news = JSON.parse(newsJson) as string[];
-    const risks = JSON.parse(risksJson) as string[];
+    const news = JSON.parse(toolOutputText(newsJson)) as string[];
+    const risks = JSON.parse(toolOutputText(risksJson)) as string[];
 
     return [
       `Analyze this mock market packet for ${quote.ticker}.`,
@@ -118,3 +123,7 @@ const marketPipeline = new PipelineBuilder<string>()
 const analysis = await marketPipeline.run("AION");
 
 console.log(analysis);
+
+function toolOutputText(output: NormalizedToolOutput): string {
+  return typeof output === "string" ? output : toolResultContentToText(output);
+}

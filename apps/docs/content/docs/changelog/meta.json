@@ -21,10 +21,16 @@
     "chroma",
     "pgvector",
     "qdrant",
+    "---Logger---",
+    "logger",
     "---Observability---",
     "langfuse",
     "otel",
     "---Tools---",
-    "studio"
+    "studio",
+    "---React---",
+    "react",
+    "---Server---",
+    "server"
   ]
 }

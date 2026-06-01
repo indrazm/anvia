@@ -12,6 +12,8 @@ Use guides when you want workflow guidance. Use reference pages when you already
 | Package | Purpose |
 | --- | --- |
 | `@anvia/core` | Agent runtime, tools, context, workflows, streaming, retrieval primitives, and observability interfaces |
+| `@anvia/server` | HTTP response helpers for JSONL and Server-Sent Event streams |
+| `@anvia/react` | Client stream parsers, fetch transports, and React chat state |
 | `@anvia/openai` | OpenAI completion and embedding client |
 | `@anvia/anthropic` | Anthropic completion client |
 | `@anvia/gemini` | Gemini API and Vertex AI completion and embedding client |
@@ -30,6 +32,8 @@ Use guides when you want workflow guidance. Use reference pages when you already
 | Package | Public import paths |
 | --- | --- |
 | `@anvia/core` | `@anvia/core`, `@anvia/core/agent`, `@anvia/core/audio-generation`, `@anvia/core/completion`, `@anvia/core/embeddings`, `@anvia/core/evals`, `@anvia/core/extractor`, `@anvia/core/image-generation`, `@anvia/core/loaders`, `@anvia/core/mcp`, `@anvia/core/memory`, `@anvia/core/model-listing`, `@anvia/core/observability`, `@anvia/core/pipeline`, `@anvia/core/skills`, `@anvia/core/streaming`, `@anvia/core/tool`, `@anvia/core/transcription`, `@anvia/core/vector-store` |
+| `@anvia/server` | `@anvia/server` |
+| `@anvia/react` | `@anvia/react` |
 | `@anvia/openai` | `@anvia/openai` |
 | `@anvia/anthropic` | `@anvia/anthropic` |
 | `@anvia/gemini` | `@anvia/gemini` |
@@ -48,6 +52,8 @@ Use guides when you want workflow guidance. Use reference pages when you already
 | Section | Contains |
 | --- | --- |
 | [Core](/docs/reference/core) | Public `@anvia/core` exports and subpaths |
+| [Server](/docs/reference/server) | HTTP stream response helpers |
+| [React](/docs/reference/react) | Client parsers, transports, and hooks |
 | [Providers](/docs/reference/providers) | OpenAI, Anthropic, Gemini, Mistral, and compatible model adapters |
 | [Integrations](/docs/reference/integrations) | Chroma, Qdrant, pgvector, Transformers.js, Langfuse, and OpenTelemetry adapters |
 | [Studio](/docs/reference/studio) | Studio runtime, HTTP contracts, sessions, traces, approvals, stores, and exported types |

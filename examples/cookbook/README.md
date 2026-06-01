@@ -20,7 +20,7 @@ Legacy script names such as `cookbook:basic:01`, `cookbook:intermediate:14`, `co
 
 | Section | Focus |
 | --- | --- |
-| `01_basics` | First text calls, explicit transcripts, static context, streaming, `ReadableStream` output, and durable session memory. |
+| `01_basics` | First text calls, explicit transcripts, static context, streaming, HTTP stream transports, `ReadableStream` output, and durable session memory. |
 | `02_tools` | Tool schemas, streamed tool events, hooks, concurrency, conditional tools, think tools, application state, history with tools, guarded tools, and dynamic tool selection. |
 | `03_structured_output` | Schema-first extraction, agent output schemas, context, retries, and extraction with prior messages. |
 | `04_providers_and_multimodal` | Provider adapters, model capabilities, model listing, reasoning streams, image/PDF attachments, image generation, audio generation, and transcription. |
@@ -29,7 +29,7 @@ Legacy script names such as `cookbook:basic:01`, `cookbook:intermediate:14`, `co
 | `07_multi_agent` | Basic agent-tools, pipeline-backed parallel specialists, streaming agent-tools, and event stores. |
 | `08_evals` | Deterministic metrics, semantic similarity, custom metrics, agent eval targets, and LLM judge/score. |
 | `09_studio` | Single-agent, multi-agent, pipeline, eval, and subagent Studio runners, pipeline replay, realtime observability, tool approvals, human feedback, Knowledge, Memory, Status, and tool inspection. |
-| `10_integrations` | MCP tools, local skills, Langfuse tracing, and Langfuse eval reporting. |
+| `10_integrations` | MCP tools, local skills, Langfuse tracing, logging, and eval reporting. |
 
 ## Environment
 
@@ -62,6 +62,7 @@ Not every example needs every variable. Pure pipeline, dynamic tool, and core ev
 
 - `retrieval:08` uses the compose pgvector connection on host port `5439` by default. Set `DATABASE_URL` to point it at another Postgres database.
 - Langfuse examples need Langfuse credentials and live in `10_integrations`.
+- `integrations:06` logs agent lifecycle events with `@anvia/logger`.
 - Studio examples start a local HTTP server and keep Studio state in memory unless `ANVIA_STUDIO_DB` is set.
 - Tool history and loader examples write sample files under `.memory`.
 - Image and audio generation examples write generated media files in the current working directory.

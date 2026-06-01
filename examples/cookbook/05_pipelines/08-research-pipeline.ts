@@ -1,6 +1,11 @@
 import { AgentBuilder } from "@anvia/core/agent";
 import { PipelineBuilder } from "@anvia/core/pipeline";
-import { createTool, ToolSet } from "@anvia/core/tool";
+import {
+  createTool,
+  type NormalizedToolOutput,
+  ToolSet,
+  toolResultContentToText,
+} from "@anvia/core/tool";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 
@@ -66,8 +71,11 @@ const researchPipeline = new PipelineBuilder<string>()
     qualityJson: sourceQuality,
   })
   .step(({ notesJson, qualityJson }) => {
-    const notes = JSON.parse(notesJson) as string[];
-    const quality = JSON.parse(qualityJson) as { confidence: string; caveat: string };
+    const notes = JSON.parse(toolOutputText(notesJson)) as string[];
+    const quality = JSON.parse(toolOutputText(qualityJson)) as {
+      confidence: string;
+      caveat: string;
+    };
 
     return [
       "Synthesize this research packet.",
@@ -85,3 +93,7 @@ const researchPipeline = new PipelineBuilder<string>()
 const report = await researchPipeline.run("Anvia pipeline cookbook examples");
 
 console.log(report);
+
+function toolOutputText(output: NormalizedToolOutput): string {
+  return typeof output === "string" ? output : toolResultContentToText(output);
+}

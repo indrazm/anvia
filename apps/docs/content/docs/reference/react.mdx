@@ -1,0 +1,160 @@
+---
+title: React
+description: Client transports and hooks from @anvia/react.
+---
+
+Import from `@anvia/react`.
+
+## Types
+
+```ts
+type EventStreamFormat = "jsonl" | "sse";
+
+type TransportOptions = {
+  signal?: AbortSignal;
+  headers?: HeadersInit;
+};
+
+type ChatRole = "system" | "user" | "assistant" | "tool";
+
+type ChatMessage = {
+  id: string;
+  role: ChatRole;
+  content: string;
+  metadata?: unknown;
+};
+
+type DefaultChatRequest = {
+  message: string;
+  history: ChatMessage[];
+  stream: true;
+};
+
+type UseChatStatus = "idle" | "streaming" | "error";
+```
+
+## EventTransport
+
+```ts
+type EventTransport<TRequest, TEvent> = {
+  send(request: TRequest, options?: TransportOptions): AsyncIterable<TEvent>;
+};
+```
+
+Purpose: common boundary for JSONL, SSE, WebSocket, local, and custom transports.
+
+## readJsonlStream
+
+```ts
+function readJsonlStream<TEvent>(stream: ReadableStream<Uint8Array>): AsyncIterable<TEvent>;
+```
+
+Purpose: parse newline-delimited JSON from a web stream.
+
+## readSseStream
+
+```ts
+function readSseStream<TEvent>(stream: ReadableStream<Uint8Array>): AsyncIterable<TEvent>;
+```
+
+Purpose: parse Server-Sent Events whose `data:` payload is JSON.
+
+## fetchEventStream
+
+```ts
+type FetchEventStreamOptions = RequestInit & {
+  format?: "jsonl" | "sse";
+  fetch?: typeof fetch;
+};
+
+function fetchEventStream<TEvent>(
+  input: string | URL | Request,
+  options?: FetchEventStreamOptions,
+): AsyncIterable<TEvent>;
+```
+
+Purpose: fetch and parse a streaming response as an async iterable.
+
+## createFetchTransport
+
+```ts
+type CreateFetchTransportOptions<TRequest, TEvent> = {
+  endpoint: string | URL | ((request: TRequest) => string | URL);
+  method?: string;
+  format?: "jsonl" | "sse";
+  headers?: HeadersInit | ((request: TRequest) => HeadersInit | Promise<HeadersInit>);
+  body?: (request: TRequest) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
+  mapEvent?: (event: unknown) => TEvent;
+};
+
+function createFetchTransport<TRequest, TEvent>(
+  options: CreateFetchTransportOptions<TRequest, TEvent>,
+): EventTransport<TRequest, TEvent>;
+```
+
+Purpose: create a POST JSON transport by default while allowing custom headers, bodies, endpoints, and event mapping.
+
+## createChatTransport
+
+```ts
+function createChatTransport<TRequest, TEvent>(
+  options: CreateFetchTransportOptions<TRequest, TEvent>,
+): EventTransport<TRequest, TEvent>;
+```
+
+Purpose: named chat transport helper built on the fetch transport.
+
+## useChat
+
+```ts
+type UseChatOptions<TRequest, TEvent, TMessage extends ChatMessage = ChatMessage> = {
+  transport?: EventTransport<TRequest, TEvent>;
+  endpoint?: string | URL;
+  format?: "jsonl" | "sse";
+  initialMessages?: TMessage[];
+  createRequest?: (input: string, messages: TMessage[]) => TRequest;
+  eventToDelta?: (event: TEvent) => string | undefined;
+  eventToFinal?: (event: TEvent) => string | undefined;
+  onEvent?: (event: TEvent) => void;
+  onError?: (error: unknown) => void;
+};
+
+type UseChatResult<TEvent, TMessage extends ChatMessage = ChatMessage> = {
+  messages: TMessage[];
+  events: TEvent[];
+  input: string;
+  setInput(input: string): void;
+  send(input?: string): Promise<void>;
+  stop(): void;
+  reset(messages?: TMessage[]): void;
+  status: UseChatStatus;
+  error: unknown;
+  text: string;
+};
+
+function useChat<TRequest, TEvent>(options?: {
+  transport?: EventTransport<TRequest, TEvent>;
+  endpoint?: string | URL;
+  format?: "jsonl" | "sse";
+  createRequest?: (input: string, messages: ChatMessage[]) => TRequest;
+  eventToDelta?: (event: TEvent) => string | undefined;
+  eventToFinal?: (event: TEvent) => string | undefined;
+}): UseChatResult<TEvent>;
+```
+
+Purpose: React chat state machine that consumes events from any `EventTransport`.
+
+Passing `endpoint` creates a default JSONL fetch transport. Passing `transport` makes the hook independent of HTTP.
+
+## EventStreamHttpError
+
+```ts
+class EventStreamHttpError extends Error {
+  readonly response: Response;
+  readonly body: string;
+}
+```
+
+Purpose: thrown by `fetchEventStream(...)` when the HTTP response is not ok.
+
+For workflow guidance, see [Client Transports](/docs/guides/streaming/client-transports).

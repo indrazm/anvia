@@ -8,6 +8,8 @@ const repoRoot = join(scriptDir, "../../..");
 
 const packageDocs = new Map([
   ["@anvia/core", "apps/docs/content/docs/reference/core"],
+  ["@anvia/server", "apps/docs/content/docs/reference/server.mdx"],
+  ["@anvia/react", "apps/docs/content/docs/reference/react.mdx"],
   ["@anvia/openai", "apps/docs/content/docs/reference/providers/openai.mdx"],
   ["@anvia/gemini", "apps/docs/content/docs/reference/providers/gemini.mdx"],
   ["@anvia/anthropic", "apps/docs/content/docs/reference/providers/anthropic.mdx"],
@@ -17,6 +19,7 @@ const packageDocs = new Map([
   ["@anvia/chroma", "apps/docs/content/docs/reference/integrations/chroma.mdx"],
   ["@anvia/pgvector", "apps/docs/content/docs/reference/integrations/pgvector.mdx"],
   ["@anvia/qdrant", "apps/docs/content/docs/reference/integrations/qdrant.mdx"],
+  ["@anvia/logger", "apps/docs/content/docs/reference/integrations/logger.mdx"],
   ["@anvia/langfuse", "apps/docs/content/docs/reference/integrations/langfuse.mdx"],
   ["@anvia/otel", "apps/docs/content/docs/reference/integrations/otel.mdx"],
   ["@anvia/studio", "apps/docs/content/docs/reference/studio"],
