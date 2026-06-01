@@ -1,10 +1,11 @@
-import { join } from "node:path";
 import type { AgentTraceOptions, JsonObject, JsonValue, Message } from "@anvia/core";
 import type { Context } from "hono";
+import { createInMemoryStudioStore } from "../storage/memory-store";
 import { createSqliteSessionStore } from "../storage/sqlite-store";
 import type {
   StudioAgent,
   StudioAgentConfig,
+  StudioAgentRuntimeSummary,
   StudioCapability,
   StudioCapabilityConfig,
   StudioConfig,
@@ -20,7 +21,8 @@ import type {
   StudioTraceStore,
   StudioUiOptions,
 } from "../types";
-import { agentHasMcpTools } from "./tool-metadata";
+import { toJsonValue } from "./json";
+import { agentHasMcpTools, agentToolItems, mcpServerName } from "./tool-metadata";
 
 export type ResolvedStores = {
   sessions?: StudioSessionStore;
@@ -41,11 +43,7 @@ export type StudioRuntimeOptions = {
 };
 
 export function resolveStores(options: StudioRuntimeOptions): ResolvedStores {
-  const defaultPath =
-    process.env.ANVIA_STUDIO_DB ??
-    process.env.AION_STUDIO_DB ??
-    join(process.cwd(), ".anvia-studio", `${safeFileName(runnerId(options))}.sqlite`);
-  const defaultStore = createSqliteSessionStore({ path: defaultPath });
+  const defaultStore = defaultStudioStore();
   const sessions = resolveSessionStore(options, defaultStore);
   const traces = resolveTraceStore(options, sessions, defaultStore);
   const pipelineLogs = resolvePipelineLogStore(options, sessions, defaultStore);
@@ -56,6 +54,16 @@ export function resolveStores(options: StudioRuntimeOptions): ResolvedStores {
     ...(pipelineLogs === undefined ? {} : { pipelineLogs }),
     ...(pipelineRuns === undefined ? {} : { pipelineRuns }),
   };
+}
+
+function defaultStudioStore(): StudioSessionStore &
+  StudioTraceStore &
+  StudioPipelineLogStore &
+  StudioPipelineRunStore {
+  const sqlitePath = process.env.ANVIA_STUDIO_DB ?? process.env.AION_STUDIO_DB;
+  return sqlitePath === undefined
+    ? createInMemoryStudioStore()
+    : createSqliteSessionStore({ path: sqlitePath });
 }
 
 function resolveSessionStore(
@@ -228,6 +236,33 @@ export function agentConfig(agent: StudioAgent): StudioAgentConfig {
   };
 }
 
+export function agentRuntimeSummary(agent: StudioAgent): StudioAgentRuntimeSummary {
+  const tools = agentToolItems(agent);
+  const name = agent.name ?? agent.agent.name;
+  const description = agent.description ?? agent.agent.description;
+  return {
+    id: agent.id,
+    ...(name === undefined ? {} : { name }),
+    ...(description === undefined ? {} : { description }),
+    model: toJsonValue(agent.agent.model),
+    toolCount: tools.length,
+    staticToolCount: tools.filter((item) => item.source === "static").length,
+    dynamicToolCount: tools.filter((item) => item.source === "dynamic").length,
+    approvalToolCount: tools.filter((item) => item.tool.approval !== undefined).length,
+    mcpToolCount: tools.filter((item) => mcpServerName(item.tool) !== undefined).length,
+    staticContextCount: agent.agent.staticContext.length,
+    dynamicContextCount: agent.agent.dynamicContexts.length,
+    observerCount: agent.agent.observers.length,
+    hasMemory: agent.agent.memory !== undefined,
+    hasHook: agent.agent.hook !== undefined,
+    hasOutputSchema: agent.agent.outputSchema !== undefined,
+    ...(agent.agent.defaultMaxTurns === undefined
+      ? {}
+      : { defaultMaxTurns: agent.agent.defaultMaxTurns }),
+    ...(agent.metadata === undefined ? {} : { metadata: agent.metadata }),
+  };
+}
+
 export function pipelineConfig(pipeline: StudioPipeline): StudioPipelineConfig {
   const graph = pipeline.pipeline.graph();
   const stageNodes = graph.nodes.filter((node) => node.kind !== "input" && node.kind !== "output");
@@ -252,10 +287,12 @@ export function capabilityConfig(
 ): Partial<Record<StudioCapability, StudioCapabilityConfig>> {
   const capabilities: Partial<Record<StudioCapability, StudioCapabilityConfig>> = {
     agents: { enabled: true },
+    status: { enabled: true },
   };
 
   if (stores.sessions !== undefined) {
     capabilities.sessions = { enabled: true };
+    capabilities.memory = { enabled: true };
   }
   if (stores.traces !== undefined) {
     capabilities.traces = { enabled: true };
@@ -321,10 +358,6 @@ export function parseTraceStatus(value: string | undefined): StudioTraceStatus |
     return undefined;
   }
   return status === "running" || status === "success" || status === "error" ? status : false;
-}
-
-export function safeFileName(value: string): string {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, "_") || "anvia-studio";
 }
 
 export function isMessageInput(value: unknown): value is string | Message {

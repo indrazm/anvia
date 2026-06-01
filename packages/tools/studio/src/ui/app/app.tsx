@@ -37,6 +37,7 @@ import { cn } from "./lib/utils";
 import { AgentsPage } from "./modules/agents/agents-page";
 import { KnowledgePage } from "./modules/knowledge/knowledge-page";
 import { McpsPage } from "./modules/mcps/mcps-page";
+import { MemoryPage } from "./modules/memory/memory-page";
 import { PipelinesPage } from "./modules/pipelines/pipelines-page";
 import { TranscriptItem } from "./modules/playground/transcript-item";
 import { SessionLogsPanel } from "./modules/session-logs/session-logs-panel";
@@ -81,6 +82,7 @@ import type {
   TranscriptEntry,
 } from "./modules/shared/types";
 import { NavButton } from "./modules/shell/nav-button";
+import { StatusPage } from "./modules/status/status-page";
 import { ToolsPage } from "./modules/tools/tools-page";
 import { TraceBrowser } from "./modules/tracing/trace-browser";
 
@@ -256,6 +258,8 @@ export function StudioConsole() {
   const mcpsEnabled = config?.capabilities.mcps?.enabled === true;
   const toolsEnabled = config?.capabilities.tools?.enabled === true;
   const pipelinesEnabled = config?.capabilities.pipelines?.enabled === true;
+  const memoryEnabled = config?.capabilities.memory?.enabled === true;
+  const statusEnabled = config?.capabilities.status?.enabled === true;
   const agents = config?.agents ?? [];
   const pipelines = config?.pipelines ?? [];
   const hasAgents = agents.length > 0;
@@ -1591,6 +1595,20 @@ export function StudioConsole() {
             label="Knowledge"
             onClick={() => navigatePage("knowledge")}
           />
+          <NavButton
+            active={activePage === "memory"}
+            icon="database"
+            label="Memory"
+            disabled={!memoryEnabled}
+            onClick={() => navigatePage("memory")}
+          />
+          <NavButton
+            active={activePage === "status"}
+            icon="gauge"
+            label="Status"
+            disabled={!statusEnabled}
+            onClick={() => navigatePage("status")}
+          />
         </nav>
         <nav className="grid min-h-0 gap-0.5 overflow-auto px-3 py-3" aria-label="Recent sessions">
           <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -1915,6 +1933,10 @@ export function StudioConsole() {
             onSelectTab={navigateKnowledgeTab}
           />
         ) : null}
+
+        {activePage === "memory" ? <MemoryPage agents={agents} enabled={memoryEnabled} /> : null}
+
+        {activePage === "status" ? <StatusPage enabled={statusEnabled} /> : null}
       </main>
       <DeleteSessionDialog
         session={deleteCandidate}

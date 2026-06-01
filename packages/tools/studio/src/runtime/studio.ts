@@ -39,6 +39,7 @@ import {
 } from "./approvals";
 import { registerKnowledgeRoutes } from "./knowledge";
 import { registerMcpRoutes } from "./mcps";
+import { registerMemoryRoutes } from "./memory";
 import { registerPipelineRoutes } from "./pipelines";
 import { createQuestionRuntime, registerQuestionRoutes } from "./questions";
 import {
@@ -64,6 +65,7 @@ import {
 import { registerSessionRoutes } from "./sessions";
 import {
   agentConfig,
+  agentRuntimeSummary,
   buildConfig,
   errorResponse,
   normalizeAgents,
@@ -75,6 +77,7 @@ import {
   unsupportedCapabilities,
   unsupportedCapability,
 } from "./shared";
+import { registerStatusRoutes } from "./status";
 import { registerToolRoutes } from "./tools";
 import { registerTraceRoutes } from "./trace-routes";
 
@@ -165,6 +168,8 @@ function studioOptionsFromTargets(
   return {
     agents: inferStudioAgents(agents, options.quickPrompts ?? {}),
     pipelines: inferStudioPipelines(pipelines),
+    ...(options.stores === undefined ? {} : { stores: options.stores }),
+    ...(options.ui === undefined ? {} : { ui: options.ui }),
   };
 }
 
@@ -252,6 +257,7 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   );
 
   app.get("/config", (c) => c.json(buildConfig(options, agents, pipelines, stores)));
+  registerStatusRoutes(app, { options, agents, pipelines, stores });
 
   app.get("/agents", (c) => c.json({ agents: agents.map(agentConfig) }));
 
@@ -262,6 +268,15 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
     }
 
     return c.json(agentConfig(agent));
+  });
+
+  app.get("/agents/:agentId/runtime", (c) => {
+    const agent = agentMap.get(c.req.param("agentId"));
+    if (agent === undefined) {
+      return errorResponse(c, 404, "not_found", "Agent not found");
+    }
+
+    return c.json(agentRuntimeSummary(agent));
   });
 
   registerMcpRoutes(app, { agentMap });
@@ -472,6 +487,9 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   });
 
   if (stores.sessions !== undefined) {
+    registerMemoryRoutes(app, {
+      sessionStore: stores.sessions,
+    });
     registerSessionRoutes(app, {
       agentMap,
       sessionStore: stores.sessions,

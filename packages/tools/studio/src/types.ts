@@ -18,11 +18,13 @@ import type { Hono } from "hono";
 export type StudioCapability =
   | "agents"
   | "approvals"
+  | "memory"
   | "knowledge"
   | "mcps"
   | "observability"
   | "pipelines"
   | "sessions"
+  | "status"
   | "tools"
   | "traces";
 
@@ -42,6 +44,26 @@ export type StudioAgentConfig = {
   name?: string;
   description?: string;
   quickPrompts: string[];
+  metadata?: JsonObject;
+};
+
+export type StudioAgentRuntimeSummary = {
+  id: string;
+  name?: string;
+  description?: string;
+  model?: JsonValue;
+  toolCount: number;
+  staticToolCount: number;
+  dynamicToolCount: number;
+  approvalToolCount: number;
+  mcpToolCount: number;
+  staticContextCount: number;
+  dynamicContextCount: number;
+  observerCount: number;
+  hasMemory: boolean;
+  hasHook: boolean;
+  hasOutputSchema: boolean;
+  defaultMaxTurns?: number;
   metadata?: JsonObject;
 };
 
@@ -108,6 +130,23 @@ export type StudioAgentToolMetadata = {
 export type StudioAgentToolsSummary = {
   agentId: string;
   tools: StudioAgentToolMetadata[];
+};
+
+export type StudioToolRunRequest = {
+  args: JsonValue;
+  context?: JsonObject;
+};
+
+export type StudioToolRunResponse = {
+  agentId: string;
+  toolName: string;
+  result?: JsonValue;
+  error?: JsonValue;
+  status: "success" | "error";
+  durationMs: number;
+  startedAt: string;
+  endedAt: string;
+  events: JsonValue[];
 };
 
 export type StudioAgentMcpToolMetadata = {
@@ -429,6 +468,68 @@ export type StudioKnowledgeSummary = {
   evidence: StudioKnowledgeEvidence[];
 };
 
+export type StudioMemoryUserSummary = {
+  userId: string;
+  conversationCount: number;
+  agentIds: string[];
+  lastInteractionAt: string;
+};
+
+export type StudioMemoryConversationSummary = {
+  id: string;
+  userId: string;
+  agentId: string;
+  title?: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  metadata?: JsonObject;
+};
+
+export type StudioMemoryConversationsPage = {
+  conversations: StudioMemoryConversationSummary[];
+  total: number;
+};
+
+export type StudioMemoryUsersPage = {
+  users: StudioMemoryUserSummary[];
+  total: number;
+};
+
+export type StudioMemoryConversationMessages = {
+  conversation: StudioMemoryConversationSummary;
+  messages: Message[];
+  transcript: StudioTranscriptEntry[];
+};
+
+export type StudioMemoryConversationSteps = {
+  conversation: StudioMemoryConversationSummary;
+  steps: StudioTranscriptEntry[];
+};
+
+export type StudioStatusSummary = {
+  runner: {
+    id: string;
+    name?: string;
+    version?: string;
+  };
+  storage: {
+    sessions?: string;
+    traces?: string;
+    pipelineLogs?: string;
+    pipelineRuns?: string;
+  };
+  counts: {
+    agents: number;
+    pipelines: number;
+    sessions?: number;
+    traces?: number;
+    pipelineRuns?: number;
+  };
+  capabilities: Partial<Record<StudioCapability, StudioCapabilityConfig>>;
+  generatedAt: string;
+};
+
 export type StudioStores = {
   sessions?: StudioSessionStore | false;
   traces?: StudioTraceStore;
@@ -447,6 +548,8 @@ export type StudioUiOptions = {
 
 export type StudioOptions = {
   quickPrompts?: Record<string, string[]>;
+  stores?: StudioStores;
+  ui?: boolean | StudioUiOptions;
 };
 
 export type StudioServeOptions = {
