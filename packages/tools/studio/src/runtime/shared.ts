@@ -287,6 +287,7 @@ export function capabilityConfig(
 ): Partial<Record<StudioCapability, StudioCapabilityConfig>> {
   const capabilities: Partial<Record<StudioCapability, StudioCapabilityConfig>> = {
     agents: { enabled: true },
+    observability: { enabled: true },
     status: { enabled: true },
   };
 
@@ -311,9 +312,6 @@ export function capabilityConfig(
     capabilities.mcps = { enabled: true };
   }
 
-  if (agents.some((agent) => agent.agent.observers.length > 0)) {
-    capabilities.observability = { enabled: true };
-  }
   if (
     agents.some(
       (agent) =>

@@ -368,6 +368,22 @@ export type StudioTrace = StudioTraceSummary & {
   observations: StudioTraceObservation[];
 };
 
+export type StudioObservabilityEventType = "session_log" | "pipeline_log" | "trace";
+
+export type StudioObservabilityEvent =
+  | {
+      type: "session_log";
+      log: StudioSessionLogEntry;
+    }
+  | {
+      type: "pipeline_log";
+      log: StudioPipelineLogEntry;
+    }
+  | {
+      type: "trace";
+      trace: StudioTraceSummary;
+    };
+
 export type StudioTraceListOptions = {
   limit: number;
   agentId?: string;

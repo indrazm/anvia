@@ -19,6 +19,7 @@ Studio exposes the same runtime used by the bundled UI as an HTTP API.
 | `/agents/:agentId/tools/:toolName/runs` | `POST` | Invoke one registered tool directly with JSON arguments |
 | `/agents/:agentId/mcps` | `GET` | Inspect registered MCP server and tool metadata for one agent |
 | `/agents/:agentId/runs` | `POST` | Run an agent |
+| `/observability/events` | `GET` | Stream session logs, pipeline logs, and completed trace summaries as NDJSON |
 | `/pipelines` | `GET` | List registered pipelines |
 | `/pipelines/:pipelineId` | `GET` | Read pipeline metadata and graph |
 | `/pipelines/:pipelineId/runs` | `POST` | Run a pipeline with JSON input |

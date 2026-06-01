@@ -50,6 +50,7 @@ Studio exposes:
 
 - Chat playground and persisted sessions
 - Trace browser and session logs
+- Realtime observability stream for session logs, pipeline logs, and completed traces
 - Pipeline graph, logs, run history, and replay-from-history controls
 - Rich agent runtime details, direct tool invocation, static tool, dynamic tool, and MCP inspectors
 - Memory explorer for users, conversations, messages, and transcript steps backed by the session store

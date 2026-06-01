@@ -275,11 +275,29 @@ type AgentRunStreamEvent =
   | StudioSessionLogEvent
   | StudioPipelineLogEvent
   | StudioPipelineFinalEvent;
+
+type StudioObservabilityEventType = "session_log" | "pipeline_log" | "trace";
+
+type StudioObservabilityEvent =
+  | {
+      type: "session_log";
+      log: StudioSessionLogEntry;
+    }
+  | {
+      type: "pipeline_log";
+      log: StudioPipelineLogEntry;
+    }
+  | {
+      type: "trace";
+      trace: StudioTraceSummary;
+    };
 ```
 
 Purpose: HTTP request and response contracts for Studio agent runs.
 
 Return behavior: non-streaming agent runs return `AgentRunResponse`; streaming agent runs emit newline-delimited `AgentRunStreamEvent` values. `session_log` and `pipeline_log` events are Studio-owned metadata-only runtime logs.
+
+`GET /observability/events` emits newline-delimited `StudioObservabilityEvent` values. Use the optional `type` query string to subscribe to `session_log`, `pipeline_log`, `trace`, or a comma-separated subset.
 
 Notable errors: invalid run request bodies return `bad_request`; unsupported stores or capabilities return `unsupported_capability`.
 

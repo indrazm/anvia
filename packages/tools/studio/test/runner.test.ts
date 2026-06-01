@@ -3115,6 +3115,65 @@ describe("Anvia studio", () => {
     const missingTrace = await runner.fetch(new Request("http://runner.test/traces/missing"));
     expect(missingTrace.status).toBe(404);
   });
+
+  it("streams realtime observability events", async () => {
+    const agent = new AgentBuilder(
+      "support",
+      new QueueModel([response([AssistantContent.text("observed")])]),
+    ).build();
+    const runner = new Studio([agent]);
+    const session = (await (
+      await runner.fetch(
+        new Request("http://runner.test/sessions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ agentId: "support" }),
+        }),
+      )
+    ).json()) as { id: string };
+
+    const stream = await runner.fetch(
+      new Request("http://runner.test/observability/events?type=session_log,trace"),
+    );
+    expect(stream.status).toBe(200);
+    const reader = createJsonlReader(stream);
+
+    const run = await runner.fetch(
+      new Request("http://runner.test/agents/support/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: "observe",
+          sessionId: session.id,
+          trace: { name: "observability-test" },
+        }),
+      }),
+    );
+    expect(run.status).toBe(200);
+
+    const events = [await withTimeout(reader.read(), 1000)];
+    while (!events.some((event) => isTraceObservabilityEvent(event))) {
+      events.push(await withTimeout(reader.read(), 1000));
+    }
+    await reader.cancel();
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "session_log",
+        log: expect.objectContaining({ event: "run.received" }),
+      }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "trace",
+        trace: expect.objectContaining({
+          name: "observability-test",
+          status: "success",
+          observationCount: expect.any(Number),
+        }),
+      }),
+    );
+  });
 });
 
 async function readJsonl(response: Response): Promise<unknown[]> {
@@ -3126,7 +3185,10 @@ async function readJsonl(response: Response): Promise<unknown[]> {
     .map((line) => JSON.parse(line));
 }
 
-function createJsonlReader(response: Response): { read: () => Promise<unknown> } {
+function createJsonlReader(response: Response): {
+  cancel: () => Promise<void>;
+  read: () => Promise<unknown>;
+} {
   if (response.body === null) {
     throw new Error("Expected response body");
   }
@@ -3137,6 +3199,9 @@ function createJsonlReader(response: Response): { read: () => Promise<unknown> }
   const events: unknown[] = [];
 
   return {
+    async cancel(): Promise<void> {
+      await reader.cancel();
+    },
     async read(): Promise<unknown> {
       while (events.length === 0) {
         const next = await reader.read();
@@ -3161,6 +3226,10 @@ function createJsonlReader(response: Response): { read: () => Promise<unknown> }
       return events.shift();
     },
   };
+}
+
+function isTraceObservabilityEvent(event: unknown): boolean {
+  return typeof event === "object" && event !== null && "type" in event && event.type === "trace";
 }
 
 async function readRemainingJsonl(reader: { read: () => Promise<unknown> }): Promise<unknown[]> {

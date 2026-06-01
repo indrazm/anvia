@@ -40,6 +40,11 @@ import {
 import { registerKnowledgeRoutes } from "./knowledge";
 import { registerMcpRoutes } from "./mcps";
 import { registerMemoryRoutes } from "./memory";
+import {
+  observeStores,
+  registerObservabilityRoutes,
+  StudioObservabilityHub,
+} from "./observability";
 import { registerPipelineRoutes } from "./pipelines";
 import { createQuestionRuntime, registerQuestionRoutes } from "./questions";
 import {
@@ -225,7 +230,8 @@ function agentMetadata(agent: Agent): JsonObject {
 }
 
 function createStudioApp(options: StudioRuntimeOptions): StudioApp {
-  const stores = resolveStores(options);
+  const observabilityHub = new StudioObservabilityHub();
+  const stores = observeStores(resolveStores(options), observabilityHub);
   const agents = normalizeAgents(options.agents)
     .map((agent) => withStudioSessionMemory(agent, stores.sessions))
     .map((agent) => withStudioTraceObserver(agent, stores.traces));
@@ -283,6 +289,7 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   registerToolRoutes(app, { agentMap });
   registerApprovalRoutes(app, approvalRuntime);
   registerQuestionRoutes(app, questionRuntime);
+  registerObservabilityRoutes(app, observabilityHub);
   registerKnowledgeRoutes(app, {
     agents,
     ...(stores.traces === undefined ? {} : { traceStore: stores.traces }),
