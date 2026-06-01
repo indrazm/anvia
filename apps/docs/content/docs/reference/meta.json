@@ -3,5 +3,14 @@
   "description": "Public API",
   "icon": "CodeXml",
   "root": true,
-  "pages": ["index", "api-coverage", "core", "providers", "integrations", "studio"]
+  "pages": [
+    "index",
+    "api-coverage",
+    "core",
+    "server",
+    "react",
+    "providers",
+    "integrations",
+    "studio"
+  ]
 }

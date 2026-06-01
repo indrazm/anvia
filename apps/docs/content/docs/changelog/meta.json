@@ -25,6 +25,10 @@
     "langfuse",
     "otel",
     "---Tools---",
-    "studio"
+    "studio",
+    "---React---",
+    "react",
+    "---Server---",
+    "server"
   ]
 }
