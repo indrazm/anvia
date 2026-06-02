@@ -8,7 +8,7 @@ Anvia can connect to Model Context Protocol servers and expose their tools to ag
 ## Connect to a Stdio Server
 
 ```ts
-import { connectMcp, mcp } from "@anvia/core";
+import { connectMcp, mcp } from "@anvia/core/mcp";
 
 const filesystem = await connectMcp(
   mcp.stdio({

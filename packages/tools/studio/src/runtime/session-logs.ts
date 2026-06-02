@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, Message } from "@anvia/core";
+import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
 import type {
   AgentRunStreamEvent,
   StudioSession,

@@ -18,7 +18,7 @@ import {
   skill,
   ToolSet,
   Usage,
-} from "../src/index";
+} from "./helpers/imports";
 
 const tempDirs: string[] = [];
 

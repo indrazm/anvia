@@ -1,4 +1,8 @@
-import { type ModelList, type ModelListingClient, ModelListingError } from "@anvia/core";
+import {
+  type ModelList,
+  type ModelListingClient,
+  ModelListingError,
+} from "@anvia/core/model-listing";
 import { Mistral } from "@mistralai/mistralai";
 import { MistralCompletionModel } from "./completion";
 import { MistralEmbeddingModel, type MistralEmbeddingModelOptions } from "./embedding";

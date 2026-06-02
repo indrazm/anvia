@@ -8,7 +8,7 @@ When a coordinator runs with `.stream()`, normal parent events and nested child-
 ## Render Parent and Child Events
 
 ```ts
-import type { AgentStreamEvent } from "@anvia/core";
+import type { AgentStreamEvent } from "@anvia/core/agent";
 
 function renderEvent(event: AgentStreamEvent): void {
   switch (event.type) {
@@ -41,7 +41,7 @@ Group nested progress by `internalCallId` when the same specialist can be called
 ## Render Specialist Progress
 
 ```ts
-import type { AgentStreamEvent } from "@anvia/core";
+import type { AgentStreamEvent } from "@anvia/core/agent";
 
 type SpecialistEvent = Extract<AgentStreamEvent, { type: "agent_tool_event" }>;
 

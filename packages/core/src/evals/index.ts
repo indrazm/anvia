@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { Agent, PromptResponse } from "../agent";
+import type { Agent } from "../agent/agent";
+import type { PromptResponse } from "../agent/request";
 import type { CompletionModel, JsonValue, Message } from "../completion";
 import { cosineSimilarity, type EmbeddingModel, embedText } from "../embeddings";
 import { ExtractorBuilder } from "../extractor";

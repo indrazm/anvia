@@ -1,4 +1,4 @@
-import type { Agent } from "../agent";
+import type { Agent } from "../agent/agent";
 import type { CompletionModel, JsonObject } from "../completion";
 import type { Extractor } from "../extractor";
 

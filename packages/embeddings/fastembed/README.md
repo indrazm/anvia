@@ -19,7 +19,8 @@ pnpm --filter @anvia/fastembed build
 ## Usage
 
 ```ts
-import { embedDocuments, InMemoryVectorStore } from "@anvia/core";
+import { embedDocuments } from "@anvia/core/embeddings";
+import { InMemoryVectorStore } from "@anvia/core/vector-store";
 import { createFastEmbedEmbeddingModel } from "@anvia/fastembed";
 
 const embeddingModel = await createFastEmbedEmbeddingModel();

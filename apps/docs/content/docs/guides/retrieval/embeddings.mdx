@@ -19,7 +19,7 @@ Use the same embedding model for indexing documents and searching with user quer
 ## 2. Embed One Text
 
 ```ts
-import { embedText } from "@anvia/core";
+import { embedText } from "@anvia/core/embeddings";
 
 const embedding = await embedText(embeddings, "Password reset links expire after 30 minutes.");
 
@@ -29,7 +29,7 @@ console.log(embedding.vector.length);
 ## 3. Embed Many Texts
 
 ```ts
-import { embedTexts } from "@anvia/core";
+import { embedTexts } from "@anvia/core/embeddings";
 
 const results = await embedTexts(embeddings, [
   "Password reset links expire after 30 minutes.",

@@ -10,7 +10,8 @@ Multi-agent streams are useful live, but production systems often need replay, s
 Add an event store when nested progress must be replayed after the run, inspected in support tools, or attached to a product audit trail.
 
 ```ts
-import { AgentBuilder, type AgentEventStore } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import type { AgentEventStore } from "@anvia/core/agent";
 import { supportAgent } from "./specialists";
 import { model } from "./model";
 

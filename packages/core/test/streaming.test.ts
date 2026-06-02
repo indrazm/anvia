@@ -16,7 +16,7 @@ import {
   type StreamingCompletionModel,
   ToolOutput,
   toReadableStream,
-} from "../src/index";
+} from "./helpers/imports";
 
 class StreamingQueueModel implements StreamingCompletionModel {
   readonly provider = "test";

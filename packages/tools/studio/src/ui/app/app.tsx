@@ -1,4 +1,4 @@
-import type { ToolResultContent } from "@anvia/core";
+import type { ToolResultContent } from "@anvia/core/completion";
 import { Archive, ArrowSquareOut, ArrowUp, Moon, Plus, Sun } from "@phosphor-icons/react";
 import {
   type ChangeEvent,

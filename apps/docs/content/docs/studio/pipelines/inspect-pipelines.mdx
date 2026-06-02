@@ -6,7 +6,8 @@ description: Register pipelines in Studio and inspect graph, runs, and logs.
 Studio can inspect built pipelines beside agents. Register both as top-level targets:
 
 ```ts
-import { AgentBuilder, PipelineBuilder } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import { PipelineBuilder } from "@anvia/core/pipeline";
 import { Studio } from "@anvia/studio";
 
 const supportAgent = new AgentBuilder("support", model).build();

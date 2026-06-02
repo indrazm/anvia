@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "@anvia/core";
+import type { JsonObject, JsonValue } from "@anvia/core/completion";
 
 export function toJsonValue(value: unknown): JsonValue {
   return toJsonValueInternal(value, new WeakSet<object>());

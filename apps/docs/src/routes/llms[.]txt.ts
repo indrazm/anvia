@@ -228,7 +228,7 @@ const response = await agent.prompt("I cannot update my payment method.").send()
 Extractor shape:
 
 \`\`\`ts
-import { ExtractorBuilder } from "@anvia/core";
+import { ExtractorBuilder } from "@anvia/core/extractor";
 import { z } from "zod";
 
 const ticketSchema = z.object({
@@ -271,7 +271,7 @@ Use a pipeline for named stages such as normalize input, ask an agent, extract f
 Minimal shape:
 
 \`\`\`ts
-import { PipelineBuilder } from "@anvia/core";
+import { PipelineBuilder } from "@anvia/core/pipeline";
 
 type TicketInput = {
   customer: string;
@@ -341,7 +341,8 @@ Use static context when the text is short, global, and stable. Use retrieval whe
 Preprocess shape:
 
 \`\`\`ts
-import { InMemoryVectorStore, embedDocuments } from "@anvia/core";
+import { embedDocuments } from "@anvia/core/embeddings";
+import { InMemoryVectorStore } from "@anvia/core/vector-store";
 import { OpenAIClient } from "@anvia/openai";
 
 const client = new OpenAIClient({ apiKey });
@@ -484,7 +485,9 @@ Deployment shape:
 Wrapper shape:
 
 \`\`\`ts
-import { MaxTurnsError, Message, PromptCancelledError, type Agent } from "@anvia/core";
+import { type AgentBuilder, MaxTurnsError, Message, PromptCancelledError } from "@anvia/core";
+
+type Agent = ReturnType<AgentBuilder["build"]>;
 
 export async function runSupportAgent(agent: Agent, options: RunSupportAgentOptions) {
   try {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AssistantContent, Message, reasoningDisplayText, UserContent } from "../src/index";
+import { AssistantContent, Message, reasoningDisplayText, UserContent } from "./helpers/imports";
 
 describe("message attachment content", () => {
   it("creates user image and document attachments", () => {

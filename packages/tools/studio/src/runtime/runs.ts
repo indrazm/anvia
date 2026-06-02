@@ -1,4 +1,6 @@
-import type { AgentStreamEvent, AgentTraceOptions, Message } from "@anvia/core";
+import type { AgentStreamEvent } from "@anvia/core/agent";
+import type { Message } from "@anvia/core/completion";
+import type { AgentTraceOptions } from "@anvia/core/observability";
 import type { Context } from "hono";
 import { stream as streamResponse } from "hono/streaming";
 import type {

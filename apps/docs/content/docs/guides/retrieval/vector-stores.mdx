@@ -8,7 +8,7 @@ A vector store keeps embedded documents and exposes a searchable index. Anvia sh
 ## 1. Build a Store
 
 ```ts
-import { InMemoryVectorStore } from "@anvia/core";
+import { InMemoryVectorStore } from "@anvia/core/vector-store";
 
 const store = InMemoryVectorStore.fromDocuments(embedded);
 const index = store.index(embeddings);

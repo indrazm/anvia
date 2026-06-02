@@ -136,7 +136,9 @@ Tools use Zod schemas. Extractors use schemas. Pipelines preserve TypeScript inp
 The goal is not to remove all runtime errors. The goal is to make boundaries visible, testable, and hard to misuse casually.
 
 ```ts
-import { ExtractorBuilder, PipelineBuilder, createTool } from "@anvia/core";
+import { ExtractorBuilder } from "@anvia/core/extractor";
+import { PipelineBuilder } from "@anvia/core/pipeline";
+import { createTool } from "@anvia/core";
 import { z } from "zod";
 
 const ticketSchema = z.object({

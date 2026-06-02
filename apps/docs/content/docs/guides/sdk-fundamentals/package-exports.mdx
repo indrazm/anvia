@@ -10,7 +10,7 @@ import { AgentBuilder, createTool } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 ```
 
-The root export includes the core public SDK. Use it for most applications and examples.
+The root export includes the common app-authoring SDK. Use it for most small applications and examples.
 
 Studio is a separate package:
 
@@ -26,7 +26,7 @@ Anvia also exposes focused subpaths when you want narrower imports.
 
 | Export | Use for |
 | --- | --- |
-| `@anvia/core/agent` | Agents, agent builders, prompt requests, hooks, and agent errors |
+| `@anvia/core/agent` | Agent builders, stream event types, hooks, run controls, and agent errors |
 | `@anvia/core/completion` | Completion request types, messages, content helpers, and usage |
 | `@anvia/core/embeddings` | Embedding interfaces and shared embedding types |
 | `@anvia/core/evals` | Eval suites, built-in metrics, agent eval targets, and reporters |
@@ -39,6 +39,14 @@ Anvia also exposes focused subpaths when you want narrower imports.
 | `@anvia/core/tool` | Tool creation, tool sets, tool registries, and tool errors |
 | `@anvia/core/vector-store` | Vector store interfaces, filters, and local indexes |
 
+Internal entrypoints are intentionally separated from the public SDK:
+
+| Export | Use for |
+| --- | --- |
+| `@anvia/core/internal/agent` | Runtime agent internals used by Anvia integration packages |
+
+Internal entrypoints are unstable and should not be used by application code.
+
 ## Root Import Example
 
 ```ts
@@ -46,7 +54,7 @@ import { AgentBuilder, createTool } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 ```
 
-Root imports are clear for small apps, examples, and docs.
+Root imports are clear for small apps, examples, and docs when you only need common agent, tool, message, hook, skill, and error APIs.
 
 ## Subpath Import Example
 
@@ -60,4 +68,4 @@ Subpath imports can make ownership clearer in larger codebases, especially when 
 
 ## Recommendation
 
-Start with root imports while learning. Move to subpath imports when a file has a narrow responsibility or when your project style prefers explicit module boundaries.
+Start with root imports while learning. Move advanced APIs such as extractors, pipelines, MCP, evals, embeddings, vector stores, observability, and low-level tool sets to their focused subpaths.

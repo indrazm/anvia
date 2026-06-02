@@ -17,7 +17,7 @@ import {
   Message,
   type StreamingCompletionModel,
   Usage,
-} from "../src/index";
+} from "./helpers/imports";
 
 class QueueModel implements CompletionModel {
   readonly provider = "test";

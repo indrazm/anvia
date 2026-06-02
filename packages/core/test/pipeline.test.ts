@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import * as anvia from "../src/index";
+import * as anvia from "./helpers/imports";
 import {
   AgentBuilder,
   AssistantContent,
@@ -11,7 +11,7 @@ import {
   PipelineBuilder,
   type PipelineOp,
   Usage,
-} from "../src/index";
+} from "./helpers/imports";
 
 class QueueModel implements CompletionModel {
   readonly provider = "test";

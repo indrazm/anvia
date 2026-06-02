@@ -33,7 +33,8 @@ A support operations agent can inspect orders, refunds, tickets, subscriptions, 
 ## Code Example
 
 ```ts
-import { AgentBuilder, ToolSet, createToolIndex } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import { ToolSet, createToolIndex } from "@anvia/core/tool";
 import { embeddingModel, model } from "./models";
 import { createAdminTools, createBillingTools, createSupportTools } from "./tools";
 

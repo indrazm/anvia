@@ -35,7 +35,8 @@ Use this pattern when:
 ## Code Example
 
 ```ts
-import { InMemoryVectorStore, embedDocuments } from "@anvia/core";
+import { InMemoryVectorStore } from "@anvia/core/vector-store";
+import { embedDocuments } from "@anvia/core/embeddings";
 import { FileLoader, fileLoaderToDocuments } from "@anvia/core/loaders";
 import { embeddings } from "./models";
 

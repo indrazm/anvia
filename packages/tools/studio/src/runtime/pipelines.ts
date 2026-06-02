@@ -1,4 +1,5 @@
-import type { JsonObject, JsonValue, PipelineRunEvent } from "@anvia/core";
+import type { JsonObject, JsonValue } from "@anvia/core/completion";
+import type { PipelineRunEvent } from "@anvia/core/pipeline";
 import type { Context, Hono } from "hono";
 import { stream as streamResponse } from "hono/streaming";
 import type {

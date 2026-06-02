@@ -9,6 +9,7 @@
     "paths": {
       "@anvia/chroma": ["../../packages/vector-stores/chroma/src/index.ts"],
       "@anvia/core": ["../../packages/core/src/index.ts"],
+      "@anvia/core/internal/agent": ["../../packages/core/src/internal/agent.ts"],
       "@anvia/core/*": ["../../packages/core/src/*/index.ts"],
       "@anvia/fastembed": ["../../packages/embeddings/fastembed/src/index.ts"],
       "@anvia/gemini": ["../../packages/providers/gemini/src/index.ts"],

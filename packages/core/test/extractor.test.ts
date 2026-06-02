@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import * as agentLite from "../src/index";
+import * as agentLite from "./helpers/imports";
 import {
   AssistantContent,
   type CompletionModel,
@@ -9,7 +9,7 @@ import {
   ExtractorBuilder,
   Message,
   Usage,
-} from "../src/index";
+} from "./helpers/imports";
 
 class QueueModel implements CompletionModel {
   readonly provider = "test";

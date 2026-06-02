@@ -2,14 +2,8 @@ import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
-import type {
-  JsonObject,
-  JsonValue,
-  MemoryAppendInput,
-  MemoryContext,
-  MemoryErrorInput,
-  Message,
-} from "@anvia/core";
+import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
+import type { MemoryAppendInput, MemoryContext, MemoryErrorInput } from "@anvia/core/memory";
 import type {
   StudioPipelineLogAppendInput,
   StudioPipelineLogEntry,

@@ -33,7 +33,10 @@ Use this pattern when:
 ## Code Example
 
 ```ts
-import { AgentBuilder, ExtractorBuilder, PipelineBuilder, ToolSet, createToolIndex } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import { ExtractorBuilder } from "@anvia/core/extractor";
+import { PipelineBuilder } from "@anvia/core/pipeline";
+import { ToolSet, createToolIndex } from "@anvia/core/tool";
 import { z } from "zod";
 import { embeddingModel, model } from "./models";
 import { internalDocsIndex } from "./retrieval";
@@ -83,7 +86,7 @@ export const researchWorkflow = new PipelineBuilder<string>()
 If external research systems are MCP servers, inspect and filter their tools before adding them to the catalog.
 
 ```ts
-import { connectMcp, mcp } from "@anvia/core";
+import { connectMcp, mcp } from "@anvia/core/mcp";
 
 const docsServer = await connectMcp(mcp.http({
   name: "external-docs",

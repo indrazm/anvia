@@ -8,11 +8,7 @@ Observers are plain TypeScript objects or classes that receive runtime events fr
 ## 1. Create an Observer
 
 ```ts
-import type {
-  AgentObserver,
-  AgentRunObserver,
-  AgentRunStartArgs,
-} from "@anvia/core";
+import type { AgentObserver, AgentRunObserver, AgentRunStartArgs } from "@anvia/core/observability";
 
 class ConsoleObserver implements AgentObserver {
   startRun(args: AgentRunStartArgs): AgentRunObserver {

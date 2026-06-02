@@ -8,7 +8,7 @@ Anvia does not keep a global MCP registry. Your app should own connection storag
 ## App-Owned Registry
 
 ```ts
-import type { McpServer } from "@anvia/core";
+import type { McpServer } from "@anvia/core/mcp";
 
 class McpRegistry {
   private readonly servers = new Map<string, McpServer>();

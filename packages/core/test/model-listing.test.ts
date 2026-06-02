@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ModelList, ModelListingError } from "../src/index";
+import { type ModelList, ModelListingError } from "./helpers/imports";
 
 describe("model listing", () => {
   it("represents provider model lists", () => {

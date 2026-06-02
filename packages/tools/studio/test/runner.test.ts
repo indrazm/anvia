@@ -2,38 +2,31 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AgentBuilder, createHook, skipTool } from "@anvia/core/agent";
 import {
-  AgentBuilder,
-  type AgentObserver,
-  type AgentRunObserver,
-  type AgentRunStartArgs,
   AssistantContent,
   type CompletionRequest,
   type CompletionResponse,
   type CompletionStreamEvent,
-  connectMcp,
-  createHook,
-  createToolIndex,
-  type Embedding,
-  type EmbeddingModel,
-  type EvalMetric,
-  EvalOutcome,
-  embedDocuments,
-  InMemoryVectorStore,
   type JsonObject,
-  type McpClient,
   Message,
-  PipelineBuilder,
   type StreamingCompletionModel,
-  skipTool,
-  type Tool,
   ToolContent,
   Usage,
   UserContent,
+} from "@anvia/core/completion";
+import { type Embedding, type EmbeddingModel, embedDocuments } from "@anvia/core/embeddings";
+import { type EvalMetric, EvalOutcome } from "@anvia/core/evals";
+import { connectMcp, type McpClient } from "@anvia/core/mcp";
+import type { AgentObserver, AgentRunObserver, AgentRunStartArgs } from "@anvia/core/observability";
+import { PipelineBuilder } from "@anvia/core/pipeline";
+import { createToolIndex, type Tool } from "@anvia/core/tool";
+import {
+  InMemoryVectorStore,
   type VectorSearchIndex,
   type VectorSearchRequest,
   type VectorSearchToolOptions,
-} from "@anvia/core";
+} from "@anvia/core/vector-store";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Studio } from "../src/index";
 import { createSqliteSessionStore } from "../src/sqlite";

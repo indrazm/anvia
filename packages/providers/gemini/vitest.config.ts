@@ -15,6 +15,8 @@ export default defineConfig({
         "../../core/src/image-generation/index.ts",
         import.meta.url,
       ).pathname,
+      "@anvia/core/model-listing": new URL("../../core/src/model-listing/index.ts", import.meta.url)
+        .pathname,
       "@anvia/core/transcription": new URL("../../core/src/transcription/index.ts", import.meta.url)
         .pathname,
       "@anvia/core": new URL("../../core/src/index.ts", import.meta.url).pathname,

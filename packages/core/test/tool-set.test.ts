@@ -7,7 +7,7 @@ import {
   ToolNotFoundError,
   ToolOutput,
   ToolSet,
-} from "../src/index";
+} from "./helpers/imports";
 
 const addTool = createTool({
   name: "add",

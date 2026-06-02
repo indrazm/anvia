@@ -1,10 +1,5 @@
-import {
-  type AgentGenerationStartArgs,
-  AssistantContent,
-  Message,
-  type ToolCall,
-  type Usage,
-} from "@anvia/core";
+import { AssistantContent, Message, type ToolCall, type Usage } from "@anvia/core/completion";
+import type { AgentGenerationStartArgs } from "@anvia/core/observability";
 import {
   type Attributes,
   type Context,

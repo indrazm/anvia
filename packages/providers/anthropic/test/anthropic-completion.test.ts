@@ -1,14 +1,14 @@
+import { AgentBuilder } from "@anvia/core/agent";
 import {
-  AgentBuilder,
   AssistantContent,
   type CompletionRequest,
   type CompletionStreamEvent,
   Message,
-  type Tool,
   ToolContent,
   Usage,
   UserContent,
-} from "@anvia/core";
+} from "@anvia/core/completion";
+import type { Tool } from "@anvia/core/tool";
 import { describe, expect, it } from "vitest";
 import {
   AnthropicCompletionModel,

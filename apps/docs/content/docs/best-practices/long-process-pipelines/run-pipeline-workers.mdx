@@ -8,7 +8,7 @@ The worker owns execution. It should mark jobs running, call `pipeline.run(...)`
 ## Build the Pipeline
 
 ```ts
-import { PipelineBuilder } from "@anvia/core";
+import { PipelineBuilder } from "@anvia/core/pipeline";
 import { ticketAgent, ticketExtractor } from "./ai";
 import type { TicketJobData } from "./schema";
 
@@ -46,7 +46,7 @@ BullMQ workers need a Redis connection suitable for blocking commands. Keep this
 ## Worker Handler
 
 ```ts
-import { type PipelineRunEvent } from "@anvia/core";
+import type { PipelineRunEvent } from "@anvia/core/pipeline";
 import { Worker } from "bullmq";
 import { queueName } from "./queue";
 import { ticketPipeline } from "./pipeline";

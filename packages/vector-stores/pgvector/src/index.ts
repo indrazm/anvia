@@ -1,18 +1,20 @@
 import { createHash } from "node:crypto";
 import {
-  createVectorSearchTool,
   type EmbeddedDocument,
   type EmbeddingModel,
   embedText,
-  type Tool,
-  type VectorFilter,
   type VectorMetadata,
   type VectorMetadataValue,
+} from "@anvia/core/embeddings";
+import type { Tool } from "@anvia/core/tool";
+import {
+  createVectorSearchTool,
+  type VectorFilter,
   type VectorSearchIndex,
   type VectorSearchRequest,
   type VectorSearchResult,
   type VectorSearchToolOptions,
-} from "@anvia/core";
+} from "@anvia/core/vector-store";
 import pgvector from "pgvector";
 
 const reservedMetadataPrefix = "__anvia_";

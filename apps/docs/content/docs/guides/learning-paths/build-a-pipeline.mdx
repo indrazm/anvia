@@ -40,7 +40,7 @@ Do not use a pipeline just to send one prompt. Start with an agent and add a pip
 ## Minimal Shape
 
 ```ts
-import { PipelineBuilder } from "@anvia/core";
+import { PipelineBuilder } from "@anvia/core/pipeline";
 
 type TicketInput = {
   customer: string;
@@ -73,7 +73,9 @@ console.log(result.title);
 ## Agent and Extractor Shape
 
 ```ts
-import { AgentBuilder, ExtractorBuilder, PipelineBuilder } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import { ExtractorBuilder } from "@anvia/core/extractor";
+import { PipelineBuilder } from "@anvia/core/pipeline";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 

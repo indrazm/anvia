@@ -27,7 +27,8 @@ Use this pattern when an agent combines application-owned tools with MCP tools, 
 ## Code Example
 
 ```ts
-import { AgentBuilder, type McpServer } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import type { McpServer } from "@anvia/core/mcp";
 
 type McpRegistry = {
   get(name: string): McpServer | undefined;

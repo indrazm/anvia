@@ -1,4 +1,5 @@
-import { type Embedding, type EmbeddingModel, embedDocuments, vectorFilter } from "@anvia/core";
+import { type Embedding, type EmbeddingModel, embedDocuments } from "@anvia/core/embeddings";
+import { vectorFilter } from "@anvia/core/vector-store";
 import { describe, expect, it } from "vitest";
 import { filterToQdrantFilter, QdrantVectorStore } from "../src/index";
 

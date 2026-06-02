@@ -1,4 +1,4 @@
-import type { Message } from "@anvia/core";
+import type { Message } from "@anvia/core/completion";
 import type { ChangeEvent } from "react";
 import { formatToolValue } from "./format";
 import { isRecord } from "./object";

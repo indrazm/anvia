@@ -1,4 +1,5 @@
-import type { JsonObject, PipelineGraphNode, PipelineRunEvent } from "@anvia/core";
+import type { JsonObject } from "@anvia/core/completion";
+import type { PipelineGraphNode, PipelineRunEvent } from "@anvia/core/pipeline";
 import type {
   StudioPipeline,
   StudioPipelineLogAppendInput,

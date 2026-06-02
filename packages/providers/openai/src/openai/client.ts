@@ -1,5 +1,9 @@
-import { type ModelList, type ModelListingClient, ModelListingError } from "@anvia/core";
 import type { StreamingCompletionModel } from "@anvia/core/completion";
+import {
+  type ModelList,
+  type ModelListingClient,
+  ModelListingError,
+} from "@anvia/core/model-listing";
 import OpenAI from "openai";
 import { OpenAIAudioGenerationModel, TTS_1 } from "./audio-generation";
 import { OpenAIChatCompletionModel } from "./chat-completion";

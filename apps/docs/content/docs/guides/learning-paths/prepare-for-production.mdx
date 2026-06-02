@@ -79,12 +79,14 @@ Put agent calls behind a small application-owned wrapper so logging, history, tr
 
 ```ts
 import {
+  type AgentBuilder,
   MaxTurnsError,
   Message,
   PromptCancelledError,
-  type Agent,
   type Message as MessageType,
 } from "@anvia/core";
+
+type Agent = ReturnType<AgentBuilder["build"]>;
 
 type RunSupportAgentOptions = {
   userId: string;
