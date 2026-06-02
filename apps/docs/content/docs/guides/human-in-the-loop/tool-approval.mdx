@@ -77,7 +77,8 @@ Use normal tool execution for safe read-only tools such as lookup or search.
 Parse the pending tool arguments when only some calls need review.
 
 ```ts
-import { createHook, parseToolArgs } from "@anvia/core";
+import { createHook } from "@anvia/core";
+import { parseToolArgs } from "@anvia/core/tool";
 
 const approvalHook = createHook({
   onToolCall({ toolName, args, tool }) {

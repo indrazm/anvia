@@ -1,19 +1,16 @@
+import type { AgentStreamEvent, PromptResponse } from "@anvia/core/agent";
 import type {
-  Agent,
-  AgentStreamEvent,
-  AgentTraceInfo,
-  AgentTraceOptions,
   JsonObject,
   JsonValue,
-  MemoryStore,
   Message,
-  Pipeline,
-  PipelineGraph,
-  PromptResponse,
-  RunEvalSuiteOptions,
   ToolResultContent,
   Usage,
-} from "@anvia/core";
+} from "@anvia/core/completion";
+import type { RunEvalSuiteOptions } from "@anvia/core/evals";
+import type { Agent } from "@anvia/core/internal/agent";
+import type { MemoryStore } from "@anvia/core/memory";
+import type { AgentTraceInfo, AgentTraceOptions } from "@anvia/core/observability";
+import type { Pipeline, PipelineGraph } from "@anvia/core/pipeline";
 import type { Hono } from "hono";
 
 export type StudioCapability =

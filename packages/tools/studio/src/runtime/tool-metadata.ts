@@ -1,4 +1,4 @@
-import { type AnyTool, ToolSet } from "@anvia/core";
+import { type AnyTool, ToolSet } from "@anvia/core/tool";
 import type { StudioAgent, StudioAgentToolApprovalMetadata, StudioAgentToolSource } from "../types";
 
 export type AgentToolItem = {

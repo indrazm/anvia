@@ -1,4 +1,4 @@
-import { runEvalSuite } from "@anvia/core";
+import { runEvalSuite } from "@anvia/core/evals";
 import type { Context, Hono } from "hono";
 import type { StudioEvalRunRequest, StudioEvalRunResponse, StudioEvalSuite } from "../types";
 import { toJsonValue } from "./json";

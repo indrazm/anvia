@@ -4,7 +4,7 @@ import {
   Message,
   ToolContent,
   UserContent,
-} from "@anvia/core";
+} from "@anvia/core/completion";
 import { describe, expect, it } from "vitest";
 import { OpenAIChatCompletionModel, OpenAIClient } from "../src/index";
 import {

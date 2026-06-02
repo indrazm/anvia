@@ -20,7 +20,7 @@ pnpm --filter @anvia/core build
 
 ```ts
 import { z } from "zod";
-import { AgentBuilder, ExtractorBuilder, PipelineBuilder, createTool } from "@anvia/core";
+import { AgentBuilder, createTool } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 
 const client = new OpenAIClient({
@@ -72,13 +72,8 @@ await agent
 Configure durable conversation memory on the agent, then run through a session:
 
 ```ts
-import {
-  AgentBuilder,
-  type MemoryAppendInput,
-  type MemoryContext,
-  type MemoryStore,
-  type Message,
-} from "@anvia/core";
+import { AgentBuilder, type MemoryStore, type Message } from "@anvia/core";
+import type { MemoryAppendInput, MemoryContext } from "@anvia/core/memory";
 
 class AppMemoryStore implements MemoryStore {
   private readonly sessions = new Map<string, Message[]>();
@@ -113,6 +108,8 @@ new AgentBuilder("support", model).memory(memory, { savePolicy: "turn" });
 ## Structured Extraction
 
 ```ts
+import { ExtractorBuilder } from "@anvia/core/extractor";
+
 const ticketSchema = z.object({
   customer: z.string(),
   priority: z.enum(["low", "medium", "high"]),
@@ -129,6 +126,8 @@ const ticket = await extractor.extract(
 ## Pipelines
 
 ```ts
+import { PipelineBuilder } from "@anvia/core/pipeline";
+
 const pipeline = new PipelineBuilder<string>()
   .step((input) => `Extract this support ticket:\n\n${input}`)
   .prompt(agent)

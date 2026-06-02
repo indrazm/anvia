@@ -1,4 +1,4 @@
-import type { ModelListingError } from "@anvia/core";
+import type { ModelListingError } from "@anvia/core/model-listing";
 import { describe, expect, it } from "vitest";
 import { OpenAIClient } from "../src/index";
 

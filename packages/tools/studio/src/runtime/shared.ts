@@ -1,4 +1,5 @@
-import type { AgentTraceOptions, JsonObject, JsonValue, Message } from "@anvia/core";
+import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
+import type { AgentTraceOptions } from "@anvia/core/observability";
 import type { Context } from "hono";
 import { createInMemoryStudioStore } from "../storage/memory-store";
 import { createSqliteSessionStore } from "../storage/sqlite-store";

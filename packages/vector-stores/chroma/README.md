@@ -19,7 +19,7 @@ pnpm --filter @anvia/chroma build
 ## Usage
 
 ```ts
-import { embedDocuments } from "@anvia/core";
+import { embedDocuments } from "@anvia/core/embeddings";
 import { OpenAIClient } from "@anvia/openai";
 import { ChromaVectorStore } from "@anvia/chroma";
 

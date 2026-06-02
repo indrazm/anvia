@@ -1,4 +1,4 @@
-import { embedTexts } from "@anvia/core";
+import { embedTexts } from "@anvia/core/embeddings";
 import { describe, expect, it, vi } from "vitest";
 import {
   createTransformersEmbeddingModel,

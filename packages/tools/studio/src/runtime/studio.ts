@@ -1,15 +1,13 @@
 import {
-  Agent,
-  type Message as CoreMessage,
   createHook,
   type HookAction,
-  type JsonObject,
-  Message,
-  Pipeline,
   type PromptHook,
-  resolveMemoryOptions,
   type ToolCallHookAction,
-} from "@anvia/core";
+} from "@anvia/core/agent";
+import { type Message as CoreMessage, type JsonObject, Message } from "@anvia/core/completion";
+import { Agent } from "@anvia/core/internal/agent";
+import { resolveMemoryOptions } from "@anvia/core/memory";
+import { Pipeline } from "@anvia/core/pipeline";
 import { serve } from "@hono/node-server";
 import type { Hono } from "hono";
 import { Hono as HonoApp } from "hono";

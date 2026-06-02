@@ -55,7 +55,7 @@ Anvia loaders do ingestion only. For text chunking beyond PDF pages, preprocess 
 ## 3. Embed With Selectors
 
 ```ts
-import { embedDocuments } from "@anvia/core";
+import { embedDocuments } from "@anvia/core/embeddings";
 
 const embedded = await embedDocuments(embeddings, documents, {
   id: (doc) => doc.id,

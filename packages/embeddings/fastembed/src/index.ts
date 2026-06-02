@@ -1,4 +1,4 @@
-import type { Embedding, EmbeddingModel } from "@anvia/core";
+import type { Embedding, EmbeddingModel } from "@anvia/core/embeddings";
 import type { ExecutionProvider } from "fastembed";
 import { EmbeddingModel as FastEmbedModel, FlagEmbedding } from "fastembed";
 

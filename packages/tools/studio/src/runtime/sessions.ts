@@ -1,4 +1,4 @@
-import type { JsonObject } from "@anvia/core";
+import type { JsonObject } from "@anvia/core/completion";
 import type { Context, Hono } from "hono";
 import type { StudioAgent, StudioSessionStore, StudioTraceStore } from "../types";
 import { appendSessionLog, sessionCreatedLog } from "./session-logs";

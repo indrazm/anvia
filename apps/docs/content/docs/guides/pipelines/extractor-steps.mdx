@@ -8,7 +8,8 @@ Use `.extract(extractor)` when a pipeline stage should convert the current text 
 ## 1. Build the Extractor
 
 ```ts
-import { ExtractorBuilder, PipelineBuilder } from "@anvia/core";
+import { ExtractorBuilder } from "@anvia/core/extractor";
+import { PipelineBuilder } from "@anvia/core/pipeline";
 import { z } from "zod";
 
 const triageSchema = z.object({

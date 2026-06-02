@@ -14,7 +14,7 @@ import {
   type StreamingCompletionModel,
   Usage,
   UserContent,
-} from "../src/index";
+} from "./helpers/imports";
 
 const fullCapabilities: CompletionModelCapabilities = {
   streaming: true,

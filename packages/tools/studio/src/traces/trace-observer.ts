@@ -1,3 +1,4 @@
+import type { JsonObject, JsonValue } from "@anvia/core/completion";
 import type {
   AgentGenerationEndArgs,
   AgentGenerationErrorArgs,
@@ -13,9 +14,7 @@ import type {
   AgentToolObserver,
   AgentToolStartArgs,
   AgentToolStreamEventArgs,
-  JsonObject,
-  JsonValue,
-} from "@anvia/core";
+} from "@anvia/core/observability";
 import type {
   StudioTrace,
   StudioTraceObservation,

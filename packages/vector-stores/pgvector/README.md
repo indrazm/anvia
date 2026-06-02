@@ -19,7 +19,7 @@ pnpm --filter @anvia/pgvector build
 ## Usage
 
 ```ts
-import { embedDocuments } from "@anvia/core";
+import { embedDocuments } from "@anvia/core/embeddings";
 import { OpenAIClient } from "@anvia/openai";
 import { PgVectorStore } from "@anvia/pgvector";
 

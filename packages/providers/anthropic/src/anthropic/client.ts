@@ -1,5 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { type ModelList, type ModelListingClient, ModelListingError } from "@anvia/core";
+import {
+  type ModelList,
+  type ModelListingClient,
+  ModelListingError,
+} from "@anvia/core/model-listing";
 import { AnthropicCompletionModel } from "./completion";
 
 export type AnthropicClientOptions = {

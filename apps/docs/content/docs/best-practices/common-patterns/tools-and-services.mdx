@@ -65,7 +65,7 @@ The model sees a small action. Your application still owns access checks, tenant
 Create groups by domain, then combine them in the scoped agent factory or runner.
 
 ```ts
-import { ToolSet } from "@anvia/core";
+import { ToolSet } from "@anvia/core/tool";
 
 export function createSupportToolSet(scope: SupportToolScope) {
   return ToolSet.fromTools([

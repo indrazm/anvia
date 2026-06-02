@@ -1,18 +1,53 @@
-export * from "./agent/index";
-export * from "./audio-generation";
-export * from "./completion/index";
-export * from "./embeddings";
-export * from "./evals";
-export * from "./extractor";
-export * from "./image-generation";
-export * from "./mcp";
-export * from "./memory";
-export * from "./model-listing";
-export * from "./observability";
-export * from "./pipeline";
+export { AgentBuilder } from "./agent/builder";
+export { MaxTurnsError, PromptCancelledError } from "./agent/errors";
+export {
+  cancelPrompt,
+  createHook,
+  requestToolApproval,
+  runControl,
+  skipTool,
+  toolCallControl,
+} from "./agent/hooks";
+export type {
+  AgentChildStreamEvent,
+  AgentStreamEvent,
+  PromptResponse,
+} from "./agent/request";
+export type {
+  AssistantMessage,
+  CompletionModel,
+  CompletionRequest,
+  CompletionResponse,
+  Document,
+  ImageContent,
+  JsonObject,
+  JsonPrimitive,
+  JsonValue,
+  SystemMessage,
+  Text,
+  ToolCall,
+  ToolDefinition,
+  ToolMessage,
+  ToolResult,
+  ToolResultContent,
+  UserMessage,
+} from "./completion/index";
+export {
+  AssistantContent,
+  Message,
+  Usage,
+  UserContent,
+} from "./completion/index";
+export type { MemoryStore } from "./memory";
 export type { ZodSchema } from "./schema";
-export * from "./skills";
-export * from "./streaming";
-export * from "./tool/index";
-export * from "./transcription";
-export * from "./vector-store";
+export { loadSkills, SkillValidationError, skill } from "./skills";
+export type {
+  AnyTool,
+  CreateToolOptions,
+  Tool,
+  ToolApprovalContext,
+  ToolApprovalPolicy,
+  ToolCallContext,
+  ToolCallStreamEvent,
+} from "./tool/index";
+export { createThinkTool, createTool } from "./tool/index";

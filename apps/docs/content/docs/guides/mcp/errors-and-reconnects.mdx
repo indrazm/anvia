@@ -42,7 +42,7 @@ Keep turn limits low so a failing MCP tool cannot create an unbounded retry loop
 Anvia does not manage reconnects for you. Own that in your application registry.
 
 ```ts
-import type { McpConnection, McpServer } from "@anvia/core";
+import type { McpConnection, McpServer } from "@anvia/core/mcp";
 
 type McpRegistry = {
   get(name: string): McpServer | undefined;

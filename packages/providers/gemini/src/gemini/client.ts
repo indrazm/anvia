@@ -1,4 +1,8 @@
-import { type ModelList, type ModelListingClient, ModelListingError } from "@anvia/core";
+import {
+  type ModelList,
+  type ModelListingClient,
+  ModelListingError,
+} from "@anvia/core/model-listing";
 import { GoogleGenAI } from "@google/genai";
 import { GeminiCompletionModel } from "./completion";
 import { GeminiEmbeddingModel, type GeminiEmbeddingModelOptions } from "./embedding";

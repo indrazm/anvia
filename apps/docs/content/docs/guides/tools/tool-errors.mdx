@@ -18,7 +18,7 @@ Anvia distinguishes tool lookup, JSON parsing, and tool execution failures.
 When you call a `ToolSet` directly, catch tool errors at the call boundary.
 
 ```ts
-import { ToolCallError, ToolJsonError, ToolNotFoundError } from "@anvia/core";
+import { ToolCallError, ToolJsonError, ToolNotFoundError } from "@anvia/core/tool";
 
 try {
   const result = await toolSet.call("lookup_order", rawArgs);

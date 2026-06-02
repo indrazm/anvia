@@ -46,7 +46,8 @@ Think about retrieval in two phases:
 Run preprocessing before the user prompt. In a real app, this usually belongs in a build step, startup task, admin action, or background ingestion job.
 
 ```ts
-import { InMemoryVectorStore, embedDocuments } from "@anvia/core";
+import { InMemoryVectorStore } from "@anvia/core/vector-store";
+import { embedDocuments } from "@anvia/core/embeddings";
 import { OpenAIClient } from "@anvia/openai";
 
 const client = new OpenAIClient({ apiKey });

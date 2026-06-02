@@ -1,4 +1,5 @@
-import { type Agent, AgentBuilder } from "../agent/index";
+import type { Agent } from "../agent/agent";
+import { AgentBuilder } from "../agent/builder";
 import {
   CompletionCapabilityError,
   type CompletionModel,

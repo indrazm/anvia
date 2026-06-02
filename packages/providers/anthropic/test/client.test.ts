@@ -1,4 +1,4 @@
-import { Message } from "@anvia/core";
+import { Message } from "@anvia/core/completion";
 import { describe, expect, it } from "vitest";
 import { AnthropicClient, AnthropicCompletionModel } from "../src/index";
 

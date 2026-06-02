@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createThinkTool, ToolCallError, ToolSet } from "../src/index";
+import { createThinkTool, ToolCallError, ToolSet } from "./helpers/imports";
 
 describe("createThinkTool", () => {
   it("creates the default think tool definition", async () => {

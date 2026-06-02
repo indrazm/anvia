@@ -90,7 +90,7 @@ Call `.ignoreErrors()` when your ingestion job should skip failed files and cont
 After loading, pass the documents to `embedDocuments(...)`.
 
 ```ts
-import { embedDocuments } from "@anvia/core";
+import { embedDocuments } from "@anvia/core/embeddings";
 
 const embedded = await embedDocuments(embeddings, documents, {
   id: (document) => document.id,

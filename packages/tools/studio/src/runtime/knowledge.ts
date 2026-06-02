@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "@anvia/core";
+import type { JsonObject, JsonValue } from "@anvia/core/completion";
 import type { Hono } from "hono";
 import type {
   StudioAgent,

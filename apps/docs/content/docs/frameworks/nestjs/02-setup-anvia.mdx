@@ -9,9 +9,11 @@ In NestJS, wrap Anvia in services. Controllers should depend on methods like `ru
 
 ```ts
 import { Injectable } from "@nestjs/common";
-import { AgentBuilder, createTool, type Agent } from "@anvia/core";
+import { AgentBuilder, createTool } from "@anvia/core";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
+
+type Agent = ReturnType<AgentBuilder["build"]>;
 
 @Injectable()
 export class SupportAgentService {

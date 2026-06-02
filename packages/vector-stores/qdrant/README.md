@@ -19,7 +19,7 @@ pnpm --filter @anvia/qdrant build
 ## Usage
 
 ```ts
-import { embedDocuments } from "@anvia/core";
+import { embedDocuments } from "@anvia/core/embeddings";
 import { OpenAIClient } from "@anvia/openai";
 import { QdrantVectorStore } from "@anvia/qdrant";
 

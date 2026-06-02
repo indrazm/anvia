@@ -8,7 +8,7 @@ Tool result middleware runs after a tool produces its serialized string result a
 ## Create Middleware
 
 ```ts
-import { createToolMiddleware } from "@anvia/core";
+import { createToolMiddleware } from "@anvia/core/tool";
 
 const outputGate = createToolMiddleware({
   async onResult({ toolName, result, internalCallId }) {

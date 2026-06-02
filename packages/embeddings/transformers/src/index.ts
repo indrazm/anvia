@@ -1,4 +1,4 @@
-import type { Embedding, EmbeddingModel } from "@anvia/core";
+import type { Embedding, EmbeddingModel } from "@anvia/core/embeddings";
 import { pipeline as transformersPipeline } from "@huggingface/transformers";
 
 export const DEFAULT_TRANSFORMERS_EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2";

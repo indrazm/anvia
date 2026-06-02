@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDocument, Message, normalizeDocuments } from "../src/index";
+import { formatDocument, Message, normalizeDocuments } from "./helpers/imports";
 
 describe("completion document normalization", () => {
   it("returns no message for empty documents", () => {

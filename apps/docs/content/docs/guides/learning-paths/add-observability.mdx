@@ -43,7 +43,8 @@ Do not log sensitive prompt, document, or tool data unless your product policy a
 Observers are plain TypeScript interfaces, so object literals work. For app code, prefer a class when the observer will keep state, share configuration, or be reused across agents.
 
 ```ts
-import { AgentBuilder, type AgentObserver, type AgentRunObserver, type AgentRunStartArgs } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import type { AgentObserver, AgentRunObserver, AgentRunStartArgs } from "@anvia/core/observability";
 import { OpenAIClient } from "@anvia/openai";
 
 class ConsoleObserver implements AgentObserver {

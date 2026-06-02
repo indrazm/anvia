@@ -15,7 +15,9 @@ The internet access is ordinary application code. Anvia owns the workflow shape;
 ## 1. Define the Research Shape
 
 ```ts
-import { AgentBuilder, ExtractorBuilder, PipelineBuilder } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
+import { ExtractorBuilder } from "@anvia/core/extractor";
+import { PipelineBuilder } from "@anvia/core/pipeline";
 import { OpenAIClient } from "@anvia/openai";
 import { z } from "zod";
 

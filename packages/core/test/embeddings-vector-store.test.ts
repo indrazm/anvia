@@ -25,7 +25,7 @@ import {
   type StreamingCompletionModel,
   Usage,
   vectorFilter,
-} from "../src/index";
+} from "./helpers/imports";
 
 class KeywordEmbeddingModel implements EmbeddingModel {
   readonly maxBatchSize: number;

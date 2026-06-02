@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import * as anvia from "../src/index";
+import * as anvia from "./helpers/imports";
 import {
   AgentBuilder,
   type AgentGenerationEndArgs,
@@ -21,7 +21,7 @@ import {
   type StreamingCompletionModel,
   skipTool,
   Usage,
-} from "../src/index";
+} from "./helpers/imports";
 
 // @ts-expect-error - Langfuse moved to @anvia/langfuse.
 const removedLangfuseExport = anvia.langfuse;

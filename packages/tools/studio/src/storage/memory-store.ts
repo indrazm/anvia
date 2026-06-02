@@ -1,11 +1,5 @@
-import type {
-  JsonObject,
-  JsonValue,
-  MemoryAppendInput,
-  MemoryContext,
-  MemoryErrorInput,
-  Message,
-} from "@anvia/core";
+import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
+import type { MemoryAppendInput, MemoryContext, MemoryErrorInput } from "@anvia/core/memory";
 import type {
   StudioPipelineLogAppendInput,
   StudioPipelineLogEntry,
