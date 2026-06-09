@@ -25,6 +25,7 @@ import {
   type DynamicToolRegistration,
 } from "./agent";
 import type { PromptHook } from "./hooks";
+import { normalizeAgentId } from "./ids";
 
 export class AgentBuilder<M extends CompletionModel = CompletionModel> {
   private readonly agentId: string;
@@ -220,17 +221,4 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
     );
     return parts.length === 0 ? undefined : parts.join("\n\n");
   }
-}
-
-function normalizeAgentId(id: string): string {
-  if (typeof id !== "string") {
-    throw new TypeError("Agent id must be a string.");
-  }
-
-  const normalized = id.trim();
-  if (normalized.length === 0) {
-    throw new TypeError("Agent id must be a non-empty string.");
-  }
-
-  return normalized;
 }

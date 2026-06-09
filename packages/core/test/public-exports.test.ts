@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
 import * as publicAgent from "../src/agent";
+import * as audioGeneration from "../src/audio-generation";
+import * as completion from "../src/completion";
+import * as embeddings from "../src/embeddings";
+import * as evals from "../src/evals";
+import * as extractor from "../src/extractor";
+import * as imageGeneration from "../src/image-generation";
 import * as publicCore from "../src/index";
 import * as internalAgent from "../src/internal/agent";
+import * as loaders from "../src/loaders";
+import * as mcp from "../src/mcp";
+import * as modelListing from "../src/model-listing";
+import * as observability from "../src/observability";
+import * as pipeline from "../src/pipeline";
+import * as skills from "../src/skills";
+import * as streaming from "../src/streaming";
+import * as tool from "../src/tool";
+import * as transcription from "../src/transcription";
+import * as vectorStore from "../src/vector-store";
 
 describe("public exports", () => {
   it("exposes AgentBuilder from the public entrypoints", () => {
@@ -16,5 +32,27 @@ describe("public exports", () => {
 
   it("exposes runtime Agent through the internal agent entrypoint", () => {
     expect("Agent" in internalAgent).toBe(true);
+  });
+
+  it("keeps public subpath runtime exports available", () => {
+    expect(audioGeneration).toHaveProperty("AudioGenerationRequestBuilder");
+    expect(audioGeneration).toHaveProperty("audioGenerationRequest");
+    expect(completion).toHaveProperty("CompletionRequestBuilder");
+    expect(completion).toHaveProperty("Message");
+    expect(embeddings).toHaveProperty("embedText");
+    expect(evals).toHaveProperty("runEvalSuite");
+    expect(evals).toHaveProperty("EvalOutcome");
+    expect(extractor).toHaveProperty("ExtractorBuilder");
+    expect(imageGeneration).toHaveProperty("ImageGenerationRequestBuilder");
+    expect(loaders).toHaveProperty("FileLoader");
+    expect(mcp).toHaveProperty("connectMcp");
+    expect(modelListing).toHaveProperty("ModelListingError");
+    expect(observability).toHaveProperty("createObserver");
+    expect(pipeline).toHaveProperty("PipelineBuilder");
+    expect(skills).toHaveProperty("loadSkills");
+    expect(streaming).toHaveProperty("toReadableStream");
+    expect(tool).toHaveProperty("createTool");
+    expect(transcription).toHaveProperty("TranscriptionRequestBuilder");
+    expect(vectorStore).toHaveProperty("InMemoryVectorStore");
   });
 });
