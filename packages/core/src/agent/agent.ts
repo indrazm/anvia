@@ -17,6 +17,7 @@ import type { AnyTool, NormalizedToolOutput, Tool, ToolCallContext } from "../to
 import { ToolSet } from "../tool/tool-set";
 import type { VectorFilter, VectorSearchIndex, VectorSearchResult } from "../vector-store";
 import type { PromptHook } from "./hooks";
+import { normalizeAgentId } from "./ids";
 import { PromptRequest } from "./request";
 import { isStreamingCompletionModel } from "./utils";
 
@@ -290,17 +291,4 @@ function dynamicToolSetFromIndex(
 ): ToolSet | undefined {
   const maybeIndex = index as { toolSet?: unknown };
   return maybeIndex.toolSet instanceof ToolSet ? maybeIndex.toolSet : undefined;
-}
-
-function normalizeAgentId(id: string): string {
-  if (typeof id !== "string") {
-    throw new TypeError("Agent id must be a string.");
-  }
-
-  const normalized = id.trim();
-  if (normalized.length === 0) {
-    throw new TypeError("Agent id must be a non-empty string.");
-  }
-
-  return normalized;
 }

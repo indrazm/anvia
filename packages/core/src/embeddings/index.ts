@@ -1,30 +1,13 @@
-export type Embedding = {
-  document: string;
-  vector: number[];
-};
+import { mapWithConcurrency } from "../internal/concurrency";
+import type {
+  EmbedDocumentsOptions,
+  EmbeddedDocument,
+  Embedding,
+  EmbeddingModel,
+  VectorMetadata,
+} from "./types";
 
-export interface EmbeddingModel {
-  readonly dimensions?: number | undefined;
-  readonly maxBatchSize?: number | undefined;
-  embedTexts(texts: string[]): Promise<Embedding[]>;
-}
-
-export type EmbeddedDocument<T, Metadata extends VectorMetadata = VectorMetadata> = {
-  id: string;
-  document: T;
-  metadata?: Metadata | undefined;
-  embeddings: Embedding[];
-};
-
-export type VectorMetadataValue = string | number | boolean | null;
-export type VectorMetadata = Record<string, VectorMetadataValue>;
-
-export type EmbedDocumentsOptions<T, Metadata extends VectorMetadata = VectorMetadata> = {
-  id?: ((document: T, index: number) => string) | undefined;
-  content(document: T, index: number): string | string[];
-  metadata?: ((document: T, index: number) => Metadata | undefined) | undefined;
-  concurrency?: number | undefined;
-};
+export type * from "./types";
 
 export async function embedText(model: EmbeddingModel, text: string): Promise<Embedding> {
   const embeddings = await embedTexts(model, [text]);
@@ -163,24 +146,4 @@ function chunk<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-
-  async function worker(): Promise<void> {
-    while (next < items.length) {
-      const index = next;
-      next += 1;
-      results[index] = await mapper(items[index] as T);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
-  return results;
 }
