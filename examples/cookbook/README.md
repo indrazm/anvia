@@ -21,7 +21,7 @@ Legacy script names such as `cookbook:basic:01`, `cookbook:intermediate:14`, `co
 | Section | Focus |
 | --- | --- |
 | `01_basics` | First text calls, explicit transcripts, static context, streaming, HTTP stream transports, `ReadableStream` output, and durable session memory. |
-| `02_tools` | Tool schemas, streamed tool events, hooks, concurrency, conditional tools, think tools, application state, history with tools, guarded tools, and dynamic tool selection. |
+| `02_tools` | Tool schemas, streamed tool events, hooks, concurrency, conditional tools, think tools, application state, history with tools, guarded tools, dynamic tool selection, and Docker sandbox tools. |
 | `03_structured_output` | Schema-first extraction, agent output schemas, context, retries, and extraction with prior messages. |
 | `04_providers_and_multimodal` | Provider adapters, model capabilities, model listing, reasoning streams, image/PDF attachments, image generation, audio generation, and transcription. |
 | `05_pipelines` | Step transforms, async steps, composition, named parallel branches, batching, agents, extractors, and richer workflows. |
@@ -67,6 +67,7 @@ Not every example needs every variable. Pure pipeline, dynamic tool, and core ev
 - Tool history and loader examples write sample files under `.memory`.
 - Image and audio generation examples write generated media files in the current working directory.
 - `providers:09` uses the bundled `assets/audio/voice.wav` sample by default. Set `ANVIA_AUDIO_FILE` to transcribe a different local audio file.
+- `tools:11` requires Docker and runs code in an ephemeral `@anvia/sandbox` container workspace.
 
 ## Representative No-Network Checks
 

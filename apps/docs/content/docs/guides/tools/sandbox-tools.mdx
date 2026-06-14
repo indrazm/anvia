@@ -1,0 +1,104 @@
+---
+title: Sandbox Tools
+description: Run code and file operations inside an ephemeral Docker workspace.
+---
+
+`@anvia/sandbox` lets an agent work inside an isolated Docker workspace instead of the host filesystem.
+
+Use it when a tool workflow needs to execute generated code, write files, inspect outputs, or run a short command with a cleanup boundary.
+
+## Install
+
+```sh
+pnpm add @anvia/sandbox
+```
+
+Docker must be installed and running on the machine that hosts the agent.
+
+## Create a Session
+
+```ts
+import { DockerSandbox } from "@anvia/sandbox";
+
+const sandbox = new DockerSandbox({
+  image: "node:22-bookworm",
+  limits: {
+    timeoutMs: 30_000,
+    maxOutputBytes: 64_000,
+    memoryMb: 512,
+    cpus: 1,
+  },
+});
+
+const session = await sandbox.createSession({
+  manifest: {
+    files: {
+      "index.js": "console.log('hello sandbox')",
+    },
+  },
+});
+
+try {
+  const result = await session.exec({
+    command: "node",
+    args: ["index.js"],
+  });
+
+  console.log(result.stdout);
+} finally {
+  await session.destroy();
+}
+```
+
+V1 sessions are ephemeral. `destroy()` removes the container and workspace volume.
+
+## Add Sandbox Tools to an Agent
+
+```ts
+import { AgentBuilder } from "@anvia/core/agent";
+import { createSandboxTools, DockerSandbox } from "@anvia/sandbox";
+
+const sandbox = new DockerSandbox();
+const session = await sandbox.createSession();
+
+const agent = new AgentBuilder("coder", model)
+  .instructions("Use the sandbox for code execution and file operations.")
+  .tools(createSandboxTools(session))
+  .defaultMaxTurns(6)
+  .build();
+
+try {
+  const response = await agent
+    .prompt("Write a JavaScript file that prints the first five Fibonacci numbers, run it, and summarize the output.")
+    .send();
+
+  console.log(response.output);
+} finally {
+  await session.destroy();
+}
+```
+
+The default bundle exposes:
+
+| Tool | Purpose |
+| --- | --- |
+| `exec_command` | Run a structured command with `command` and `args` |
+| `read_file` | Read a text file from the sandbox workspace |
+| `write_file` | Write a text file, creating parent directories |
+| `list_files` | List files and directories under a workspace path |
+
+## Safety Defaults
+
+`DockerSandbox` disables network access by default, drops Docker capabilities, enables `no-new-privileges`, rejects unsafe paths, truncates large output, and enforces command timeouts.
+
+Do not bind mount the host project into a sandbox for untrusted code. Stage the files a task needs through `manifest`, `writeFile(...)`, or `write_file`.
+
+## Test Real Docker Behavior
+
+The package keeps real Docker tests opt-in:
+
+```sh
+ANVIA_SANDBOX_DOCKER_TESTS=1 pnpm --filter @anvia/sandbox test
+```
+
+Normal test runs use unit tests so CI and local development do not require Docker.

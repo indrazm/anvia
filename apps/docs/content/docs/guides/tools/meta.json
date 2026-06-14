@@ -9,6 +9,7 @@
     "tool-results",
     "tool-middleware",
     "tool-sets",
+    "sandbox-tools",
     "think-tool",
     "tool-errors"
   ]

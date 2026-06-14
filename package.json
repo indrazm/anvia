@@ -30,6 +30,7 @@
     "cookbook:tools:08": "pnpm --filter cookbook tools:08",
     "cookbook:tools:09": "pnpm --filter cookbook tools:09",
     "cookbook:tools:10": "pnpm --filter cookbook tools:10",
+    "cookbook:tools:11": "pnpm --filter cookbook tools:11",
     "cookbook:structured-output": "pnpm --filter cookbook structured-output",
     "cookbook:structured-output:01": "pnpm --filter cookbook structured-output:01",
     "cookbook:structured-output:02": "pnpm --filter cookbook structured-output:02",

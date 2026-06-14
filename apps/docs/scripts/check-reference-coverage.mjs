@@ -10,6 +10,7 @@ const packageDocs = new Map([
   ["@anvia/core", "apps/docs/content/docs/reference/core"],
   ["@anvia/server", "apps/docs/content/docs/reference/server.mdx"],
   ["@anvia/react", "apps/docs/content/docs/reference/react.mdx"],
+  ["@anvia/sandbox", "apps/docs/content/docs/reference/sandbox.mdx"],
   ["@anvia/openai", "apps/docs/content/docs/reference/providers/openai.mdx"],
   ["@anvia/gemini", "apps/docs/content/docs/reference/providers/gemini.mdx"],
   ["@anvia/anthropic", "apps/docs/content/docs/reference/providers/anthropic.mdx"],
