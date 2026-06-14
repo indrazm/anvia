@@ -6,7 +6,6 @@ import {
 } from "@anvia/core/agent";
 import { type Message as CoreMessage, type JsonObject, Message } from "@anvia/core/completion";
 import { Agent } from "@anvia/core/internal/agent";
-import { resolveMemoryOptions } from "@anvia/core/memory";
 import { Pipeline } from "@anvia/core/pipeline";
 import { serve } from "@hono/node-server";
 import type { Hono } from "hono";
@@ -234,9 +233,9 @@ function agentMetadata(agent: Agent): JsonObject {
 function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   const observabilityHub = new StudioObservabilityHub();
   const stores = observeStores(resolveStores(options), observabilityHub);
-  const agents = normalizeAgents(options.agents)
-    .map((agent) => withStudioSessionMemory(agent, stores.sessions))
-    .map((agent) => withStudioTraceObserver(agent, stores.traces));
+  const agents = normalizeAgents(options.agents).map((agent) =>
+    withStudioTraceObserver(agent, stores.traces),
+  );
   const pipelines = normalizePipelines(options.pipelines);
   const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
   const pipelineMap = new Map(pipelines.map((pipeline) => [pipeline.id, pipeline]));
@@ -356,13 +355,27 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
       ...(body.metadata ?? {}),
       studioRunId: runId,
     };
+    const promptMessage = normalizePromptMessage(body.message);
+    const sessionStore = stores.sessions;
+    const shouldPersistSessionMessages =
+      session !== undefined &&
+      sessionStore !== undefined &&
+      !usesStoreAsAgentMemory(agent.agent, sessionStore);
+    if (shouldPersistSessionMessages) {
+      await sessionStore.append({
+        context: { sessionId: session.id, metadata: memoryMetadata },
+        runId,
+        turn: 1,
+        messages: [promptMessage],
+      });
+    }
     const request =
       session !== undefined
-        ? agent.agent.session(session.id, { metadata: memoryMetadata }).prompt(body.message)
+        ? agent.agent.memory === undefined
+          ? agent.agent.prompt([...session.messages, promptMessage])
+          : agent.agent.session(session.id, { metadata: memoryMetadata }).prompt(body.message)
         : agent.agent.prompt(
-            body.history !== undefined
-              ? [...body.history, normalizePromptMessage(body.message)]
-              : body.message,
+            body.history !== undefined ? [...body.history, promptMessage] : body.message,
           );
     if (body.maxTurns !== undefined) {
       request.maxTurns(body.maxTurns);
@@ -403,28 +416,29 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
       }
       const runStream = mergeRunAndApprovalEvents(request.stream(), runtimeEvents);
       const stream =
-        session === undefined || stores.sessions === undefined
+        session === undefined || sessionStore === undefined
           ? runStream
           : persistStreamingSessionTranscript({
               stream: streamSessionRunLogs({
                 stream: runStream,
-                store: stores.sessions,
+                store: sessionStore,
                 session,
                 runId,
                 startedAt: runStartedAt,
               }),
-              store: stores.sessions,
+              store: sessionStore,
               session,
               message: body.message,
               runId,
+              persistGeneratedMessages: shouldPersistSessionMessages,
             });
       return streamAgentRunEvents(c, stream);
     }
 
     try {
       if (session !== undefined) {
-        await appendSessionLog(stores.sessions, runStartedLog(session, runId));
-        await appendSessionLog(stores.sessions, memoryLoadedLog(session, runId));
+        await appendSessionLog(sessionStore, runStartedLog(session, runId));
+        await appendSessionLog(sessionStore, memoryLoadedLog(session, runId));
       }
       const effectiveHook = composeHooks(
         composeHooks(
@@ -448,8 +462,19 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
         request.requestHook(effectiveHook);
       }
       const response = await request.send();
-      if (session !== undefined && stores.sessions !== undefined) {
-        await stores.sessions.saveSessionRunTranscript({
+      if (session !== undefined && sessionStore !== undefined) {
+        if (shouldPersistSessionMessages) {
+          const generatedMessages = response.messages.slice(1);
+          if (generatedMessages.length > 0) {
+            await sessionStore.append({
+              context: { sessionId: session.id, metadata: memoryMetadata },
+              runId,
+              turn: 1,
+              messages: generatedMessages,
+            });
+          }
+        }
+        await sessionStore.saveSessionRunTranscript({
           id: session.id,
           runId,
           ...optionalTitle(body.message),
@@ -457,7 +482,7 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
           status: "success",
         });
         await appendSessionLog(
-          stores.sessions,
+          sessionStore,
           runCompletedLog({
             sessionId: session.id,
             runId,
@@ -468,7 +493,7 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
           }),
         );
         await appendSessionLog(
-          stores.sessions,
+          sessionStore,
           memorySavedLog({
             sessionId: session.id,
             runId,
@@ -478,12 +503,12 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
       }
       return c.json(response);
     } catch (error) {
-      if (session !== undefined && stores.sessions !== undefined) {
-        const messages = await stores.sessions.load({
+      if (session !== undefined && sessionStore !== undefined) {
+        const messages = await sessionStore.load({
           sessionId: session.id,
           metadata: memoryMetadata,
         });
-        await stores.sessions.saveSessionRunTranscript({
+        await sessionStore.saveSessionRunTranscript({
           id: session.id,
           runId,
           ...optionalTitle(body.message),
@@ -491,10 +516,7 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
           status: "error",
           error: serializeError(error),
         });
-        await appendSessionLog(
-          stores.sessions,
-          runFailedLog(session.id, runId, error, runStartedAt),
-        );
+        await appendSessionLog(sessionStore, runFailedLog(session.id, runId, error, runStartedAt));
       }
       return errorResponse(c, 500, "internal_error", "Agent run failed", serializeError(error));
     }
@@ -538,23 +560,8 @@ function normalizePromptMessage(message: string | CoreMessage): CoreMessage {
   return typeof message === "string" ? Message.user(message) : message;
 }
 
-function withStudioSessionMemory(
-  studioAgent: StudioAgent,
-  sessionStore: StudioSessionStore | undefined,
-): StudioAgent {
-  if (sessionStore === undefined) {
-    return studioAgent;
-  }
-
-  return {
-    ...studioAgent,
-    agent: cloneAgent(studioAgent.agent, {
-      memory: {
-        store: sessionStore,
-        options: resolveMemoryOptions({ savePolicy: "message" }),
-      },
-    }),
-  };
+function usesStoreAsAgentMemory(agent: Agent, store: StudioSessionStore): boolean {
+  return agent.memory?.store === store;
 }
 
 function withStudioTraceObserver(

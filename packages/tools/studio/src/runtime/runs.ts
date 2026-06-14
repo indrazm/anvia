@@ -146,6 +146,7 @@ export async function* persistStreamingSessionTranscript(props: {
   session: StudioSession;
   message: string | Message;
   runId: string;
+  persistGeneratedMessages?: boolean;
 }): AsyncIterable<AgentRunStreamEvent> {
   const transcript: StudioTranscriptEntry[] = [messageToTranscriptEntry(props.message, 0)];
   const title = optionalTitle(props.message);
@@ -172,6 +173,15 @@ export async function* persistStreamingSessionTranscript(props: {
       });
       if (nextSession === undefined) {
         throw new Error("Session not found");
+      }
+      const generatedMessages = event.type === "final" ? event.messages.slice(1) : [];
+      if (props.persistGeneratedMessages === true && generatedMessages.length > 0) {
+        await props.store.append({
+          context: { sessionId: props.session.id },
+          runId: props.runId,
+          turn: 1,
+          messages: generatedMessages,
+        });
       }
 
       yield event;

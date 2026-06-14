@@ -8,6 +8,7 @@ import {
   type CompletionRequest,
   type CompletionResponse,
   type CompletionStreamEvent,
+  type Message as CoreMessage,
   type JsonObject,
   Message,
   type StreamingCompletionModel,
@@ -18,6 +19,12 @@ import {
 import { type Embedding, type EmbeddingModel, embedDocuments } from "@anvia/core/embeddings";
 import { type EvalMetric, EvalOutcome } from "@anvia/core/evals";
 import { connectMcp, type McpClient } from "@anvia/core/mcp";
+import type {
+  MemoryAppendInput,
+  MemoryContext,
+  MemoryErrorInput,
+  MemoryStore,
+} from "@anvia/core/memory";
 import type { AgentObserver, AgentRunObserver, AgentRunStartArgs } from "@anvia/core/observability";
 import { PipelineBuilder } from "@anvia/core/pipeline";
 import { createToolIndex, type Tool } from "@anvia/core/tool";
@@ -137,6 +144,30 @@ class GatedReasoningModel implements StreamingCompletionModel {
       this.releaseText = resolve;
     });
     yield { type: "text_delta", delta: "done" };
+  }
+}
+
+class RecordingMemoryStore implements MemoryStore {
+  readonly appendCalls: MemoryAppendInput[] = [];
+  readonly errorCalls: MemoryErrorInput[] = [];
+  private readonly sessions = new Map<string, CoreMessage[]>();
+
+  async load(context: MemoryContext): Promise<CoreMessage[]> {
+    return [...(this.sessions.get(context.sessionId) ?? [])];
+  }
+
+  async append(input: MemoryAppendInput): Promise<void> {
+    this.appendCalls.push({ ...input, messages: [...input.messages] });
+    const current = this.sessions.get(input.context.sessionId) ?? [];
+    this.sessions.set(input.context.sessionId, [...current, ...input.messages]);
+  }
+
+  async clear(context: MemoryContext): Promise<void> {
+    this.sessions.delete(context.sessionId);
+  }
+
+  async recordError(input: MemoryErrorInput): Promise<void> {
+    this.errorCalls.push({ ...input, messages: [...input.messages] });
   }
 }
 
@@ -934,7 +965,7 @@ describe("Anvia studio", () => {
       dynamicToolCount: 0,
       approvalToolCount: 0,
       mcpToolCount: 0,
-      hasMemory: true,
+      hasMemory: false,
       hasHook: false,
       hasOutputSchema: false,
       defaultMaxTurns: 4,
@@ -2206,6 +2237,65 @@ describe("Anvia studio", () => {
         { kind: "message", role: "assistant", text: "First answer" },
         { kind: "message", role: "user", text: "Follow up" },
         { kind: "message", role: "assistant", text: "Second answer" },
+      ],
+    });
+  });
+
+  it("preserves agent memory stores during Studio session runs", async () => {
+    const model = new QueueModel([
+      response([AssistantContent.text("First answer")]),
+      response([AssistantContent.text("Second answer")]),
+    ]);
+    const memory = new RecordingMemoryStore();
+    const agent = new AgentBuilder("support", model).memory(memory).build();
+    const runner = new Studio([agent]);
+
+    const created = await runner.fetch(
+      new Request("http://runner.test/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentId: "support", title: "Memory session" }),
+      }),
+    );
+    const session = (await created.json()) as { id: string };
+
+    const firstRun = await runner.fetch(
+      new Request("http://runner.test/agents/support/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: "First question", sessionId: session.id }),
+      }),
+    );
+    expect(firstRun.status).toBe(200);
+
+    const secondRun = await runner.fetch(
+      new Request("http://runner.test/agents/support/runs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message: "Follow up", sessionId: session.id }),
+      }),
+    );
+    expect(secondRun.status).toBe(200);
+
+    expect(memory.appendCalls.map((call) => call.messages.map((message) => message.role))).toEqual([
+      ["user"],
+      ["assistant"],
+      ["user"],
+      ["assistant"],
+    ]);
+    expect(model.requests[1]?.chatHistory).toEqual([
+      Message.user("First question"),
+      Message.assistant("First answer"),
+      Message.user("Follow up"),
+    ]);
+
+    const loaded = await runner.fetch(new Request(`http://runner.test/sessions/${session.id}`));
+    await expect(loaded.json()).resolves.toMatchObject({
+      messages: [
+        Message.user("First question"),
+        Message.assistant("First answer"),
+        Message.user("Follow up"),
+        Message.assistant("Second answer"),
       ],
     });
   });
