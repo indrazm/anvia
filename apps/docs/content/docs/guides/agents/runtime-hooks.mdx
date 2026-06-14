@@ -3,7 +3,7 @@ title: Runtime Hooks
 description: Observe and customize agent runtime behavior with hooks.
 ---
 
-Hooks run inside a prompt request and can inspect or alter runtime behavior. Use observers for telemetry. Use hooks for guardrails, approval checks, skipped tools, and cancellation. Use [tool middleware](/docs/guides/tools/tool-middleware) when you need to transform tool result text before the model receives it.
+Hooks run inside a prompt request and can inspect or alter runtime behavior. Use observers for telemetry. Use hooks for lifecycle guardrails, approval checks, skipped tools, errors, and cancellation. Use [middleware](/docs/guides/tools/tool-middleware) when you need to transform model requests, model responses, tool inputs, or tool outputs.
 
 ## Create a Hook
 
@@ -11,6 +11,12 @@ Hooks run inside a prompt request and can inspect or alter runtime behavior. Use
 import { createHook } from "@anvia/core";
 
 const hook = createHook({
+  onRunStart({ prompt }) {
+    console.log("run_start", { role: prompt.role });
+  },
+  onTurnStart({ turn }) {
+    console.log("turn_start", turn);
+  },
   onCompletionCall({ prompt, history }) {
     console.log("model_call", { role: prompt.role, history: history.length });
   },
@@ -23,12 +29,20 @@ const hook = createHook({
   onToolResult({ toolName, result }) {
     console.log("tool_result", { toolName, result });
   },
+  onTurnEnd({ turn }) {
+    console.log("turn_end", turn);
+  },
+  onRunEnd({ output }) {
+    console.log("run_end", output);
+  },
 });
 
 const agent = new AgentBuilder("support", model).hook(hook).build();
 ```
 
-Register an agent hook with `.hook(...)`, or set a hook for one prompt request with `.requestHook(...)`. A request hook replaces the agent hook for that request.
+Register an agent hook with `.hook(...)`, or set a hook for one prompt request with `.withHook(...)`. A request hook replaces the agent hook for that request.
+
+`requestHook(...)` is still available as a deprecated alias for `.withHook(...)`.
 
 ## Control a Tool Call
 
@@ -41,12 +55,12 @@ const hook = createHook({
       return tool.skip("Order lookup is temporarily unavailable.");
     }
 
-    return tool.run();
+    return undefined;
   },
 });
 ```
 
-`tool.run()` executes the tool. `tool.skip(...)` does not execute the tool; the message becomes the tool result sent back to the model. `tool.requestApproval(...)` asks an approval-capable runtime such as Studio to pause the tool call for a human decision.
+Returning `undefined` executes the tool. `tool.run()` is still available when explicit continuation reads better. `tool.skip(...)` does not execute the tool; the message becomes the tool result sent back to the model. `tool.requestApproval(...)` asks an approval-capable runtime such as Studio to pause the tool call for a human decision.
 
 Tool result middleware runs after this decision produces a result string and before `onToolResult(...)` observes it.
 
@@ -84,7 +98,7 @@ const hook = createHook({
       return run.cancel("Prompt blocked by policy.");
     }
 
-    return run.continue();
+    return undefined;
   },
 });
 ```
@@ -104,3 +118,25 @@ const hook = createHook({
 ```
 
 Cancellation throws `PromptCancelledError`. Catch it at the application boundary when you want to return a user-facing message.
+
+## Handle Runtime Errors
+
+Use error hooks when cancellation or cleanup depends on a specific failure point.
+
+```ts
+const hook = createHook({
+  onCompletionError({ error, run }) {
+    if (isPolicyError(error)) {
+      return run.cancel("Model call blocked by policy.");
+    }
+  },
+  onToolError({ toolName, error }) {
+    console.warn("tool_error", { toolName, error });
+  },
+  onRunError({ error }) {
+    console.error("run_error", error);
+  },
+});
+```
+
+`onCompletionError(...)` runs when the model call fails. `onToolError(...)` runs when a tool throws before the error is converted into a model-visible tool result. `onRunError(...)` runs before the failed run is recorded.

@@ -11,7 +11,7 @@ import type { MemoryRegistration, SessionOptions } from "../memory";
 import type { AgentObserverRegistration } from "../observability";
 import { createTool } from "../tool/create-tool";
 import type { ToolSearchDocument } from "../tool/dynamic-tools";
-import type { ToolMiddleware } from "../tool/middleware";
+import type { AgentMiddleware } from "../tool/middleware";
 import { isSkillTool } from "../tool/skill-tool-marker";
 import type { AnyTool, NormalizedToolOutput, Tool, ToolCallContext } from "../tool/tool";
 import { ToolSet } from "../tool/tool-set";
@@ -39,7 +39,11 @@ export type AgentOptions<M extends CompletionModel = CompletionModel> = {
   observers?: AgentObserverRegistration[] | undefined;
   dynamicContexts?: DynamicContextRegistration[] | undefined;
   dynamicTools?: DynamicToolRegistration[] | undefined;
-  toolMiddlewares?: ToolMiddleware[] | undefined;
+  middlewares?: AgentMiddleware[] | undefined;
+  /**
+   * @deprecated Use `middlewares` instead.
+   */
+  toolMiddlewares?: AgentMiddleware[] | undefined;
   memory?: MemoryRegistration | undefined;
   eventStore?: AgentEventStoreRegistration | undefined;
 };
@@ -126,7 +130,11 @@ export class Agent<M extends CompletionModel = CompletionModel> {
   readonly observers: AgentObserverRegistration[];
   readonly dynamicContexts: DynamicContextRegistration[];
   readonly dynamicTools: DynamicToolRegistration[];
-  readonly toolMiddlewares: ToolMiddleware[];
+  readonly middlewares: AgentMiddleware[];
+  /**
+   * @deprecated Use `middlewares` instead.
+   */
+  readonly toolMiddlewares: AgentMiddleware[];
   readonly memory: MemoryRegistration | undefined;
   readonly eventStore: AgentEventStoreRegistration | undefined;
 
@@ -148,7 +156,8 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     this.observers = options.observers ?? [];
     this.dynamicContexts = options.dynamicContexts ?? [];
     this.dynamicTools = options.dynamicTools ?? [];
-    this.toolMiddlewares = options.toolMiddlewares ?? [];
+    this.middlewares = options.middlewares ?? options.toolMiddlewares ?? [];
+    this.toolMiddlewares = this.middlewares;
     this.memory = options.memory;
     this.eventStore = options.eventStore;
   }

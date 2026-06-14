@@ -1,17 +1,32 @@
 ---
-title: Tool Middleware
-description: Transform tool results before they are returned to the model.
+title: Middleware
+description: Transform model requests, model responses, tool inputs, and tool outputs.
 ---
 
-Tool result middleware runs after a tool produces its serialized string result and before that result is sent back to the model. Use it for output gates, redaction, compression, or file references when a tool result is too large.
+Middleware transforms data at runtime boundaries. Use hooks for cancellation, approvals, and guardrails. Use observers for telemetry. Use middleware when you need to change what goes into or comes out of a model or tool call.
 
 ## Create Middleware
 
 ```ts
-import { createToolMiddleware } from "@anvia/core/tool";
+import { createMiddleware } from "@anvia/core";
 
-const outputGate = createToolMiddleware({
-  async onResult({ toolName, result, internalCallId }) {
+const runtimePolicy = createMiddleware({
+  onCompletionRequest({ request }) {
+    return {
+      request: {
+        ...request,
+        temperature: 0.2,
+      },
+    };
+  },
+
+  onToolInput({ toolName, args }) {
+    if (toolName === "search") {
+      return { args: { ...JSON.parse(args), limit: 5 } };
+    }
+  },
+
+  async onToolOutput({ toolName, result, internalCallId }) {
     if (result.length <= 1_000) {
       return undefined;
     }
@@ -31,40 +46,63 @@ const outputGate = createToolMiddleware({
 });
 ```
 
-Return a string to replace the current tool result. Return `undefined` to keep the current result.
+Return `undefined` to keep the current value.
+
+Middleware can implement:
+
+- `onCompletionRequest(...)`: replace the model request before the provider call.
+- `onCompletionResponse(...)`: replace the model response before response hooks, memory, tool execution, and final output handling.
+- `onToolInput(...)`: replace serialized tool args before the tool executes.
+- `onToolOutput(...)`: replace tool result text or structured result content before `onToolResult(...)` and before the model receives the tool message.
 
 ## Register On An Agent
 
 ```ts
 const agent = new AgentBuilder("support", model)
   .tools([lookupOrder, exportReport])
-  .toolMiddleware(outputGate)
+  .middleware(runtimePolicy)
   .build();
 ```
 
-Middleware applies to tool results from local tools, MCP tools, dynamic tools, vector search tools, and agents exposed with `agent.asTool(...)`.
+Middleware applies to local tools, MCP tools, dynamic tools, vector search tools, and agents exposed with `agent.asTool(...)`.
 
 ## Register For One Request
 
 ```ts
 const response = await agent
   .prompt("Summarize the large report.")
-  .withToolMiddleware(outputGate)
+  .withMiddleware(runtimePolicy)
   .send();
 ```
 
-Use request middleware when one caller needs stricter output policy than the agent default.
+Use request middleware when one caller needs stricter policy than the agent default.
 
 ## Compose Middleware
 
 ```ts
 const agent = new AgentBuilder("support", model)
-  .toolMiddlewares([redactSecrets, outputGate])
+  .middlewares([redactSecrets, outputGate])
   .build();
 ```
 
 Middleware runs in registration order. Agent middleware runs before request middleware. Each middleware receives the latest `result` and the unchanged `originalResult`.
 
+The previous tool-result-only APIs are still available as deprecated aliases:
+
+```ts
+import { createToolMiddleware } from "@anvia/core/tool";
+
+new AgentBuilder("support", model)
+  .toolMiddleware(createToolMiddleware({
+    onResult({ result }) {
+      return redact(result);
+    },
+  }))
+  .build();
+```
+
+Prefer `createMiddleware(...)`, `.middleware(...)`, `.middlewares(...)`, `.withMiddleware(...)`, and `.withMiddlewares(...)` for new code.
+
 ## Skill Tools
 
-Skill runtime tools are excluded from tool result middleware. Their behavior is owned by the skills runtime, including loading instructions, reading references, and running skill scripts.
+Skill runtime tools are excluded from tool output middleware. Their behavior is owned by the skills runtime, including loading instructions, reading references, and running skill scripts.

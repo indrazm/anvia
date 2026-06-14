@@ -26,6 +26,8 @@ class Agent<M extends CompletionModel = CompletionModel> {
   readonly observers: AgentObserverRegistration[];
   readonly dynamicContexts: DynamicContextRegistration[];
   readonly dynamicTools: DynamicToolRegistration[];
+  readonly middlewares: AgentMiddleware[];
+  /** @deprecated Use middlewares instead. */
   readonly toolMiddlewares: ToolMiddleware[];
   readonly memory?: MemoryRegistration;
   readonly eventStore?: AgentEventStoreRegistration;
@@ -66,6 +68,8 @@ type AgentOptions<M extends CompletionModel = CompletionModel> = {
   observers?: AgentObserverRegistration[];
   dynamicContexts?: DynamicContextRegistration[];
   dynamicTools?: DynamicToolRegistration[];
+  middlewares?: AgentMiddleware[];
+  /** @deprecated Use middlewares instead. */
   toolMiddlewares?: ToolMiddleware[];
   memory?: MemoryRegistration;
   eventStore?: AgentEventStoreRegistration;
@@ -100,7 +104,11 @@ class AgentBuilder<M extends CompletionModel = CompletionModel> {
   toolChoice(toolChoice: ToolChoice): this;
   defaultMaxTurns(defaultMaxTurns: number): this;
   hook(hook: PromptHook): this;
+  middleware(middleware: AgentMiddleware): this;
+  middlewares(middlewares: AgentMiddleware[]): this;
+  /** @deprecated Use middleware instead. */
   toolMiddleware(middleware: ToolMiddleware): this;
+  /** @deprecated Use middlewares instead. */
   toolMiddlewares(middlewares: ToolMiddleware[]): this;
   observe(observer: AgentObserver, options?: ObserveOptions): this;
   memory(store: MemoryStore, options?: MemoryOptions): this;
@@ -235,9 +243,15 @@ class PromptRequest<M extends CompletionModel = CompletionModel> {
   ): PromptRequest<M>;
 
   maxTurns(maxTurns: number): this;
+  withHook(hook: PromptHook): this;
+  /** @deprecated Use withHook instead. */
   requestHook(hook: PromptHook): this;
   withToolConcurrency(concurrency: number): this;
+  withMiddleware(middleware: AgentMiddleware): this;
+  withMiddlewares(middlewares: AgentMiddleware[]): this;
+  /** @deprecated Use withMiddleware instead. */
   withToolMiddleware(middleware: ToolMiddleware): this;
+  /** @deprecated Use withMiddlewares instead. */
   withToolMiddlewares(middlewares: ToolMiddleware[]): this;
   withTrace(trace: AgentTraceOptions): this;
   send(): Promise<PromptResponse>;
@@ -328,9 +342,49 @@ type CompletionCallHookArgs = {
   run: RunControl;
 };
 
+type RunStartHookArgs = {
+  prompt: Message;
+  history: Message[];
+  maxTurns: number;
+  run: RunControl;
+};
+
+type RunEndHookArgs = {
+  output: string;
+  usage: Usage;
+  messages: Message[];
+  run: RunControl;
+};
+
+type RunErrorHookArgs = {
+  error: unknown;
+  usage: Usage;
+  messages: Message[];
+  run: RunControl;
+};
+
+type TurnStartHookArgs = {
+  turn: number;
+  prompt: Message;
+  history: Message[];
+  run: RunControl;
+};
+
+type TurnEndHookArgs<RawResponse = unknown> = {
+  turn: number;
+  response: CompletionResponse<RawResponse>;
+  run: RunControl;
+};
+
 type CompletionResponseHookArgs<RawResponse = unknown> = {
   prompt: Message;
   response: CompletionResponse<RawResponse>;
+  run: RunControl;
+};
+
+type CompletionErrorHookArgs = {
+  prompt: Message;
+  error: unknown;
   run: RunControl;
 };
 
@@ -350,6 +404,11 @@ type ToolResultHookArgs = ToolHookArgs & {
   run: RunControl;
 };
 
+type ToolErrorHookArgs = ToolHookArgs & {
+  error: unknown;
+  run: RunControl;
+};
+
 const runControl: RunControl;
 const toolCallControl: ToolCallControl;
 
@@ -359,7 +418,7 @@ function skipTool(reason: string): ToolCallHookAction;
 function requestToolApproval(options?: ToolApprovalRequestOptions): ToolCallHookAction;
 ```
 
-Purpose: intercept completion calls, completion responses, tool calls, and tool results.
+Purpose: intercept run lifecycle, turn lifecycle, completion calls, completion responses, completion errors, tool calls, tool results, and tool errors.
 
 Return behavior: callback controls such as `tool.run()`, `tool.skip(...)`, `tool.cancel(...)`, `tool.requestApproval(...)`, `run.continue()`, and `run.cancel(...)` create actions consumed by `PromptRequest`. The low-level `cancelPrompt(...)`, `skipTool(...)`, and `requestToolApproval(...)` helpers are also available.
 

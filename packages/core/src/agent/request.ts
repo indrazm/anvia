@@ -19,7 +19,7 @@ import type { MemoryContext } from "../memory";
 import { type ActiveAgentRunObservers, startAgentRunObservers } from "../observability/group";
 import type { AgentTraceInfo, AgentTraceOptions } from "../observability/types";
 import { toReadableStream } from "../streaming";
-import type { ToolMiddleware } from "../tool/middleware";
+import type { AgentMiddleware, ToolMiddleware } from "../tool/middleware";
 import type { Agent } from "./agent";
 import { MaxTurnsError, PromptCancelledError } from "./errors";
 import type { PromptHook } from "./hooks";
@@ -114,7 +114,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
   private activeHook: PromptHook | undefined;
   private concurrency = 1;
   private traceOptions: AgentTraceOptions | undefined;
-  private requestToolMiddlewares: ToolMiddleware[] = [];
+  private requestMiddlewares: AgentMiddleware[] = [];
   private readonly memoryRecorder: PromptRequestMemory;
 
   private constructor(
@@ -143,9 +143,16 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     return this;
   }
 
-  requestHook(hook: PromptHook): this {
+  withHook(hook: PromptHook): this {
     this.activeHook = hook;
     return this;
+  }
+
+  /**
+   * @deprecated Use `withHook` instead.
+   */
+  requestHook(hook: PromptHook): this {
+    return this.withHook(hook);
   }
 
   withToolConcurrency(concurrency: number): this {
@@ -153,14 +160,28 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     return this;
   }
 
-  withToolMiddleware(middleware: ToolMiddleware): this {
-    this.requestToolMiddlewares.push(middleware);
+  withMiddleware(middleware: AgentMiddleware): this {
+    this.requestMiddlewares.push(middleware);
     return this;
   }
 
-  withToolMiddlewares(middlewares: ToolMiddleware[]): this {
-    this.requestToolMiddlewares.push(...middlewares);
+  withMiddlewares(middlewares: AgentMiddleware[]): this {
+    this.requestMiddlewares.push(...middlewares);
     return this;
+  }
+
+  /**
+   * @deprecated Use `withMiddleware` instead.
+   */
+  withToolMiddleware(middleware: ToolMiddleware): this {
+    return this.withMiddleware(middleware);
+  }
+
+  /**
+   * @deprecated Use `withMiddlewares` instead.
+   */
+  withToolMiddlewares(middlewares: ToolMiddleware[]): this {
+    return this.withMiddlewares(middlewares);
   }
 
   withTrace(trace: AgentTraceOptions): this {
@@ -179,6 +200,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     const runObservers = await this.startRunObservers();
 
     try {
+      await this.runRunStartHook(newMessages);
       while (currentTurns <= this.maxTurnCount + 1) {
         const prompt = newMessages.at(-1);
         if (prompt === undefined) {
@@ -189,12 +211,13 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         currentTurns += 1;
 
         const historyForRequest = [...this.chatHistory, ...newMessages.slice(0, -1)];
+        await this.runTurnStartHook(currentTurns, prompt, historyForRequest, newMessages);
         await this.runCompletionCallHook(prompt, historyForRequest, newMessages);
 
         const ragText = extractRagText(prompt);
         const dynamicContext = await fetchDynamicContext(this.agent, ragText);
         const toolDefs = await fetchToolDefinitions(this.agent, ragText);
-        const request = new CompletionRequestBuilder(this.agent.model, prompt)
+        let request = new CompletionRequestBuilder(this.agent.model, prompt)
           .instructions(this.agent.instructions)
           .messages(historyForRequest)
           .documents([...this.agent.staticContext, ...dynamicContext])
@@ -205,10 +228,19 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           .toolChoice(this.agent.toolChoice)
           .outputSchema(this.agent.outputSchema)
           .build();
+        request = await this.runCompletionRequestMiddlewares(request, currentTurns);
 
-        const response = await this.runCompletion(request, currentTurns, runObservers);
+        let response: CompletionResponse;
+        try {
+          response = await this.runCompletion(request, currentTurns, runObservers);
+        } catch (error) {
+          await this.runCompletionErrorHook(prompt, error, newMessages);
+          throw error;
+        }
+        response = await this.runCompletionResponseMiddlewares(request, response, currentTurns);
         usage = Usage.add(usage, response.usage);
         await this.runCompletionResponseHook(prompt, response, newMessages);
+        await this.runTurnEndHook(currentTurns, response, newMessages);
 
         const assistantMessage = Message.assistant(response.choice, response.messageId);
         newMessages.push(assistantMessage);
@@ -234,6 +266,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             messages: [...newMessages],
             trace: runObservers.trace,
           };
+          await this.runRunEndHook(result, newMessages);
           await runObservers.end(result);
           return result;
         }
@@ -262,9 +295,10 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
       throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
-      await runObservers.error({ error, usage, messages: [...newMessages] });
-      await this.memoryRecorder.recordError(runId, error, newMessages);
-      throw error;
+      const finalError = await this.runRunErrorHook(error, usage, newMessages);
+      await runObservers.error({ error: finalError, usage, messages: [...newMessages] });
+      await this.memoryRecorder.recordError(runId, finalError, newMessages);
+      throw finalError;
     }
   }
 
@@ -287,6 +321,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     };
 
     try {
+      await this.runRunStartHook(newMessages);
       while (currentTurns <= this.maxTurnCount + 1) {
         const prompt = newMessages.at(-1);
         if (prompt === undefined) {
@@ -303,12 +338,13 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           prompt,
           history: historyForRequest,
         });
+        await this.runTurnStartHook(currentTurns, prompt, historyForRequest, newMessages);
         await this.runCompletionCallHook(prompt, historyForRequest, newMessages);
 
         const ragText = extractRagText(prompt);
         const dynamicContext = await fetchDynamicContext(this.agent, ragText);
         const toolDefs = await fetchToolDefinitions(this.agent, ragText);
-        const request = new CompletionRequestBuilder(this.agent.model, prompt)
+        let request = new CompletionRequestBuilder(this.agent.model, prompt)
           .instructions(this.agent.instructions)
           .messages(historyForRequest)
           .documents([...this.agent.staticContext, ...dynamicContext])
@@ -319,6 +355,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           .toolChoice(this.agent.toolChoice)
           .outputSchema(this.agent.outputSchema)
           .build();
+        request = await this.runCompletionRequestMiddlewares(request, currentTurns);
 
         assertCompletionRequestSupported(this.agent.model, request, { streaming: true });
         const providerRequest = this.providerTraceRequest(request, { stream: true });
@@ -350,17 +387,20 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           }
         } catch (error) {
           await generationObservers.error({ turn: currentTurns, error });
+          await this.runCompletionErrorHook(prompt, error, newMessages);
           throw error;
         }
 
-        const response = accumulator.response();
+        let response = accumulator.response();
         await generationObservers.end({
           turn: currentTurns,
           response,
           ...(firstDeltaMs === undefined ? {} : { firstDeltaMs }),
         });
+        response = await this.runCompletionResponseMiddlewares(request, response, currentTurns);
         usage = Usage.add(usage, response.usage);
         await this.runCompletionResponseHook(prompt, response, newMessages);
+        await this.runTurnEndHook(currentTurns, response, newMessages);
 
         const assistantMessage = Message.assistant(response.choice, response.messageId);
         newMessages.push(assistantMessage);
@@ -394,6 +434,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             messages: [...newMessages],
             trace: runObservers.trace,
           });
+          await this.runRunEndHook({ output, usage, messages: [...newMessages] }, newMessages);
           await runObservers.end({ output, usage, messages: [...newMessages] });
           return;
         }
@@ -435,10 +476,11 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
       throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
-      await runObservers.error({ error, usage, messages: [...newMessages] });
-      await this.memoryRecorder.recordError(runId, error, newMessages);
-      yield await emit({ type: "error", error });
-      throw error;
+      const finalError = await this.runRunErrorHook(error, usage, newMessages);
+      await runObservers.error({ error: finalError, usage, messages: [...newMessages] });
+      await this.memoryRecorder.recordError(runId, finalError, newMessages);
+      yield await emit({ type: "error", error: finalError });
+      throw finalError;
     }
   }
 
@@ -501,7 +543,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       this.agent,
       this.activeHook,
       this.concurrency,
-      this.requestToolMiddlewares,
+      this.requestMiddlewares,
       (reason) => this.cancelled(newMessages, reason),
     );
     return executor.execute(toolCalls, onResult, onStreamEvent, observation);
@@ -569,6 +611,117 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     }
   }
 
+  private async runRunStartHook(newMessages: MessageType[]): Promise<void> {
+    const action = await this.activeHook?.onRunStart?.({
+      prompt: this.promptMessage,
+      history: this.chatHistory,
+      maxTurns: this.maxTurnCount,
+      run: runControl,
+    });
+    if (action?.type === "terminate") {
+      throw this.cancelled(newMessages, action.reason);
+    }
+  }
+
+  private async runRunEndHook(result: PromptResponse, newMessages: MessageType[]): Promise<void> {
+    const action = await this.activeHook?.onRunEnd?.({
+      output: result.output,
+      usage: result.usage,
+      messages: result.messages,
+      run: runControl,
+    });
+    if (action?.type === "terminate") {
+      throw this.cancelled(newMessages, action.reason);
+    }
+  }
+
+  private async runRunErrorHook(
+    error: unknown,
+    usage: Usage,
+    newMessages: MessageType[],
+  ): Promise<unknown> {
+    const action = await this.activeHook?.onRunError?.({
+      error,
+      usage,
+      messages: [...this.chatHistory, ...newMessages],
+      run: runControl,
+    });
+    if (action?.type === "terminate") {
+      return this.cancelled(newMessages, action.reason);
+    }
+    return error;
+  }
+
+  private async runTurnStartHook(
+    turn: number,
+    prompt: MessageType,
+    history: MessageType[],
+    newMessages: MessageType[],
+  ): Promise<void> {
+    const action = await this.activeHook?.onTurnStart?.({
+      turn,
+      prompt,
+      history,
+      run: runControl,
+    });
+    if (action?.type === "terminate") {
+      throw this.cancelled(newMessages, action.reason);
+    }
+  }
+
+  private async runTurnEndHook(
+    turn: number,
+    response: CompletionResponse,
+    newMessages: MessageType[],
+  ): Promise<void> {
+    const action = await this.activeHook?.onTurnEnd?.({
+      turn,
+      response,
+      run: runControl,
+    });
+    if (action?.type === "terminate") {
+      throw this.cancelled(newMessages, action.reason);
+    }
+  }
+
+  private async runCompletionRequestMiddlewares(
+    request: ReturnType<CompletionRequestBuilder["build"]>,
+    turn: number,
+  ): Promise<ReturnType<CompletionRequestBuilder["build"]>> {
+    let current = request;
+    for (const middleware of this.activeMiddlewares()) {
+      const replacement = await middleware.onCompletionRequest?.({
+        turn,
+        request: current,
+        originalRequest: request,
+      });
+      if (replacement?.request !== undefined) {
+        current = replacement.request;
+      }
+    }
+    return current;
+  }
+
+  private async runCompletionResponseMiddlewares(
+    request: ReturnType<CompletionRequestBuilder["build"]>,
+    response: CompletionResponse,
+    turn: number,
+  ): Promise<CompletionResponse> {
+    let current = response;
+    for (const middleware of this.activeMiddlewares()) {
+      const replacement = await middleware.onCompletionResponse?.({
+        turn,
+        request,
+        response: current,
+        originalResponse: response,
+      });
+      if (replacement?.response !== undefined) {
+        current = replacement.response;
+      }
+    }
+    return current;
+  }
+
   private async runCompletionResponseHook(
     prompt: MessageType,
     response:
@@ -584,6 +737,25 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     if (action?.type === "terminate") {
       throw this.cancelled(newMessages, action.reason);
     }
+  }
+
+  private async runCompletionErrorHook(
+    prompt: MessageType,
+    error: unknown,
+    newMessages: MessageType[],
+  ): Promise<void> {
+    const action = await this.activeHook?.onCompletionError?.({
+      prompt,
+      error,
+      run: runControl,
+    });
+    if (action?.type === "terminate") {
+      throw this.cancelled(newMessages, action.reason);
+    }
+  }
+
+  private activeMiddlewares(): AgentMiddleware[] {
+    return [...this.agent.middlewares, ...this.requestMiddlewares];
   }
 
   private cancelled(newMessages: MessageType[], reason: string): PromptCancelledError {

@@ -10,7 +10,11 @@ import { mapWithConcurrency } from "../internal/concurrency";
 import type { ActiveAgentRunObservers, ActiveToolObservers } from "../observability/group";
 import type { AnyTool, NormalizedToolOutput, ToolCallStreamEvent } from "../tool";
 import { toolResultContentToText } from "../tool";
-import type { ToolMiddleware, ToolResultMiddlewareArgs } from "../tool/middleware";
+import type {
+  AgentMiddleware,
+  ToolOutputMiddlewareArgs,
+  ToolOutputMiddlewareResult,
+} from "../tool/middleware";
 import type { Agent } from "./agent";
 import type { PromptHook, ToolHookArgs } from "./hooks";
 import { runControl, toolCallControl } from "./hooks";
@@ -51,7 +55,7 @@ export class ToolCallExecutor {
     private readonly agent: Agent,
     private readonly activeHook: PromptHook | undefined,
     private readonly concurrency: number,
-    private readonly requestToolMiddlewares: ToolMiddleware[],
+    private readonly requestMiddlewares: AgentMiddleware[],
     private readonly cancel: (reason: string) => Error,
   ) {}
 
@@ -119,19 +123,25 @@ export class ToolCallExecutor {
 
       let output: NormalizedToolOutput;
       let skipped = false;
+      let effectiveArgs = args;
       if (callAction?.type === "skip") {
         output = callAction.reason;
         skipped = true;
       } else {
+        effectiveArgs = await this.runToolInputMiddlewares({
+          ...hookArgs,
+          turn: observation?.turn ?? 0,
+          originalArgs: args,
+        });
         try {
-          output = await this.agent.callTool(toolCall.function.name, args, {
+          output = await this.agent.callTool(toolCall.function.name, effectiveArgs, {
             emitStreamEvent: async (event) => {
               await toolObservers?.streamEvent({
                 turn: observation?.turn ?? 0,
                 toolCall,
                 toolName: toolCall.function.name,
                 internalCallId,
-                args,
+                args: effectiveArgs,
                 ...(toolCall.callId === undefined ? {} : { toolCallId: toolCall.callId }),
                 event,
               });
@@ -142,6 +152,24 @@ export class ToolCallExecutor {
             },
           });
         } catch (error) {
+          const errorAction = await this.activeHook?.onToolError?.({
+            ...hookArgs,
+            args: effectiveArgs,
+            error,
+            run: runControl,
+          });
+          await toolObservers?.error({
+            turn: observation?.turn ?? 0,
+            toolCall,
+            toolName: toolCall.function.name,
+            internalCallId,
+            args: effectiveArgs,
+            ...(toolCall.callId === undefined ? {} : { toolCallId: toolCall.callId }),
+            error,
+          });
+          if (errorAction?.type === "terminate") {
+            throw this.cancel(errorAction.reason);
+          }
           output = error instanceof Error ? error.toString() : String(error);
         }
       }
@@ -151,6 +179,7 @@ export class ToolCallExecutor {
       if (this.agent.shouldApplyToolMiddleware(toolCall.function.name)) {
         const middlewareReplacement = await this.runToolResultMiddlewares({
           ...hookArgs,
+          args: effectiveArgs,
           result,
           originalResult: result,
           structuredResult,
@@ -159,13 +188,14 @@ export class ToolCallExecutor {
         });
         if (middlewareReplacement !== undefined) {
           output = middlewareReplacement;
-          result = middlewareReplacement;
-          structuredResult = undefined;
+          result = toolOutputToText(middlewareReplacement);
+          structuredResult = toolOutputToStructuredResult(middlewareReplacement);
         }
       }
 
       const resultAction = await this.activeHook?.onToolResult?.({
         ...hookArgs,
+        args: effectiveArgs,
         result,
         structuredResult,
         run: runControl,
@@ -175,7 +205,7 @@ export class ToolCallExecutor {
         toolCall,
         toolName: toolCall.function.name,
         internalCallId,
-        args,
+        args: effectiveArgs,
         result,
         structuredResult,
         skipped,
@@ -189,7 +219,7 @@ export class ToolCallExecutor {
         type: "tool_result",
         toolName: toolCall.function.name,
         internalCallId,
-        args,
+        args: effectiveArgs,
         result,
         structuredResult,
       };
@@ -202,22 +232,75 @@ export class ToolCallExecutor {
   }
 
   private async runToolResultMiddlewares(
-    args: ToolResultMiddlewareArgs,
-  ): Promise<string | undefined> {
+    args: ToolOutputMiddlewareArgs,
+  ): Promise<NormalizedToolOutput | undefined> {
     let result = args.result;
+    let structuredResult = args.structuredResult;
     let replaced = false;
-    for (const middleware of [...this.agent.toolMiddlewares, ...this.requestToolMiddlewares]) {
-      const replacement = await middleware.onResult?.({
+    for (const middleware of this.activeMiddlewares()) {
+      const outputReplacement = await middleware.onToolOutput?.({
         ...args,
         result,
+        structuredResult,
       });
-      if (replacement !== undefined) {
-        result = replacement;
+      if (outputReplacement !== undefined) {
+        const normalized = normalizeToolOutputMiddlewareResult(outputReplacement);
+        if (normalized.result !== undefined) {
+          result = normalized.result;
+          structuredResult = undefined;
+        }
+        if (normalized.structuredResult !== undefined) {
+          structuredResult = normalized.structuredResult;
+          result = toolResultContentToText(normalized.structuredResult);
+        }
+        replaced = true;
+      }
+      const legacyReplacement = await middleware.onResult?.({
+        ...args,
+        result,
+        structuredResult,
+      });
+      if (legacyReplacement !== undefined) {
+        result = legacyReplacement;
+        structuredResult = undefined;
         replaced = true;
       }
     }
-    return replaced ? result : undefined;
+    return replaced ? (structuredResult ?? result) : undefined;
   }
+
+  private async runToolInputMiddlewares(
+    args: ToolHookArgs & { turn: number; originalArgs: string },
+  ): Promise<string> {
+    let current = args.args;
+    for (const middleware of this.activeMiddlewares()) {
+      const replacement = await middleware.onToolInput?.({
+        ...args,
+        args: current,
+      });
+      if (replacement?.args !== undefined) {
+        current =
+          typeof replacement.args === "string"
+            ? replacement.args
+            : JSON.stringify(replacement.args);
+      }
+    }
+    return current;
+  }
+
+  private activeMiddlewares(): AgentMiddleware[] {
+    return [...this.agent.middlewares, ...this.requestMiddlewares];
+  }
+}
+
+function normalizeToolOutputMiddlewareResult(result: ToolOutputMiddlewareResult): {
+  result?: string | undefined;
+  structuredResult?: ToolResultContent[] | undefined;
+} {
+  if (typeof result === "string") {
+    return { result };
+  }
+  return result ?? {};
 }
 
 function toolTraceMetadata(tool: AnyTool | undefined): JsonObject | undefined {
