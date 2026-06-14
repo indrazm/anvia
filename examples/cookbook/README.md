@@ -63,7 +63,7 @@ Not every example needs every variable. Pure pipeline, dynamic tool, and core ev
 - `retrieval:08` uses the compose pgvector connection on host port `5439` by default. Set `DATABASE_URL` to point it at another Postgres database.
 - Langfuse examples need Langfuse credentials and live in `10_integrations`.
 - `integrations:06` logs agent lifecycle events with `@anvia/logger`.
-- Studio examples start a local HTTP server and keep Studio state in memory unless `ANVIA_STUDIO_DB` is set. `studio:10` shows explicit SQLite store wiring for sessions, traces, pipeline logs, and pipeline run history.
+- Studio examples start a local HTTP server and keep Studio state in memory by default. `studio:10` shows explicit SQLite store wiring for sessions, traces, pipeline logs, and pipeline run history.
 - Tool history and loader examples write sample files under `.memory`.
 - Image and audio generation examples write generated media files in the current working directory.
 - `providers:09` uses the bundled `assets/audio/voice.wav` sample by default. Set `ANVIA_AUDIO_FILE` to transcribe a different local audio file.

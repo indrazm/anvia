@@ -7,7 +7,7 @@ import { OpenAIClient } from "@anvia/openai";
 import { createSqliteSessionStore, Studio } from "@anvia/studio";
 import { z } from "zod";
 
-const dbPath = process.env.ANVIA_STUDIO_DB ?? ".anvia-studio/cookbook-studio.sqlite";
+const dbPath = ".anvia-studio/cookbook-studio.sqlite";
 mkdirSync(dirname(dbPath), { recursive: true });
 
 const store = createSqliteSessionStore({ path: dbPath });
