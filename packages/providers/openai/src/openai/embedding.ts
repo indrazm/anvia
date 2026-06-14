@@ -48,19 +48,68 @@ export class OpenAIEmbeddingModel implements EmbeddingModel {
     }
 
     const response = await this.client.embeddings.create(params as never);
-    const data = Array.isArray(response.data) ? response.data : [];
+    const data = embeddingDataFromResponse(response, texts.length);
     if (data.length !== texts.length) {
       throw new Error(
         `Embedding response length ${data.length} did not match input length ${texts.length}`,
       );
     }
 
-    return data
-      .slice()
-      .sort((left, right) => left.index - right.index)
-      .map((item, index) => ({
-        document: texts[index] as string,
+    return texts.map((document, index) => {
+      const item = data[index];
+      if (item === undefined) {
+        throw new Error(`Embedding response did not contain index ${index}`);
+      }
+      return {
+        document,
         vector: item.embedding,
-      }));
+      };
+    });
   }
+}
+
+type EmbeddingData = {
+  index: number;
+  embedding: number[];
+};
+
+function embeddingDataFromResponse(response: unknown, inputLength: number): EmbeddingData[] {
+  const raw = response as Record<string, unknown>;
+  const data = Array.isArray(raw.data) ? raw.data : [];
+  const byIndex = new Map<number, EmbeddingData>();
+
+  for (const [position, item] of data.entries()) {
+    if (!isObject(item) || typeof item.index !== "number" || !Number.isInteger(item.index)) {
+      throw new Error(`Embedding response item ${position} contained an invalid index`);
+    }
+
+    const index = item.index;
+    if (index < 0 || index >= inputLength) {
+      throw new Error(
+        `Embedding response index ${index} was outside input range 0..${inputLength - 1}`,
+      );
+    }
+
+    if (byIndex.has(index)) {
+      throw new Error(`Embedding response contained duplicate index ${index}`);
+    }
+
+    if (!isNumberArray(item.embedding)) {
+      throw new Error(`Embedding response item ${position} contained an invalid embedding`);
+    }
+
+    byIndex.set(index, { index, embedding: item.embedding });
+  }
+
+  return Array.from({ length: inputLength }, (_, index) => byIndex.get(index)).filter(
+    (item): item is EmbeddingData => item !== undefined,
+  );
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "number");
 }
