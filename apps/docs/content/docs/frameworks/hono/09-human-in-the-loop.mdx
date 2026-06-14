@@ -63,7 +63,7 @@ app.post("/api/support", zValidator("json", SupportRequest), async (c) => {
 
   const response = await supportAgent
     .prompt(message)
-    .requestHook(createApprovalHook({ userId, approvalRunId }))
+    .withHook(createApprovalHook({ userId, approvalRunId }))
     .send();
 
   return c.json({ output: response.output });

@@ -103,7 +103,7 @@ const approvalHook = createHook({
 
 const response = await agent
   .prompt("Refund order A-100.")
-  .requestHook(approvalHook)
+  .withHook(approvalHook)
   .send();
 ```
 

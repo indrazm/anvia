@@ -65,7 +65,7 @@ const hook = createHook({
 });
 
 try {
-  await agent.prompt(userInput).requestHook(hook).send();
+  await agent.prompt(userInput).withHook(hook).send();
 } catch (error) {
   if (error instanceof PromptCancelledError) {
     return {

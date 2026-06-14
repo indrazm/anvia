@@ -61,7 +61,7 @@ const approvalHook = createHook({
   },
 });
 
-await agent.prompt("Refund order A-100.").requestHook(approvalHook).send();
+await agent.prompt("Refund order A-100.").withHook(approvalHook).send();
 ```
 
 The model sees skipped tools as tool results, so write rejection messages as text the model can use in its final answer.

@@ -51,7 +51,7 @@ Attach the hook from a server route:
 ```ts
 const response = await supportAgent
   .prompt(message)
-  .requestHook(createApprovalHook({ userId, runId }))
+  .withHook(createApprovalHook({ userId, runId }))
   .send();
 ```
 

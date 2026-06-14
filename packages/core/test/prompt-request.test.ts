@@ -8,6 +8,7 @@ import {
   type CompletionResponse,
   cancelPrompt,
   createHook,
+  createMiddleware,
   createTool,
   createToolMiddleware,
   MaxTurnsError,
@@ -50,6 +51,13 @@ function response(choice: CompletionResponse["choice"]): CompletionResponse {
     usage: Usage.empty(),
     rawResponse: {},
   };
+}
+
+function textFromChoice(choice: CompletionResponse["choice"]): string {
+  return choice
+    .filter((item) => item.type === "text")
+    .map((item) => item.text)
+    .join("");
 }
 
 const addTool = createTool({
@@ -328,6 +336,166 @@ describe("PromptRequest", () => {
     ]);
   });
 
+  it("runs lifecycle hooks around prompt turns", async () => {
+    const model = new QueueModel([response([AssistantContent.text("done")])]);
+    const events: string[] = [];
+    const agent = new AgentBuilder("test-agent", model)
+      .hook(
+        createHook({
+          onRunStart({ prompt, history, maxTurns }) {
+            events.push(`run_start:${prompt.role}:${history.length}:${maxTurns}`);
+          },
+          onTurnStart({ turn, prompt, history }) {
+            events.push(`turn_start:${turn}:${prompt.role}:${history.length}`);
+          },
+          onTurnEnd({ turn, response }) {
+            events.push(`turn_end:${turn}:${response.choice.length}`);
+          },
+          onRunEnd({ output, messages }) {
+            events.push(`run_end:${output}:${messages.length}`);
+          },
+        }),
+      )
+      .build();
+
+    await expect(agent.prompt("hello").send()).resolves.toMatchObject({ output: "done" });
+
+    expect(events).toEqual([
+      "run_start:user:0:20",
+      "turn_start:1:user:0",
+      "turn_end:1:1",
+      "run_end:done:2",
+    ]);
+  });
+
+  it("runs completion middleware before the model and before response hooks", async () => {
+    const model = new QueueModel([response([AssistantContent.text("original")])]);
+    const events: string[] = [];
+    const agent = new AgentBuilder("test-agent", model)
+      .middleware(
+        createMiddleware({
+          onCompletionRequest({ request, originalRequest }) {
+            events.push(
+              `request:${request.chatHistory.length}:${originalRequest.chatHistory.length}`,
+            );
+            return {
+              request: {
+                ...request,
+                instructions: "middleware instructions",
+              },
+            };
+          },
+          onCompletionResponse({ response, originalResponse }) {
+            events.push(
+              `response:${textFromChoice(response.choice)}:${textFromChoice(originalResponse.choice)}`,
+            );
+            return {
+              response: {
+                ...response,
+                choice: [AssistantContent.text("changed")],
+              },
+            };
+          },
+        }),
+      )
+      .hook(
+        createHook({
+          onCompletionResponse({ response }) {
+            events.push(`hook:${textFromChoice(response.choice)}`);
+          },
+        }),
+      )
+      .build();
+
+    await expect(agent.prompt("hello").send()).resolves.toMatchObject({ output: "changed" });
+
+    expect(model.requests[0]?.instructions).toBe("middleware instructions");
+    expect(events).toEqual(["request:1:1", "response:original:original", "hook:changed"]);
+  });
+
+  it("runs tool input and output middleware through the new API", async () => {
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "add", { x: 1, y: 1 })]),
+      response([AssistantContent.text("done")]),
+    ]);
+    const events: string[] = [];
+    const agent = new AgentBuilder("test-agent", model)
+      .tool(addTool)
+      .middleware(
+        createMiddleware({
+          onToolInput({ args, originalArgs }) {
+            events.push(`input:${args}:${originalArgs}`);
+            return { args: { x: 2, y: 5 } };
+          },
+          onToolOutput({ result, originalResult, args }) {
+            events.push(`output:${result}:${originalResult}:${args}`);
+            return { result: `stored:${result}` };
+          },
+        }),
+      )
+      .build();
+
+    await expect(agent.prompt("add").send()).resolves.toMatchObject({ output: "done" });
+
+    expect(events).toEqual(['input:{"x":1,"y":1}:{"x":1,"y":1}', 'output:7:7:{"x":2,"y":5}']);
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
+      Message.tool([
+        {
+          type: "tool_result",
+          id: "call_1",
+          content: [{ type: "text", text: "stored:7" }],
+        },
+      ]),
+    );
+  });
+
+  it("composes new and deprecated middleware registrations in order", async () => {
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "add", { x: 2, y: 5 })]),
+      response([AssistantContent.text("done")]),
+    ]);
+    const agent = new AgentBuilder("test-agent", model)
+      .tool(addTool)
+      .middlewares([
+        createMiddleware({
+          onToolOutput({ result }) {
+            return { result: `${result}:agent` };
+          },
+        }),
+      ])
+      .build();
+
+    await expect(
+      agent
+        .prompt("add")
+        .withMiddlewares([
+          createMiddleware({
+            onToolOutput({ result }) {
+              return { result: `${result}:request` };
+            },
+          }),
+        ])
+        .withToolMiddleware(
+          createToolMiddleware({
+            onResult({ result }) {
+              return `${result}:legacy`;
+            },
+          }),
+        )
+        .send(),
+    ).resolves.toMatchObject({ output: "done" });
+
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
+      Message.tool([
+        {
+          type: "tool_result",
+          id: "call_1",
+          content: [{ type: "text", text: "7:agent:request:legacy" }],
+        },
+      ]),
+    );
+  });
+
   it("can run tool calls from a hook helper", async () => {
     const model = new QueueModel([
       response([AssistantContent.toolCall("call_1", "add", { x: 2, y: 5 })]),
@@ -532,6 +700,67 @@ describe("PromptRequest", () => {
     const agent = new AgentBuilder("test-agent", model).hook(hook).build();
 
     await expect(agent.prompt("hello").send()).rejects.toBeInstanceOf(PromptCancelledError);
+  });
+
+  it("runs completion error hooks before run error hooks", async () => {
+    const model = new QueueModel([]);
+    const events: string[] = [];
+    const agent = new AgentBuilder("test-agent", model)
+      .hook(
+        createHook({
+          onCompletionError({ error }) {
+            events.push(`completion_error:${error instanceof Error ? error.message : error}`);
+          },
+          onRunError({ error }) {
+            events.push(`run_error:${error instanceof Error ? error.message : error}`);
+          },
+        }),
+      )
+      .build();
+
+    await expect(agent.prompt("hello").send()).rejects.toThrow("No queued response");
+
+    expect(events).toEqual(["completion_error:No queued response", "run_error:No queued response"]);
+  });
+
+  it("runs tool error hooks and keeps tool errors as model-visible results", async () => {
+    const failingTool = createTool({
+      name: "fail",
+      description: "Fail",
+      input: z.object({}),
+      output: z.string(),
+      execute() {
+        throw new Error("tool failed");
+      },
+    });
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "fail", {})]),
+      response([AssistantContent.text("handled")]),
+    ]);
+    const events: string[] = [];
+    const agent = new AgentBuilder("test-agent", model)
+      .tool(failingTool)
+      .hook(
+        createHook({
+          onToolError({ toolName, error }) {
+            events.push(`${toolName}:${error instanceof Error ? error.message : error}`);
+          },
+        }),
+      )
+      .build();
+
+    await expect(agent.prompt("fail").send()).resolves.toMatchObject({ output: "handled" });
+
+    expect(events).toEqual(["fail:tool failed"]);
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
+      Message.tool([
+        {
+          type: "tool_result",
+          id: "call_1",
+          content: [{ type: "text", text: "ToolCallError: tool failed" }],
+        },
+      ]),
+    );
   });
 
   it("keeps low-level hook action helpers available", () => {

@@ -92,9 +92,46 @@ Return behavior: core stores this metadata only. Core prompt execution ignores i
 
 Notable errors: runtime-specific approval evaluators can surface errors thrown by `when(...)`, `reason(...)`, or `rejectMessage(...)`.
 
-## ToolMiddleware
+## AgentMiddleware
 
 ```ts
+type CompletionRequestMiddlewareArgs = {
+  turn: number;
+  request: CompletionRequest;
+  originalRequest: CompletionRequest;
+};
+
+type CompletionRequestMiddlewareResult =
+  | { request: CompletionRequest }
+  | undefined
+  | void;
+
+type CompletionResponseMiddlewareArgs = {
+  turn: number;
+  request: CompletionRequest;
+  response: CompletionResponse;
+  originalResponse: CompletionResponse;
+};
+
+type CompletionResponseMiddlewareResult =
+  | { response: CompletionResponse }
+  | undefined
+  | void;
+
+type ToolInputMiddlewareArgs = {
+  toolName: string;
+  args: string;
+  originalArgs: string;
+  turn: number;
+  toolCallId?: string;
+  internalCallId: string;
+};
+
+type ToolInputMiddlewareResult =
+  | { args: JsonValue | string }
+  | undefined
+  | void;
+
 type ToolResultMiddlewareArgs = {
   toolName: string;
   args: string;
@@ -105,16 +142,35 @@ type ToolResultMiddlewareArgs = {
   internalCallId: string;
 };
 
-interface ToolMiddleware {
+type ToolOutputMiddlewareArgs = ToolResultMiddlewareArgs;
+
+type ToolOutputMiddlewareResult =
+  | string
+  | { result?: string; structuredResult?: ToolResultContent[] }
+  | undefined
+  | void;
+
+interface AgentMiddleware {
+  onCompletionRequest?(args: CompletionRequestMiddlewareArgs): CompletionRequestMiddlewareResult | Promise<CompletionRequestMiddlewareResult>;
+  onCompletionResponse?(args: CompletionResponseMiddlewareArgs): CompletionResponseMiddlewareResult | Promise<CompletionResponseMiddlewareResult>;
+  onToolInput?(args: ToolInputMiddlewareArgs): ToolInputMiddlewareResult | Promise<ToolInputMiddlewareResult>;
+  onToolOutput?(args: ToolOutputMiddlewareArgs): ToolOutputMiddlewareResult | Promise<ToolOutputMiddlewareResult>;
+  /** @deprecated Use onToolOutput instead. */
   onResult?(args: ToolResultMiddlewareArgs): string | undefined | Promise<string | undefined>;
 }
 
+function createMiddleware(middleware: AgentMiddleware): AgentMiddleware;
+
+/** @deprecated Use AgentMiddleware instead. */
+type ToolMiddleware = AgentMiddleware;
+
+/** @deprecated Use createMiddleware instead. */
 function createToolMiddleware(middleware: ToolMiddleware): ToolMiddleware;
 ```
 
-Purpose: transform serialized tool results during agent runs before the model, stream events, hooks, observers, and messages receive the result.
+Purpose: transform model requests, model responses, tool inputs, and tool outputs during agent runs.
 
-Return behavior: returning a string replaces the current result; returning `undefined` keeps it. Multiple middleware callbacks run in registration order. Skill runtime tools are excluded.
+Return behavior: returning `undefined` keeps the current value. Returning a replacement from `onCompletionRequest`, `onCompletionResponse`, `onToolInput`, or `onToolOutput` passes that value to later middleware and the runtime. Multiple middleware callbacks run in registration order. Agent-level middleware runs before request-level middleware. Skill runtime tools are excluded from tool output middleware.
 
 Notable errors: errors thrown by middleware surface as prompt run errors.
 

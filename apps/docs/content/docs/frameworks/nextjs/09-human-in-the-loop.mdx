@@ -74,7 +74,7 @@ Attach the hook in the route:
 ```ts
 const response = await supportAgent
   .prompt(message)
-  .requestHook(createApprovalHook({ userId, conversationId }))
+  .withHook(createApprovalHook({ userId, conversationId }))
   .send();
 ```
 

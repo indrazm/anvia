@@ -51,3 +51,17 @@ export type {
   ToolCallStreamEvent,
 } from "./tool/index";
 export { createThinkTool, createTool } from "./tool/index";
+export type {
+  AgentMiddleware,
+  CompletionRequestMiddlewareArgs,
+  CompletionRequestMiddlewareResult,
+  CompletionResponseMiddlewareArgs,
+  CompletionResponseMiddlewareResult,
+  ToolInputMiddlewareArgs,
+  ToolInputMiddlewareResult,
+  ToolMiddleware,
+  ToolOutputMiddlewareArgs,
+  ToolOutputMiddlewareResult,
+  ToolResultMiddlewareArgs,
+} from "./tool/middleware";
+export { createMiddleware, createToolMiddleware } from "./tool/middleware";

@@ -35,7 +35,7 @@ Attach the hook to one request when approval rules are request-specific.
 ```ts
 const response = await agent
   .prompt("Refund order A-100.")
-  .requestHook(approvalHook)
+  .withHook(approvalHook)
   .send();
 ```
 
@@ -112,12 +112,12 @@ Use `tool.cancel(...)` for malformed or unsafe runs that should stop immediately
 
 ## Request Hook vs Agent Hook
 
-Use `.requestHook(...)` when approval rules are specific to one prompt request.
+Use `.withHook(...)` when approval rules are specific to one prompt request.
 
 ```ts
 await agent
   .prompt("Refund order A-100.")
-  .requestHook(approvalHook)
+  .withHook(approvalHook)
   .send();
 ```
 
