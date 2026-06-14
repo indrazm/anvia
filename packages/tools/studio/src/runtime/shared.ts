@@ -2,7 +2,6 @@ import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
 import type { AgentTraceOptions } from "@anvia/core/observability";
 import type { Context } from "hono";
 import { createInMemoryStudioStore } from "../storage/memory-store";
-import { createSqliteSessionStore } from "../storage/sqlite-store";
 import type {
   StudioAgent,
   StudioAgentConfig,
@@ -64,10 +63,7 @@ function defaultStudioStore(): StudioSessionStore &
   StudioTraceStore &
   StudioPipelineLogStore &
   StudioPipelineRunStore {
-  const sqlitePath = process.env.ANVIA_STUDIO_DB ?? process.env.AION_STUDIO_DB;
-  return sqlitePath === undefined
-    ? createInMemoryStudioStore()
-    : createSqliteSessionStore({ path: sqlitePath });
+  return createInMemoryStudioStore();
 }
 
 function resolveSessionStore(

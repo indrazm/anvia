@@ -29,7 +29,7 @@ const embedded = await embedDocuments(embeddingModel, notes, {
 });
 
 const store = await ChromaVectorStore.connect<MarketNote>({
-  collectionName: "aion_market_notes",
+  collectionName: "anvia_market_notes",
 });
 await store.upsertDocuments(embedded);
 

@@ -209,21 +209,13 @@ const addTool = {
   },
 } satisfies Tool<{ x: number; y: number }, number>;
 
-let previousStudioDb: string | undefined;
 let studioDbDir: string | undefined;
 
 beforeEach(() => {
-  previousStudioDb = process.env.ANVIA_STUDIO_DB;
   studioDbDir = mkdtempSync(join(tmpdir(), "anvia-studio-test-"));
-  delete process.env.ANVIA_STUDIO_DB;
 });
 
 afterEach(() => {
-  if (previousStudioDb === undefined) {
-    delete process.env.ANVIA_STUDIO_DB;
-  } else {
-    process.env.ANVIA_STUDIO_DB = previousStudioDb;
-  }
   if (studioDbDir !== undefined) {
     rmSync(studioDbDir, { force: true, recursive: true });
     studioDbDir = undefined;

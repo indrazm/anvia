@@ -60,12 +60,18 @@ Studio exposes:
 
 ## Session Storage
 
-Studio uses an in-memory store by default. Sessions, traces, and pipeline run history are available while the process is running, but they do not create local files unless you opt in to SQLite. If you omit the port, Studio uses `RUNNER_PORT` and then falls back to `4021`.
+Studio uses an in-memory store by default. Sessions, traces, and pipeline run history are available while the process is running, but they do not create local files unless you pass an explicit SQLite store. If you omit the port, Studio uses `RUNNER_PORT` and then falls back to `4021`.
 
-Set `ANVIA_STUDIO_DB` to persist Studio data in SQLite:
+Pass `createSqliteSessionStore` to persist Studio data in SQLite:
 
-```sh
-ANVIA_STUDIO_DB=.anvia/studio.sqlite node ./dist/server.js
+```ts
+import { Studio, createSqliteSessionStore } from "@anvia/studio";
+
+new Studio([agent], {
+  stores: {
+    sessions: createSqliteSessionStore({ path: ".anvia/studio.sqlite" }),
+  },
+}).start();
 ```
 
 SQLite storage uses dedicated `anvia_studio_*` tables so it can share an application database without writing into product tables.

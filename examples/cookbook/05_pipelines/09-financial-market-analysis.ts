@@ -120,7 +120,7 @@ const marketPipeline = new PipelineBuilder<string>()
   .prompt(marketAnalyst)
   .build();
 
-const analysis = await marketPipeline.run("AION");
+const analysis = await marketPipeline.run("ACME");
 
 console.log(analysis);
 

@@ -33,4 +33,4 @@ Filter conversations by agent or user:
 curl 'http://localhost:4021/memory/conversations?agentId=support-operations&userId=dev_1'
 ```
 
-The Memory page does not edit or delete stored data. Use the Sessions page or `DELETE /sessions/:sessionId` when you need to remove a conversation. By default this data is in memory only; set `ANVIA_STUDIO_DB` or pass an explicit store when you need persistence.
+The Memory page does not edit or delete stored data. Use the Sessions page or `DELETE /sessions/:sessionId` when you need to remove a conversation. By default this data is in memory only; pass an explicit store when you need persistence.

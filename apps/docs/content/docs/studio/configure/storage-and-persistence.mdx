@@ -7,17 +7,7 @@ Studio uses an in-memory store by default. It stores sessions, runtime messages,
 
 ## Optional SQLite
 
-Set `ANVIA_STUDIO_DB` when you want Studio state to survive process restarts.
-
-```bash
-ANVIA_STUDIO_DB=.data/studio.sqlite pnpm tsx studio.ts
-```
-
-`AION_STUDIO_DB` is also read as a compatibility fallback.
-
-SQLite storage uses dedicated `anvia_studio_*` tables, including `anvia_studio_sessions`, `anvia_studio_traces`, `anvia_studio_pipeline_logs`, and `anvia_studio_pipeline_runs`. That makes it safe to point Studio at a shared application database without writing into production product tables.
-
-You can also pass a store explicitly:
+Pass a SQLite store explicitly when you want Studio state to survive process restarts:
 
 ```ts
 import { Studio, createSqliteSessionStore } from "@anvia/studio";
@@ -28,6 +18,8 @@ new Studio([agent], {
   },
 }).start();
 ```
+
+SQLite storage uses dedicated `anvia_studio_*` tables, including `anvia_studio_sessions`, `anvia_studio_traces`, `anvia_studio_pipeline_logs`, and `anvia_studio_pipeline_runs`. That makes it safe to point Studio at a shared application database without writing into production product tables.
 
 ## What Gets Stored
 

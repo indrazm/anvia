@@ -30,7 +30,7 @@ const embedded = await embedDocuments(embeddingModel, runbooks, {
   content: (runbook) => runbook.text,
 });
 const store = await ChromaVectorStore.connect<Runbook>({
-  collectionName: "aion_runbooks",
+  collectionName: "anvia_runbooks",
 });
 await store.upsertDocuments(embedded);
 
