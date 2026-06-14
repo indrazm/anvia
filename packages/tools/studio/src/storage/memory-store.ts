@@ -1,5 +1,6 @@
 import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
 import type { MemoryAppendInput, MemoryContext, MemoryErrorInput } from "@anvia/core/memory";
+import { renumberTranscript, transcriptFromMessages } from "../runtime/transcript";
 import type {
   StudioPipelineLogAppendInput,
   StudioPipelineLogEntry,
@@ -23,7 +24,6 @@ import type {
   StudioTraceListOptions,
   StudioTraceStore,
   StudioTraceSummary,
-  StudioTranscriptEntry,
 } from "../types";
 
 type MemorySessionRecord = StudioSessionSummary & {
@@ -108,7 +108,7 @@ class InMemoryStudioStore
     await this.saveSessionRunTranscript({
       id: input.context.sessionId,
       runId: studioRunId(input.context) ?? input.runId,
-      transcript: transcriptFromMessagesFallback(input.messages),
+      transcript: transcriptFromMessages(input.messages),
       status: "error",
       error: serializeJsonError(input.error),
     });
@@ -237,6 +237,14 @@ class InMemoryStudioStore
     return record;
   }
 
+  getPipelineRun(options: {
+    pipelineId: string;
+    runId: string;
+  }): StudioPipelineRunRecord | undefined {
+    const run = this.pipelineRuns.get(options.runId);
+    return run?.pipelineId === options.pipelineId ? run : undefined;
+  }
+
   listPipelineRuns(options: StudioPipelineRunListOptions): StudioPipelineRunRecord[] {
     return [...this.pipelineRuns.values()]
       .filter((run) => run.pipelineId === options.pipelineId)
@@ -289,10 +297,6 @@ function traceAgentId(trace: StudioTrace): string | undefined {
     : undefined;
 }
 
-function renumberTranscript(entries: StudioTranscriptEntry[]): StudioTranscriptEntry[] {
-  return entries.map((entry, entryId) => ({ ...entry, entryId }));
-}
-
 function studioRunId(context: MemoryContext): string | undefined {
   const value = context.metadata?.studioRunId;
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -306,41 +310,6 @@ function serializeJsonError(error: unknown): JsonValue {
     };
   }
   return isJsonValue(error) ? error : String(error);
-}
-
-function transcriptFromMessagesFallback(messages: Message[]): StudioTranscriptEntry[] {
-  const transcript: StudioTranscriptEntry[] = [];
-  for (const message of messages) {
-    if (message.role === "system") {
-      continue;
-    }
-    if (message.role === "user") {
-      for (const content of message.content) {
-        if (content.type === "text") {
-          transcript.push({
-            entryId: transcript.length,
-            kind: "message",
-            role: "user",
-            text: content.text,
-          });
-        }
-      }
-      continue;
-    }
-    if (message.role === "assistant") {
-      for (const content of message.content) {
-        if (content.type === "text") {
-          transcript.push({
-            entryId: transcript.length,
-            kind: "message",
-            role: "assistant",
-            text: content.text,
-          });
-        }
-      }
-    }
-  }
-  return transcript;
 }
 
 function isJsonObject(value: unknown): value is JsonObject {

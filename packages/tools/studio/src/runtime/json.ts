@@ -5,13 +5,11 @@ export function toJsonValue(value: unknown): JsonValue {
 }
 
 function toJsonValueInternal(value: unknown, seen: WeakSet<object>): JsonValue {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") {
     return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : String(value);
   }
   if (value === undefined) {
     return null;

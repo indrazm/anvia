@@ -29,7 +29,7 @@ import {
 } from "@anvia/core/vector-store";
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Studio } from "../src/index";
+import { createInMemoryStudioStore, Studio } from "../src/index";
 import { registerObservabilityRoutes, StudioObservabilityHub } from "../src/runtime/observability";
 import { createSqliteSessionStore } from "../src/sqlite";
 
@@ -608,6 +608,81 @@ describe("Anvia studio", () => {
       });
     } finally {
       db.close();
+    }
+  });
+
+  it("replays persisted pipeline runs outside the first runs page", async () => {
+    const pipeline = new PipelineBuilder<string>({ id: "audit-pipeline" })
+      .step((input) => ({ reply: input.toUpperCase() }), { id: "shape", name: "Shape" })
+      .build();
+    const store = createSqliteSessionStore({
+      path: join(studioDbDir ?? tmpdir(), "replay.sqlite"),
+    });
+    const runner = new Studio([pipeline], {
+      stores: {
+        sessions: store,
+      },
+    });
+    const startedAt = Date.parse("2026-01-01T00:00:00.000Z");
+
+    for (let index = 0; index <= 1000; index += 1) {
+      store.savePipelineRun({
+        runId: `run_${index}`,
+        pipelineId: "audit-pipeline",
+        status: "success",
+        input: `seed ${index}`,
+        output: { reply: `SEED ${index}` },
+        startedAt: new Date(startedAt + index).toISOString(),
+      });
+    }
+
+    const replay = await runner.fetch(
+      new Request("http://runner.test/pipelines/audit-pipeline/runs/run_0/replay", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ stream: false, metadata: { source: "regression" } }),
+      }),
+    );
+
+    expect(replay.status).toBe(200);
+    await expect(replay.json()).resolves.toMatchObject({
+      pipelineId: "audit-pipeline",
+      output: { reply: "SEED 0" },
+    });
+  });
+
+  it("loads pipeline runs by exact id from built-in stores", () => {
+    const stores = [
+      createInMemoryStudioStore(),
+      createSqliteSessionStore({ path: join(studioDbDir ?? tmpdir(), "exact-run.sqlite") }),
+    ];
+
+    for (const store of stores) {
+      store.savePipelineRun({
+        runId: "run_1",
+        pipelineId: "pipeline_a",
+        status: "success",
+        input: "hello",
+        output: "HELLO",
+        startedAt: "2026-01-01T00:00:00.000Z",
+      });
+      store.savePipelineRun({
+        runId: "run_2",
+        pipelineId: "pipeline_b",
+        status: "success",
+        input: "other",
+        output: "OTHER",
+        startedAt: "2026-01-01T00:00:01.000Z",
+      });
+
+      expect(store.getPipelineRun({ pipelineId: "pipeline_a", runId: "run_1" })).toMatchObject({
+        runId: "run_1",
+        pipelineId: "pipeline_a",
+        input: "hello",
+        output: "HELLO",
+      });
+      expect(store.getPipelineRun({ pipelineId: "pipeline_b", runId: "run_1" })).toBeUndefined();
+      expect(store.getPipelineRun({ pipelineId: "pipeline_a", runId: "missing" })).toBeUndefined();
     }
   });
 

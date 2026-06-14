@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import type { DatabaseSync as DatabaseSyncType } from "node:sqlite";
 import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
 import type { MemoryAppendInput, MemoryContext, MemoryErrorInput } from "@anvia/core/memory";
+import { renumberTranscript, transcriptFromMessages } from "../runtime/transcript";
 import type {
   StudioPipelineLogAppendInput,
   StudioPipelineLogEntry,
@@ -300,7 +301,7 @@ class SqliteSessionStore
     const transcript =
       existing === undefined ||
       parseJsonArray<StudioTranscriptEntry>(existing.transcript_json).length === 0
-        ? transcriptFromMessagesFallback(input.messages)
+        ? transcriptFromMessages(input.messages)
         : parseJsonArray<StudioTranscriptEntry>(existing.transcript_json);
     await this.saveSessionRunTranscript({
       id: input.context.sessionId,
@@ -630,6 +631,26 @@ class SqliteSessionStore
       ...(input.endedAt === undefined ? {} : { endedAt: input.endedAt }),
       ...(input.durationMs === undefined ? {} : { durationMs: input.durationMs }),
     };
+  }
+
+  getPipelineRun(options: {
+    pipelineId: string;
+    runId: string;
+  }): StudioPipelineRunRecord | undefined {
+    const db = this.database();
+    const row = db
+      .prepare(
+        `SELECT run_id, pipeline_id, status, input_json, output_json, error_json,
+                metadata_json, started_at, ended_at, duration_ms
+         FROM anvia_studio_pipeline_runs
+         WHERE pipeline_id = $pipelineId AND run_id = $runId`,
+      )
+      .get({
+        $pipelineId: options.pipelineId,
+        $runId: options.runId,
+      }) as PipelineRunRow | undefined;
+
+    return row === undefined ? undefined : toPipelineRun(row);
   }
 
   listPipelineRuns(options: StudioPipelineRunListOptions): StudioPipelineRunRecord[] {
@@ -1300,10 +1321,6 @@ function parseJsonValue<T>(value: string | null): T | undefined {
   return JSON.parse(value) as T;
 }
 
-function renumberTranscript(entries: StudioTranscriptEntry[]): StudioTranscriptEntry[] {
-  return entries.map((entry, entryId) => ({ ...entry, entryId }));
-}
-
 function studioRunId(context: MemoryContext): string | undefined {
   const value = context.metadata?.studioRunId;
   return typeof value === "string" && value.length > 0 ? value : undefined;
@@ -1325,87 +1342,4 @@ function serializeJsonError(error: unknown): JsonValue {
     return error;
   }
   return String(error);
-}
-
-function transcriptFromMessagesFallback(messages: Message[]): StudioTranscriptEntry[] {
-  const transcript: StudioTranscriptEntry[] = [];
-  for (const message of messages) {
-    if (message.role === "system") {
-      continue;
-    }
-    if (message.role === "user") {
-      for (const content of message.content) {
-        if (content.type === "text") {
-          transcript.push({
-            entryId: transcript.length,
-            kind: "message",
-            role: "user",
-            text: content.text,
-          });
-        }
-      }
-      continue;
-    }
-    if (message.role === "tool") {
-      for (const content of message.content) {
-        transcript.push({
-          entryId: transcript.length,
-          kind: "tool",
-          toolName: "tool_result",
-          callId: content.callId ?? content.id,
-          result: content.content
-            .map((item) =>
-              "text" in item ? item.text : `[image:${item.mediaType ?? "image/png"}]`,
-            )
-            .join("\n"),
-          structuredResult: content.content,
-        });
-      }
-      continue;
-    }
-
-    for (const content of message.content) {
-      if (content.type === "text") {
-        appendAssistantTranscriptText(transcript, content.text);
-      } else if (content.type === "reasoning") {
-        transcript.push({
-          entryId: transcript.length,
-          kind: "reasoning",
-          ...(content.id === undefined ? {} : { reasoningId: content.id }),
-          text: content.text,
-        });
-      } else if (content.type === "tool_call") {
-        transcript.push({
-          entryId: transcript.length,
-          kind: "tool",
-          toolName: content.function.name,
-          callId: content.callId ?? content.id,
-          args: formatJson(content.function.arguments),
-        });
-      }
-    }
-  }
-  return transcript;
-}
-
-function appendAssistantTranscriptText(transcript: StudioTranscriptEntry[], text: string): void {
-  const last = transcript.at(-1);
-  if (last?.kind === "message" && last.role === "assistant") {
-    last.text = `${last.text}${text}`;
-    return;
-  }
-  transcript.push({
-    entryId: transcript.length,
-    kind: "message",
-    role: "assistant",
-    text,
-  });
-}
-
-function formatJson(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
 }

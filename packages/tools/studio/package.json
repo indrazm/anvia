@@ -26,9 +26,10 @@
     }
   },
   "scripts": {
-    "build": "tsup && vite build --config vite.config.ts",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "build": "pnpm run build:deps && tsup && vite build --config vite.config.ts",
+    "build:deps": "pnpm --filter @anvia/core --filter @anvia/server --filter @anvia/react build",
+    "test": "pnpm run build:deps && vitest run",
+    "typecheck": "pnpm run build:deps && tsc --noEmit"
   },
   "dependencies": {
     "@anvia/core": "workspace:*",

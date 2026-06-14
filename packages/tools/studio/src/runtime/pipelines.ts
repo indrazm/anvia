@@ -12,6 +12,7 @@ import type {
   StudioPipelineRunSaveInput,
   StudioPipelineRunStore,
 } from "../types";
+import { toJsonValue } from "./json";
 import {
   appendPipelineLog,
   emitPipelineLog,
@@ -143,11 +144,10 @@ export function registerPipelineRoutes(
     }
 
     const sourceRunId = c.req.param("runId");
-    const runs = await props.runStore.listPipelineRuns({
+    const sourceRun = await props.runStore.getPipelineRun({
       pipelineId: pipeline.id,
-      limit: 1000,
+      runId: sourceRunId,
     });
-    const sourceRun = runs.find((run) => run.runId === sourceRunId);
     if (sourceRun === undefined) {
       return errorResponse(c, 404, "not_found", "Pipeline run not found");
     }
@@ -509,19 +509,4 @@ function isJsonValue(value: unknown): value is JsonValue {
     return Object.values(value).every((item) => item === undefined || isJsonValue(item));
   }
   return false;
-}
-
-function toJsonValue(value: unknown): JsonValue {
-  if (isJsonValue(value)) {
-    return value;
-  }
-  if (value === undefined) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(JSON.stringify(value)) as unknown;
-    return isJsonValue(parsed) ? parsed : String(value);
-  } catch {
-    return String(value);
-  }
 }

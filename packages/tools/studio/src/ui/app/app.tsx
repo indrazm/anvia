@@ -4,8 +4,11 @@ import { Archive, ArrowSquareOut, ArrowUp, Moon, Plus, Sun } from "@phosphor-ico
 import {
   type ChangeEvent,
   type KeyboardEvent,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -36,21 +39,18 @@ import {
 } from "./components/ui/select";
 import { Textarea } from "./components/ui/textarea";
 import { cn } from "./lib/utils";
-import { AgentsPage } from "./modules/agents/agents-page";
-import { EvalsPage } from "./modules/evals/evals-page";
-import { KnowledgePage } from "./modules/knowledge/knowledge-page";
-import { McpsPage } from "./modules/mcps/mcps-page";
-import { MemoryPage } from "./modules/memory/memory-page";
-import { PipelinesPage } from "./modules/pipelines/pipelines-page";
-import { TranscriptItem } from "./modules/playground/transcript-item";
 import { SessionLogsPanel } from "./modules/session-logs/session-logs-panel";
-import { DeleteSessionDialog, SessionsPage } from "./modules/sessions/sessions-page";
 import {
   errorMessage,
   formatRelativeTime,
   formatToolValue,
   titleFromText,
 } from "./modules/shared/format";
+import {
+  fallbackActivePage,
+  isActivePageEnabled,
+  type StudioPageAvailability,
+} from "./modules/shared/navigation";
 import {
   defaultKnowledgeTab,
   logoSrc,
@@ -85,9 +85,67 @@ import type {
   TranscriptEntry,
 } from "./modules/shared/types";
 import { NavButton } from "./modules/shell/nav-button";
-import { StatusPage } from "./modules/status/status-page";
-import { ToolsPage } from "./modules/tools/tools-page";
-import { TraceBrowser } from "./modules/tracing/trace-browser";
+
+const AgentsPage = lazy(() =>
+  import("./modules/agents/agents-page").then((module) => ({
+    default: module.AgentsPage,
+  })),
+);
+const EvalsPage = lazy(() =>
+  import("./modules/evals/evals-page").then((module) => ({
+    default: module.EvalsPage,
+  })),
+);
+const KnowledgePage = lazy(() =>
+  import("./modules/knowledge/knowledge-page").then((module) => ({
+    default: module.KnowledgePage,
+  })),
+);
+const McpsPage = lazy(() =>
+  import("./modules/mcps/mcps-page").then((module) => ({
+    default: module.McpsPage,
+  })),
+);
+const MemoryPage = lazy(() =>
+  import("./modules/memory/memory-page").then((module) => ({
+    default: module.MemoryPage,
+  })),
+);
+const PipelinesPage = lazy(() =>
+  import("./modules/pipelines/pipelines-page").then((module) => ({
+    default: module.PipelinesPage,
+  })),
+);
+const SessionsPage = lazy(() =>
+  import("./modules/sessions/sessions-page").then((module) => ({
+    default: module.SessionsPage,
+  })),
+);
+const DeleteSessionDialog = lazy(() =>
+  import("./modules/sessions/sessions-page").then((module) => ({
+    default: module.DeleteSessionDialog,
+  })),
+);
+const StatusPage = lazy(() =>
+  import("./modules/status/status-page").then((module) => ({
+    default: module.StatusPage,
+  })),
+);
+const ToolsPage = lazy(() =>
+  import("./modules/tools/tools-page").then((module) => ({
+    default: module.ToolsPage,
+  })),
+);
+const TraceBrowser = lazy(() =>
+  import("./modules/tracing/trace-browser").then((module) => ({
+    default: module.TraceBrowser,
+  })),
+);
+const TranscriptItem = lazy(() =>
+  import("./modules/playground/transcript-item").then((module) => ({
+    default: module.TranscriptItem,
+  })),
+);
 
 type StudioTheme = "light" | "dark";
 
@@ -306,6 +364,32 @@ export function StudioConsole() {
   const pipelines = config?.pipelines ?? [];
   const evals = config?.evals ?? [];
   const hasAgents = agents.length > 0;
+  const pageAvailability: StudioPageAvailability = useMemo(
+    () => ({
+      hasAgents,
+      sessionsEnabled,
+      tracesEnabled,
+      toolsEnabled,
+      mcpsEnabled,
+      pipelinesEnabled,
+      evalsEnabled,
+      memoryEnabled,
+      statusEnabled,
+      knowledgeEnabled,
+    }),
+    [
+      hasAgents,
+      sessionsEnabled,
+      tracesEnabled,
+      toolsEnabled,
+      mcpsEnabled,
+      pipelinesEnabled,
+      evalsEnabled,
+      memoryEnabled,
+      statusEnabled,
+      knowledgeEnabled,
+    ],
+  );
   const selectedAgent =
     agents.find((agent) => agent.id === selectedAgentId) ?? agents[0] ?? undefined;
   const selectedAgentQuickPrompts = selectedAgent?.quickPrompts ?? [];
@@ -1601,7 +1685,7 @@ export function StudioConsole() {
   }
 
   function navigatePage(page: ActivePage) {
-    if (page === "playground" && !hasAgents) {
+    if (!isActivePageEnabled(page, pageAvailability)) {
       return;
     }
 
@@ -1647,15 +1731,7 @@ export function StudioConsole() {
       return;
     }
 
-    const nextPage: ActivePage = pipelinesEnabled
-      ? "pipelines"
-      : evalsEnabled
-        ? "evals"
-        : sessionsEnabled
-          ? "sessions"
-          : tracesEnabled
-            ? "tracing"
-            : "agents";
+    const nextPage = fallbackActivePage("playground", pageAvailability);
 
     resetTranscriptSequence();
     setSelectedSessionId("");
@@ -1680,13 +1756,10 @@ export function StudioConsole() {
     config,
     hasAgents,
     loadPipeline,
-    evalsEnabled,
+    pageAvailability,
     pipelines,
-    pipelinesEnabled,
     selectedEvalId,
     selectedPipelineId,
-    sessionsEnabled,
-    tracesEnabled,
   ]);
 
   function selectTrace(traceId: string) {
@@ -1742,12 +1815,14 @@ export function StudioConsole() {
             active={activePage === "sessions"}
             icon="list"
             label="Sessions"
+            disabled={!sessionsEnabled}
             onClick={() => navigatePage("sessions")}
           />
           <NavButton
             active={activePage === "tracing"}
             icon="activity"
             label="Traces"
+            disabled={!tracesEnabled}
             onClick={() => navigatePage("tracing")}
           />
         </nav>
@@ -1765,18 +1840,21 @@ export function StudioConsole() {
             active={activePage === "tools"}
             icon="wrench"
             label="Tools"
+            disabled={!toolsEnabled}
             onClick={() => navigatePage("tools")}
           />
           <NavButton
             active={activePage === "mcps"}
             icon="plug"
             label="MCPs"
+            disabled={!mcpsEnabled}
             onClick={() => navigatePage("mcps")}
           />
           <NavButton
             active={activePage === "knowledge"}
             icon="database"
             label="Knowledge"
+            disabled={!knowledgeEnabled}
             onClick={() => navigatePage("knowledge")}
           />
           <NavButton
@@ -1877,6 +1955,7 @@ export function StudioConsole() {
                 className="h-8 min-h-8 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 type="button"
                 variant="secondary"
+                disabled={!sessionsEnabled}
                 onClick={() => navigatePage("sessions")}
               >
                 Sessions
@@ -1917,21 +1996,23 @@ export function StudioConsole() {
                         </div>
                       </div>
                     ) : null}
-                    {messages.map((message) => (
-                      <TranscriptItem
-                        key={message.entryId}
-                        entry={message}
-                        decidingApprovals={decidingApprovals}
-                        answeringQuestions={answeringQuestions}
-                        onApprovalDecision={(approvalId, approved) =>
-                          void decideToolApproval(approvalId, approved)
-                        }
-                        onQuestionAnswer={(questionId, answers) =>
-                          void answerToolQuestion(questionId, answers)
-                        }
-                        onOpenTrace={selectTrace}
-                      />
-                    ))}
+                    <Suspense fallback={null}>
+                      {messages.map((message) => (
+                        <TranscriptItem
+                          key={message.entryId}
+                          entry={message}
+                          decidingApprovals={decidingApprovals}
+                          answeringQuestions={answeringQuestions}
+                          onApprovalDecision={(approvalId, approved) =>
+                            void decideToolApproval(approvalId, approved)
+                          }
+                          onQuestionAnswer={(questionId, answers) =>
+                            void answerToolQuestion(questionId, answers)
+                          }
+                          onOpenTrace={selectTrace}
+                        />
+                      ))}
+                    </Suspense>
                   </div>
                 </section>
                 <form
@@ -2021,132 +2102,158 @@ export function StudioConsole() {
         ) : null}
 
         {activePage === "tracing" ? (
-          <TraceBrowser
-            agents={agents}
-            traces={traces}
-            tracesEnabled={tracesEnabled}
-            traceLoadState={traceLoadState}
-            selectedTraceId={selectedTraceId}
-            traceSessionDetailId={traceSessionDetailId}
-            onRefresh={() => void loadTraces()}
-            onSelectTrace={selectTrace}
-            onShowSessionTraces={(sessionId) => void showSessionTraces(sessionId)}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <TraceBrowser
+              agents={agents}
+              traces={traces}
+              tracesEnabled={tracesEnabled}
+              traceLoadState={traceLoadState}
+              selectedTraceId={selectedTraceId}
+              traceSessionDetailId={traceSessionDetailId}
+              onRefresh={() => void loadTraces()}
+              onSelectTrace={selectTrace}
+              onShowSessionTraces={(sessionId) => void showSessionTraces(sessionId)}
+            />
+          </Suspense>
         ) : null}
 
         {activePage === "sessions" ? (
-          <SessionsPage
-            agents={agents}
-            sessions={allSessions}
-            sessionsEnabled={sessionsEnabled}
-            sessionLoadState={sessionLoadState}
-            selectedSessionId={selectedSessionId}
-            onOpenSession={(sessionId) => void loadSession(sessionId)}
-            onViewSessionTracing={(sessionId) => void showSessionTraces(sessionId)}
-            onDeleteSession={setDeleteCandidate}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <SessionsPage
+              agents={agents}
+              sessions={allSessions}
+              sessionsEnabled={sessionsEnabled}
+              sessionLoadState={sessionLoadState}
+              selectedSessionId={selectedSessionId}
+              onOpenSession={(sessionId) => void loadSession(sessionId)}
+              onViewSessionTracing={(sessionId) => void showSessionTraces(sessionId)}
+              onDeleteSession={setDeleteCandidate}
+            />
+          </Suspense>
         ) : null}
 
         {activePage === "agents" ? (
-          <AgentsPage agents={agents} selectedAgentId={selectedAgentId} />
+          <Suspense fallback={<PageLoading />}>
+            <AgentsPage agents={agents} selectedAgentId={selectedAgentId} />
+          </Suspense>
         ) : null}
 
         {activePage === "tools" ? (
-          <ToolsPage
-            agents={agents}
-            selectedAgentId={toolsAgentId || selectedAgent?.id || selectedAgentId}
-            summary={tools}
-            enabled={toolsEnabled}
-            loading={toolsLoadState === "loading"}
-            onSelectAgent={(agentId) => {
-              setToolsAgentId(agentId);
-              void loadTools(agentId);
-            }}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <ToolsPage
+              agents={agents}
+              selectedAgentId={toolsAgentId || selectedAgent?.id || selectedAgentId}
+              summary={tools}
+              enabled={toolsEnabled}
+              loading={toolsLoadState === "loading"}
+              onSelectAgent={(agentId) => {
+                setToolsAgentId(agentId);
+                void loadTools(agentId);
+              }}
+            />
+          </Suspense>
         ) : null}
 
         {activePage === "pipelines" ? (
-          <PipelinesPage
-            pipelines={pipelines}
-            selectedPipelineId={selectedPipelineId}
-            detail={pipelineDetail}
-            logs={pipelineLogs}
-            activeRunId={activePipelineRunId}
-            runs={pipelineRuns}
-            enabled={pipelinesEnabled}
-            detailLoading={pipelineDetailLoadState === "loading"}
-            logsLoading={pipelineLogLoadState === "loading"}
-            runsLoading={pipelineRunLoadState === "loading"}
-            runState={pipelineRunState}
-            runInput={pipelineRunInput}
-            runOutput={pipelineRunOutput}
-            theme={theme}
-            onSelectPipeline={(pipelineId) => {
-              setSelectedPipelineId(pipelineId);
-              setPipelineRunOutput("");
-              setActivePipelineRunId("");
-              void loadPipeline(pipelineId);
-            }}
-            onRunInputChange={setPipelineRunInput}
-            onRun={() => void runPipeline()}
-            onReplayRun={(runId) => void replayPipelineRun(runId)}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <PipelinesPage
+              pipelines={pipelines}
+              selectedPipelineId={selectedPipelineId}
+              detail={pipelineDetail}
+              logs={pipelineLogs}
+              activeRunId={activePipelineRunId}
+              runs={pipelineRuns}
+              enabled={pipelinesEnabled}
+              detailLoading={pipelineDetailLoadState === "loading"}
+              logsLoading={pipelineLogLoadState === "loading"}
+              runsLoading={pipelineRunLoadState === "loading"}
+              runState={pipelineRunState}
+              runInput={pipelineRunInput}
+              runOutput={pipelineRunOutput}
+              theme={theme}
+              onSelectPipeline={(pipelineId) => {
+                setSelectedPipelineId(pipelineId);
+                setPipelineRunOutput("");
+                setActivePipelineRunId("");
+                void loadPipeline(pipelineId);
+              }}
+              onRunInputChange={setPipelineRunInput}
+              onRun={() => void runPipeline()}
+              onReplayRun={(runId) => void replayPipelineRun(runId)}
+            />
+          </Suspense>
         ) : null}
 
         {activePage === "evals" ? (
-          <EvalsPage
-            evals={evals}
-            selectedEvalId={selectedEvalId}
-            enabled={evalsEnabled}
-            runState={evalRunState}
-            result={evalRunResult}
-            onSelectEval={(evalId) => {
-              setSelectedEvalId(evalId);
-              setEvalRunResult(undefined);
-            }}
-            onRun={() => void runEvalSuite()}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <EvalsPage
+              evals={evals}
+              selectedEvalId={selectedEvalId}
+              enabled={evalsEnabled}
+              runState={evalRunState}
+              result={evalRunResult}
+              onSelectEval={(evalId) => {
+                setSelectedEvalId(evalId);
+                setEvalRunResult(undefined);
+              }}
+              onRun={() => void runEvalSuite()}
+            />
+          </Suspense>
         ) : null}
 
         {activePage === "mcps" ? (
-          <McpsPage
-            agents={agents}
-            selectedAgentId={mcpsAgentId || selectedAgent?.id || selectedAgentId}
-            summary={mcps}
-            enabled={mcpsEnabled}
-            loading={mcpsLoadState === "loading"}
-            onSelectAgent={(agentId) => {
-              setMcpsAgentId(agentId);
-              void loadMcps(agentId);
-            }}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <McpsPage
+              agents={agents}
+              selectedAgentId={mcpsAgentId || selectedAgent?.id || selectedAgentId}
+              summary={mcps}
+              enabled={mcpsEnabled}
+              loading={mcpsLoadState === "loading"}
+              onSelectAgent={(agentId) => {
+                setMcpsAgentId(agentId);
+                void loadMcps(agentId);
+              }}
+            />
+          </Suspense>
         ) : null}
 
         {activePage === "knowledge" ? (
-          <KnowledgePage
-            activeTab={knowledgeTab}
-            enabled={knowledgeEnabled}
-            summary={knowledge}
-            loading={knowledgeLoadState === "loading"}
-            onOpenTrace={selectTrace}
-            onRefresh={() => void loadKnowledge()}
-            onSelectTab={navigateKnowledgeTab}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <KnowledgePage
+              activeTab={knowledgeTab}
+              enabled={knowledgeEnabled}
+              summary={knowledge}
+              loading={knowledgeLoadState === "loading"}
+              onOpenTrace={selectTrace}
+              onRefresh={() => void loadKnowledge()}
+              onSelectTab={navigateKnowledgeTab}
+            />
+          </Suspense>
         ) : null}
 
-        {activePage === "memory" ? <MemoryPage agents={agents} enabled={memoryEnabled} /> : null}
+        {activePage === "memory" ? (
+          <Suspense fallback={<PageLoading />}>
+            <MemoryPage agents={agents} enabled={memoryEnabled} />
+          </Suspense>
+        ) : null}
 
-        {activePage === "status" ? <StatusPage enabled={statusEnabled} /> : null}
+        {activePage === "status" ? (
+          <Suspense fallback={<PageLoading />}>
+            <StatusPage enabled={statusEnabled} />
+          </Suspense>
+        ) : null}
       </main>
-      <DeleteSessionDialog
-        session={deleteCandidate}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteCandidate(undefined);
-          }
-        }}
-        onConfirm={(session) => void deleteSession(session)}
-      />
+      <Suspense fallback={null}>
+        <DeleteSessionDialog
+          session={deleteCandidate}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleteCandidate(undefined);
+            }
+          }}
+          onConfirm={(session) => void deleteSession(session)}
+        />
+      </Suspense>
     </div>
   );
 }
@@ -2162,6 +2269,14 @@ function SidebarLink(props: { href: string; label: string }) {
       <span>{props.label}</span>
       <ArrowSquareOut aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
     </a>
+  );
+}
+
+function PageLoading() {
+  return (
+    <section className="grid h-full min-h-0 place-items-center bg-background/45 text-sm font-medium text-muted-foreground">
+      Loading
+    </section>
   );
 }
 
