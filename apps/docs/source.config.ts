@@ -1,4 +1,4 @@
-import { defineConfig, defineDocs } from "fumadocs-mdx/config";
+import { defineConfig, defineDocs, metaSchema } from "fumadocs-mdx/config";
 
 const brandPrimary = "#e2ff1f";
 const brandString = "#eaff73";
@@ -110,5 +110,8 @@ export const docs = defineDocs({
     postprocess: {
       includeProcessedMarkdown: true,
     },
+  },
+  meta: {
+    schema: metaSchema.passthrough(),
   },
 });

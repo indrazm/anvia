@@ -1,0 +1,45 @@
+---
+title: Docker Sessions
+description: Create and clean up ephemeral Docker sandbox sessions.
+---
+
+Create a `DockerSandbox`, start a session, run commands, then destroy the session when the workflow is done.
+
+```ts
+import { DockerSandbox } from "@anvia/sandbox";
+
+const sandbox = new DockerSandbox({
+  image: "node:22-bookworm",
+  limits: {
+    timeoutMs: 30_000,
+    maxOutputBytes: 64_000,
+    memoryMb: 512,
+    cpus: 1,
+  },
+});
+
+const session = await sandbox.createSession({
+  manifest: {
+    files: {
+      "index.js": "console.log('hello sandbox')",
+    },
+  },
+});
+
+try {
+  const result = await session.exec({
+    command: "node",
+    args: ["index.js"],
+  });
+
+  console.log(result.stdout);
+} finally {
+  await session.destroy();
+}
+```
+
+## Safety Defaults
+
+`DockerSandbox` disables network access by default, drops Docker capabilities, enables `no-new-privileges`, rejects unsafe paths, truncates large output, and enforces command timeouts.
+
+Do not bind mount the host project into a sandbox for untrusted code. Stage the files a task needs through `manifest`, `writeFile(...)`, or `write_file`.

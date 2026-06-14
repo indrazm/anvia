@@ -1,0 +1,41 @@
+---
+title: Agent Tools
+description: Expose a sandbox session as Anvia tools.
+---
+
+Use `createSandboxTools(...)` when an agent should run commands and manage files inside a live sandbox session.
+
+```ts
+import { AgentBuilder } from "@anvia/core/agent";
+import { createSandboxTools, DockerSandbox } from "@anvia/sandbox";
+
+const sandbox = new DockerSandbox();
+const session = await sandbox.createSession();
+
+const agent = new AgentBuilder("coder", model)
+  .instructions("Use the sandbox for code execution and file operations.")
+  .tools(createSandboxTools(session))
+  .defaultMaxTurns(6)
+  .build();
+
+try {
+  const response = await agent
+    .prompt("Write a JavaScript file that prints the first five Fibonacci numbers, run it, and summarize the output.")
+    .send();
+
+  console.log(response.output);
+} finally {
+  await session.destroy();
+}
+```
+
+The default bundle exposes:
+
+| Tool | Purpose |
+| --- | --- |
+| `exec_command` | Run a structured command with `command` and `args` |
+| `read_file` | Read a text file from the sandbox workspace |
+| `write_file` | Write a text file, creating parent directories |
+| `list_files` | List files and directories under a workspace path |
+
+Keep the session lifetime explicit. Create the session before the agent run and destroy it in a `finally` block.

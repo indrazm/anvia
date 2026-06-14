@@ -1,0 +1,6 @@
+{
+  "title": "Model Patterns",
+  "defaultOpen": false,
+  "collapsible": true,
+  "pages": ["multi-provider-setup"]
+}
