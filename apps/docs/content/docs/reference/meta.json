@@ -9,6 +9,7 @@
     "core",
     "server",
     "react",
+    "sandbox",
     "providers",
     "integrations",
     "studio"

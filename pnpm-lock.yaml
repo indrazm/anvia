@@ -190,6 +190,9 @@ importers:
       '@anvia/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@anvia/sandbox':
+        specifier: workspace:*
+        version: link:../../packages/tools/sandbox
       '@anvia/server':
         specifier: workspace:*
         version: link:../../packages/server
