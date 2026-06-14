@@ -23,6 +23,8 @@ import {
 } from "./shared";
 import { streamStudioJsonl } from "./streams";
 
+export { transcriptFromMessages } from "./transcript";
+
 export class AsyncEventQueue<T> {
   private readonly values: T[] = [];
   private readonly resolvers: Array<(value: IteratorResult<T>) => void> = [];
@@ -452,62 +454,6 @@ function findChildAgentToolEvent(
     }
   }
   return undefined;
-}
-
-export function transcriptFromMessages(messages: Message[]): StudioTranscriptEntry[] {
-  const transcript: StudioTranscriptEntry[] = [];
-  for (const message of messages) {
-    if (message.role === "system") {
-      continue;
-    }
-    if (message.role === "user") {
-      for (const content of message.content) {
-        if (content.type === "text") {
-          transcript.push({
-            entryId: transcript.length,
-            kind: "message",
-            role: "user",
-            text: content.text,
-          });
-        }
-      }
-      continue;
-    }
-    if (message.role === "tool") {
-      for (const content of message.content) {
-        transcript.push({
-          entryId: transcript.length,
-          kind: "tool",
-          toolName: "tool_result",
-          callId: content.callId ?? content.id,
-          result: content.content
-            .map((item) =>
-              "text" in item ? item.text : `[image:${item.mediaType ?? "image/png"}]`,
-            )
-            .join("\n"),
-          structuredResult: content.content,
-        });
-      }
-      continue;
-    }
-
-    for (const content of message.content) {
-      if (content.type === "text") {
-        appendTranscriptAssistantText(transcript, content.text);
-      } else if (content.type === "reasoning") {
-        appendTranscriptReasoningText(transcript, content.text, content.id);
-      } else if (content.type === "tool_call") {
-        transcript.push({
-          entryId: transcript.length,
-          kind: "tool",
-          toolName: content.function.name,
-          callId: content.callId ?? content.id,
-          args: formatJson(content.function.arguments),
-        });
-      }
-    }
-  }
-  return transcript;
 }
 
 function messageToTranscriptEntry(

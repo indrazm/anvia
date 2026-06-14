@@ -807,10 +807,18 @@ export type StudioPipelineRunListOptions = {
   limit: number;
 };
 
+export type StudioPipelineRunGetOptions = {
+  pipelineId: string;
+  runId: string;
+};
+
 export type StudioPipelineRunStore = {
   savePipelineRun(
     input: StudioPipelineRunSaveInput,
   ): StudioPipelineRunRecord | Promise<StudioPipelineRunRecord>;
+  getPipelineRun(
+    options: StudioPipelineRunGetOptions,
+  ): StudioPipelineRunRecord | undefined | Promise<StudioPipelineRunRecord | undefined>;
   listPipelineRuns(
     options: StudioPipelineRunListOptions,
   ): StudioPipelineRunRecord[] | Promise<StudioPipelineRunRecord[]>;

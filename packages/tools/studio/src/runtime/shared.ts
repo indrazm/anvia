@@ -24,7 +24,7 @@ import type {
   StudioTraceStore,
   StudioUiOptions,
 } from "../types";
-import { toJsonValue } from "./json";
+import { serializeUnknown, toJsonValue } from "./json";
 import { agentHasMcpTools, agentToolItems, mcpServerName } from "./tool-metadata";
 
 export type ResolvedStores = {
@@ -162,6 +162,7 @@ function isPipelineRunStore(store: object): store is object & StudioPipelineRunS
   const candidate = store as Partial<StudioPipelineRunStore>;
   return (
     typeof candidate.savePipelineRun === "function" &&
+    typeof candidate.getPipelineRun === "function" &&
     typeof candidate.listPipelineRuns === "function"
   );
 }
@@ -490,13 +491,5 @@ export function errorResponse(
 }
 
 export function serializeError(error: unknown): JsonValue {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      ...(error.stack === undefined ? {} : { stack: error.stack }),
-    };
-  }
-
-  return isJsonValue(error) ? error : String(error);
+  return serializeUnknown(error);
 }

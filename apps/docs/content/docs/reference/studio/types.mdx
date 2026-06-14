@@ -526,10 +526,18 @@ type StudioPipelineRunListOptions = {
   limit: number;
 };
 
+type StudioPipelineRunGetOptions = {
+  pipelineId: string;
+  runId: string;
+};
+
 type StudioPipelineRunStore = {
   savePipelineRun(
     input: StudioPipelineRunSaveInput,
   ): StudioPipelineRunRecord | Promise<StudioPipelineRunRecord>;
+  getPipelineRun(
+    options: StudioPipelineRunGetOptions,
+  ): StudioPipelineRunRecord | undefined | Promise<StudioPipelineRunRecord | undefined>;
   listPipelineRuns(
     options: StudioPipelineRunListOptions,
   ): StudioPipelineRunRecord[] | Promise<StudioPipelineRunRecord[]>;
@@ -538,7 +546,7 @@ type StudioPipelineRunStore = {
 
 Purpose: persistence contract for Studio pipeline run history.
 
-Return behavior: stores normalize saved run input into `StudioPipelineRunRecord` values and list recent records per pipeline.
+Return behavior: stores normalize saved run input into `StudioPipelineRunRecord` values, load exact records by pipeline and run id, and list recent records per pipeline.
 
 Notable errors: store failures surface through the Studio runtime or HTTP route handling the pipeline request.
 
