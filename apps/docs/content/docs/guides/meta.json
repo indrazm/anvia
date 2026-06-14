@@ -16,6 +16,7 @@
     "agents",
     "memory",
     "tools",
+    "sandbox",
     "human-in-the-loop",
     "mcp",
     "structured-output",

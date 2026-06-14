@@ -145,10 +145,11 @@ body {
   color: var(--color-fd-primary);
 }
 
-.docs-section-tab-badge {
+.docs-sidebar-new-badge {
   border: 1px solid hsl(68 100% 56% / 42%);
   border-radius: 999px;
   background: hsl(68 100% 56% / 12%);
+  margin-inline-start: 0.5rem;
   padding: 0.0625rem 0.35rem;
   color: var(--color-fd-primary);
   font-size: 0.625rem;
