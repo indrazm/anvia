@@ -112,6 +112,9 @@ const transcriptionModel = client.transcriptionModel();
 
 ## Development
 
+The package-local `typecheck` and `build` scripts build `@anvia/core` first so core subpath
+types are available in a fresh worktree.
+
 ```sh
 pnpm --filter @anvia/openai typecheck
 pnpm --filter @anvia/openai test

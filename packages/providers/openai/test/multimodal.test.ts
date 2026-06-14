@@ -49,6 +49,28 @@ describe("OpenAI multimodal models", () => {
     });
   });
 
+  it("rejects malformed image responses", async () => {
+    const client = mockOpenAIClient({ imageResponse: { output_format: "png", data: [] } });
+    const model = new OpenAIClient({ client: client as never }).imageGenerationModel();
+
+    await expect(imageGenerationRequest(model).prompt("x").send()).rejects.toThrow(
+      "OpenAI image generation response contained no base64 images.",
+    );
+  });
+
+  it("rejects url-only image responses with an unsupported response error", async () => {
+    const client = mockOpenAIClient({
+      imageResponse: {
+        data: [{ url: "https://example.com/generated.png" }],
+      },
+    });
+    const model = new OpenAIClient({ client: client as never }).imageGenerationModel();
+
+    await expect(imageGenerationRequest(model).prompt("x").send()).rejects.toThrow(
+      "OpenAI image generation response contained image URLs, which are not supported.",
+    );
+  });
+
   it("maps speech responses to Uint8Array audio", async () => {
     const client = mockOpenAIClient();
     const model = new OpenAIClient({ client: client as never }).audioGenerationModel("tts-test");
@@ -116,7 +138,11 @@ describe("OpenAI multimodal models", () => {
 });
 
 function mockOpenAIClient(
-  options: { imageError?: Error | undefined; transcriptionResponse?: unknown } = {},
+  options: {
+    imageError?: Error | undefined;
+    imageResponse?: unknown;
+    transcriptionResponse?: unknown;
+  } = {},
 ) {
   const generateCalls: unknown[] = [];
   const speechCreateCalls: unknown[] = [];
@@ -129,13 +155,15 @@ function mockOpenAIClient(
         if (options.imageError !== undefined) {
           throw options.imageError;
         }
-        return {
-          output_format: "png",
-          data: [
-            { b64_json: Buffer.from([1, 2, 3]).toString("base64") },
-            { b64_json: Buffer.from([4, 5, 6]).toString("base64") },
-          ],
-        };
+        return (
+          options.imageResponse ?? {
+            output_format: "png",
+            data: [
+              { b64_json: Buffer.from([1, 2, 3]).toString("base64") },
+              { b64_json: Buffer.from([4, 5, 6]).toString("base64") },
+            ],
+          }
+        );
       },
     },
     audio: {

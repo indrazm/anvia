@@ -48,7 +48,8 @@ export function imageResponseFromOpenAI(response: unknown): ImageGenerationRespo
   const mediaType = mediaTypeFromFormat(
     typeof raw.output_format === "string" ? raw.output_format : "png",
   );
-  const images = (Array.isArray(raw.data) ? raw.data : []).flatMap((item): GeneratedImage[] => {
+  const data = Array.isArray(raw.data) ? raw.data : [];
+  const images = data.flatMap((item): GeneratedImage[] => {
     if (!isPlainObject(item) || typeof item.b64_json !== "string") {
       return [];
     }
@@ -57,6 +58,11 @@ export function imageResponseFromOpenAI(response: unknown): ImageGenerationRespo
 
   const image = images[0]?.data;
   if (image === undefined) {
+    if (data.some((item) => isPlainObject(item) && typeof item.url === "string")) {
+      throw new Error(
+        "OpenAI image generation response contained image URLs, which are not supported.",
+      );
+    }
     throw new Error("OpenAI image generation response contained no base64 images.");
   }
 
