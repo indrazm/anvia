@@ -15,9 +15,22 @@ const docsSections = [
   { title: "Best Practices", href: "/docs/best-practices" },
   { title: "Frameworks", href: "/docs/frameworks" },
   { title: "Models", href: "/docs/models" },
+  { title: "Sandbox", href: "/docs/sandbox", createdAt: "2026-06-14" },
   { title: "Studio", href: "/docs/studio/overview" },
   { title: "Reference", href: "/docs/reference" },
 ];
+
+const newSectionWindowMs = 30 * 24 * 60 * 60 * 1000;
+
+function isNewSection(createdAt?: string) {
+  if (!createdAt) return false;
+
+  const createdTime = Date.parse(createdAt);
+  if (!Number.isFinite(createdTime)) return false;
+
+  const ageMs = Date.now() - createdTime;
+  return ageMs >= 0 && ageMs < newSectionWindowMs;
+}
 
 const bestPracticeRedirects: Record<string, string> = {
   "agent-structure": "/docs/best-practices/common-patterns/agent-structure",
@@ -140,7 +153,10 @@ function DocsSectionTabs() {
 
         return (
           <Link aria-current={active ? "page" : undefined} key={section.href} to={section.href}>
-            {section.title}
+            <span>{section.title}</span>
+            {isNewSection("createdAt" in section ? section.createdAt : undefined) ? (
+              <span className="docs-section-tab-badge">New</span>
+            ) : null}
           </Link>
         );
       })}
