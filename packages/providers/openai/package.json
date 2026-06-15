@@ -26,9 +26,9 @@
     }
   },
   "scripts": {
-    "prebuild": "pnpm --filter @anvia/core build",
+    "prebuild": "test -f ../../core/dist/index.d.ts || pnpm --filter @anvia/core build",
     "build": "tsup src/index.ts --format esm --dts --sourcemap --clean",
-    "pretypecheck": "pnpm --filter @anvia/core build",
+    "pretypecheck": "test -f ../../core/dist/index.d.ts || pnpm --filter @anvia/core build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

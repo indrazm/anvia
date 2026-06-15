@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "pnpm run build:deps && tsup src/index.ts --format esm --dts --sourcemap --clean",
-    "build:deps": "pnpm --filter @anvia/core build",
+    "build:deps": "test -f ../../core/dist/index.d.ts || pnpm --filter @anvia/core build",
     "test": "pnpm run build:deps && vitest run",
     "typecheck": "pnpm run build:deps && tsc --noEmit"
   },
