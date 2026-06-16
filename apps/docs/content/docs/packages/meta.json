@@ -1,0 +1,32 @@
+{
+  "title": "Packages",
+  "description": "Per-package guides",
+  "icon": "Package",
+  "root": true,
+  "pages": [
+    "index",
+    "---Standalone---",
+    "core",
+    "react",
+    "server",
+    "logger",
+    "---Providers---",
+    "openai",
+    "anthropic",
+    "gemini",
+    "mistral",
+    "---Embeddings---",
+    "fastembed",
+    "transformers",
+    "---Vector Stores---",
+    "chroma",
+    "pgvector",
+    "qdrant",
+    "---Observability---",
+    "langfuse",
+    "otel",
+    "---Tools---",
+    "sandbox",
+    "studio"
+  ]
+}
