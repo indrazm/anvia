@@ -4,19 +4,29 @@ import browserCollections from "collections/browser";
 import { useFumadocsLoader } from "fumadocs-core/source/client";
 import { DocsLayout, useDocsLayout } from "fumadocs-ui/layouts/docs";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
-import { SidebarIcon } from "lucide-react";
+import {
+  BookCheck,
+  BookOpen,
+  Code,
+  Cpu,
+  Layers,
+  Monitor,
+  Package,
+  SidebarIcon,
+} from "lucide-react";
 import { Suspense } from "react";
 import { getMDXComponents } from "@/components/mdx";
 import { baseOptions } from "@/lib/layout.shared";
 import { source } from "@/lib/source";
 
 const docsSections = [
-  { title: "Docs", href: "/docs/guides" },
-  { title: "Best Practices", href: "/docs/best-practices" },
-  { title: "Frameworks", href: "/docs/frameworks" },
-  { title: "Models", href: "/docs/models" },
-  { title: "Studio", href: "/docs/studio/overview" },
-  { title: "Reference", href: "/docs/reference" },
+  { title: "Docs", href: "/docs/guides", icon: BookOpen },
+  { title: "Packages", href: "/docs/packages", icon: Package },
+  { title: "Best Practices", href: "/docs/best-practices", icon: BookCheck },
+  { title: "Frameworks", href: "/docs/frameworks", icon: Layers },
+  { title: "Models", href: "/docs/models", icon: Cpu },
+  { title: "Studio", href: "/docs/studio/overview", icon: Monitor },
+  { title: "Reference", href: "/docs/reference", icon: Code },
 ];
 
 const bestPracticeRedirects: Record<string, string> = {
@@ -138,8 +148,11 @@ function DocsSectionTabs() {
       {docsSections.map((section) => {
         const active = pathname === section.href || pathname.startsWith(`${section.href}/`);
 
+        const Icon = section.icon;
+
         return (
           <Link aria-current={active ? "page" : undefined} key={section.href} to={section.href}>
+            <Icon className="size-3.5" />
             {section.title}
           </Link>
         );
