@@ -32,7 +32,11 @@ class StreamingQueueModel implements StreamingCompletionModel {
   };
   readonly requests: CompletionRequest[] = [];
 
-  constructor(private readonly responses: CompletionStreamEvent[][]) {}
+  constructor(
+    private readonly responses: Array<
+      Iterable<CompletionStreamEvent> | AsyncIterable<CompletionStreamEvent>
+    >,
+  ) {}
 
   async completion(): Promise<CompletionResponse> {
     throw new Error("completion should not be called");
@@ -44,7 +48,9 @@ class StreamingQueueModel implements StreamingCompletionModel {
     if (response === undefined) {
       throw new Error("No queued response");
     }
-    yield* response;
+    for await (const event of response) {
+      yield event;
+    }
   }
 }
 
@@ -99,6 +105,142 @@ describe("PromptRequest streaming", () => {
     expect(events.at(-1)).toMatchObject({ type: "final", output: "hello" });
     expect(model.requests[0]?.instructions).toBe("system");
     expect(model.requests[0]?.chatHistory[0]).toEqual(Message.user("hi"));
+  });
+
+  it("continues when steering arrives before a no-tool response finalizes", async () => {
+    const model = new StreamingQueueModel([
+      [{ type: "text_delta", delta: "first" }],
+      [{ type: "text_delta", delta: "second" }],
+    ]);
+    const agent = new AgentBuilder("test-agent", model).build();
+    const request = agent.prompt("hi");
+    const iterator = request.stream()[Symbol.asyncIterator]();
+
+    expect(await nextEvent(iterator)).toMatchObject({
+      type: "turn_start",
+      turn: 1,
+      prompt: Message.user("hi"),
+    });
+    expect(await nextEvent(iterator)).toMatchObject({
+      type: "text_delta",
+      turn: 1,
+      delta: "first",
+    });
+    expect(await nextEvent(iterator)).toMatchObject({ type: "turn_end", turn: 1 });
+
+    expect(request.steer("revise")).toBe(true);
+
+    const rest = await collectIterator(iterator);
+    expect(rest.map((event) => event.type)).toEqual([
+      "turn_start",
+      "text_delta",
+      "turn_end",
+      "final",
+    ]);
+    expect(rest[0]).toMatchObject({
+      type: "turn_start",
+      turn: 2,
+      prompt: Message.user("revise"),
+    });
+    expect(model.requests).toHaveLength(2);
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(Message.user("revise"));
+    expect(rest.at(-1)).toMatchObject({
+      type: "final",
+      output: "second",
+      messages: [
+        Message.user("hi"),
+        Message.assistant("first"),
+        Message.user("revise"),
+        Message.assistant("second"),
+      ],
+    });
+  });
+
+  it("appends steering after tool results before the next completion turn", async () => {
+    const toolStarted = deferred<void>();
+    const toolRelease = deferred<number>();
+    const slowAddTool = createTool({
+      name: "slow_add",
+      description: "Add numbers slowly",
+      input: z.object({
+        x: z.number(),
+        y: z.number(),
+      }),
+      output: z.number(),
+      async execute(args) {
+        toolStarted.resolve();
+        await toolRelease.promise;
+        return args.x + args.y;
+      },
+    });
+    const toolCall = AssistantContent.toolCall("call_1", "slow_add", { x: 2, y: 5 });
+    const model = new StreamingQueueModel([
+      [{ type: "tool_call", toolCall }],
+      [{ type: "text_delta", delta: "done" }],
+    ]);
+    const agent = new AgentBuilder("test-agent", model).tool(slowAddTool).build();
+    const request = agent.prompt("add");
+    const eventsPromise = collect(request.stream());
+
+    await toolStarted.promise;
+    expect(request.steer("also explain")).toBe(true);
+    toolRelease.resolve(7);
+
+    const events = await eventsPromise;
+    expect(events.at(-1)).toMatchObject({ type: "final", output: "done" });
+    expect(model.requests).toHaveLength(2);
+    expect(model.requests[1]?.chatHistory.slice(-3)).toEqual([
+      Message.assistant([toolCall]),
+      Message.tool([
+        {
+          type: "tool_result",
+          id: "call_1",
+          content: [{ type: "text", text: "7" }],
+        },
+      ]),
+      Message.user("also explain"),
+    ]);
+  });
+
+  it("consumes multiple steering calls in FIFO order", async () => {
+    const model = new StreamingQueueModel([
+      [{ type: "text_delta", delta: "base" }],
+      [{ type: "text_delta", delta: "done" }],
+    ]);
+    const agent = new AgentBuilder("test-agent", model).build();
+    const request = agent.prompt("start");
+    const iterator = request.stream()[Symbol.asyncIterator]();
+    const firstSteer = Message.user("first steer");
+    const secondSteer = Message.user("second steer");
+
+    expect(await nextEvent(iterator)).toMatchObject({ type: "turn_start", turn: 1 });
+    expect(await nextEvent(iterator)).toMatchObject({ type: "text_delta", turn: 1 });
+    expect(await nextEvent(iterator)).toMatchObject({ type: "turn_end", turn: 1 });
+
+    expect(request.steer(firstSteer)).toBe(true);
+    expect(request.steer([secondSteer])).toBe(true);
+
+    const rest = await collectIterator(iterator);
+    expect(rest[0]).toMatchObject({
+      type: "turn_start",
+      turn: 2,
+      prompt: secondSteer,
+    });
+    expect(model.requests[1]?.chatHistory.slice(-3)).toEqual([
+      Message.assistant("base"),
+      firstSteer,
+      secondSteer,
+    ]);
+    expect(rest.at(-1)).toMatchObject({
+      type: "final",
+      messages: [
+        Message.user("start"),
+        Message.assistant("base"),
+        firstSteer,
+        secondSteer,
+        Message.assistant("done"),
+      ],
+    });
   });
 
   it("merges usage-only final stream responses with accumulated text", async () => {

@@ -115,6 +115,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
   private concurrency = 1;
   private traceOptions: AgentTraceOptions | undefined;
   private requestMiddlewares: AgentMiddleware[] = [];
+  private readonly steeringMessages: MessageType[] = [];
+  private runState: "idle" | "running" | "completed" | "errored" | "cancelled" = "idle";
   private readonly memoryRecorder: PromptRequestMemory;
 
   private constructor(
@@ -189,7 +191,17 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     return this;
   }
 
+  steer(input: string | MessageType | MessageType[]): boolean {
+    if (this.isTerminal()) {
+      return false;
+    }
+
+    this.steeringMessages.push(...normalizeSteeringInput(input));
+    return true;
+  }
+
   async send(): Promise<PromptResponse> {
+    this.startRun();
     const runId = globalThis.crypto.randomUUID();
     const newMessages: MessageType[] = [this.promptMessage];
     this.chatHistory = await this.memoryRecorder.prepareRun(runId, newMessages);
@@ -254,6 +266,13 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           (item): item is ToolCall => item.type === "tool_call",
         );
         if (toolCalls.length === 0) {
+          if (
+            await this.drainSteeringMessages(runId, currentTurns, newMessages, pendingTurnMessages)
+          ) {
+            await this.memoryRecorder.commitCompletedTurn(runId, currentTurns, pendingTurnMessages);
+            continue;
+          }
+
           await this.memoryRecorder.commitCompletedRun(
             runId,
             currentTurns,
@@ -266,6 +285,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             messages: [...newMessages],
             trace: runObservers.trace,
           };
+          this.runState = "completed";
           await this.runRunEndHook(result, newMessages);
           await runObservers.end(result);
           return result;
@@ -290,12 +310,14 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           [toolMessage],
           pendingTurnMessages,
         );
+        await this.drainSteeringMessages(runId, currentTurns, newMessages, pendingTurnMessages);
         await this.memoryRecorder.commitCompletedTurn(runId, currentTurns, pendingTurnMessages);
       }
 
       throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
       const finalError = await this.runRunErrorHook(error, usage, newMessages);
+      this.runState = finalError instanceof PromptCancelledError ? "cancelled" : "errored";
       await runObservers.error({ error: finalError, usage, messages: [...newMessages] });
       await this.memoryRecorder.recordError(runId, finalError, newMessages);
       throw finalError;
@@ -307,6 +329,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       throw new Error("This completion model does not support streaming");
     }
 
+    this.startRun();
     const runId = globalThis.crypto.randomUUID();
     const newMessages: MessageType[] = [this.promptMessage];
     this.chatHistory = await this.memoryRecorder.prepareRun(runId, newMessages);
@@ -419,6 +442,13 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         yield await emit({ type: "turn_end", turn: currentTurns, response });
 
         if (toolCalls.length === 0) {
+          if (
+            await this.drainSteeringMessages(runId, currentTurns, newMessages, pendingTurnMessages)
+          ) {
+            await this.memoryRecorder.commitCompletedTurn(runId, currentTurns, pendingTurnMessages);
+            continue;
+          }
+
           const output = textFromAssistantContent(response.choice);
           await this.memoryRecorder.commitCompletedRun(
             runId,
@@ -434,6 +464,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             messages: [...newMessages],
             trace: runObservers.trace,
           });
+          this.runState = "completed";
           await this.runRunEndHook({ output, usage, messages: [...newMessages] }, newMessages);
           await runObservers.end({ output, usage, messages: [...newMessages] });
           return;
@@ -471,12 +502,14 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           [toolMessage],
           pendingTurnMessages,
         );
+        await this.drainSteeringMessages(runId, currentTurns, newMessages, pendingTurnMessages);
         await this.memoryRecorder.commitCompletedTurn(runId, currentTurns, pendingTurnMessages);
       }
 
       throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
       const finalError = await this.runRunErrorHook(error, usage, newMessages);
+      this.runState = finalError instanceof PromptCancelledError ? "cancelled" : "errored";
       await runObservers.error({ error: finalError, usage, messages: [...newMessages] });
       await this.memoryRecorder.recordError(runId, finalError, newMessages);
       yield await emit({ type: "error", error: finalError });
@@ -758,6 +791,34 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     return [...this.agent.middlewares, ...this.requestMiddlewares];
   }
 
+  private async drainSteeringMessages(
+    runId: string,
+    turn: number,
+    newMessages: MessageType[],
+    pendingTurnMessages: MessageType[],
+  ): Promise<boolean> {
+    const messages = this.steeringMessages.splice(0);
+    if (messages.length === 0) {
+      return false;
+    }
+
+    newMessages.push(...messages);
+    await this.memoryRecorder.commitMessages(runId, turn, messages, pendingTurnMessages);
+    return true;
+  }
+
+  private startRun(): void {
+    if (!this.isTerminal()) {
+      this.runState = "running";
+    }
+  }
+
+  private isTerminal(): boolean {
+    return (
+      this.runState === "completed" || this.runState === "errored" || this.runState === "cancelled"
+    );
+  }
+
   private cancelled(newMessages: MessageType[], reason: string): PromptCancelledError {
     return new PromptCancelledError([...this.chatHistory, ...newMessages], reason);
   }
@@ -784,6 +845,13 @@ function normalizePromptInput(prompt: string | MessageType | MessageType[]): {
     prompt: activePrompt,
     history: prompt.slice(0, -1),
   };
+}
+
+function normalizeSteeringInput(input: string | MessageType | MessageType[]): MessageType[] {
+  if (typeof input === "string") {
+    return [Message.user(input)];
+  }
+  return Array.isArray(input) ? [...input] : [input];
 }
 
 function addTurn(turn: number, event: AgentDeltaEvent): AgentStreamEvent {
