@@ -1,6 +1,15 @@
-import type { StudioTrace, StudioTranscriptEntry } from "../../../../types";
+import type {
+  StudioTrace,
+  StudioTranscriptChatEntry,
+  StudioTranscriptEntry,
+} from "../../../../types";
 
-export type TranscriptEntry = StudioTranscriptEntry;
+export type PendingAssistantMessage = Omit<StudioTranscriptChatEntry, "role" | "text" | "tone"> & {
+  role: "assistant";
+  text: "";
+  tone: "pending";
+};
+export type TranscriptEntry = StudioTranscriptEntry | PendingAssistantMessage;
 export type ChatMessage = Extract<TranscriptEntry, { kind: "message" }>;
 export type ToolMessage = Extract<TranscriptEntry, { kind: "tool" }>;
 export type ToolApproval = NonNullable<ToolMessage["approval"]>;

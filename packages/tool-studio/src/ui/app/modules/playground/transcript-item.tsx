@@ -47,6 +47,26 @@ export function TranscriptItem(props: {
   const hasTable = props.entry.role === "assistant" && hasMarkdownTable(props.entry.text);
   const isError =
     props.entry.role === "assistant" && "tone" in props.entry && props.entry.tone === "error";
+  const isPending =
+    props.entry.role === "assistant" && "tone" in props.entry && props.entry.tone === "pending";
+
+  if (props.entry.role === "user") {
+    return (
+      <article
+        className="grid w-fit max-w-[min(64ch,82%)] justify-items-end justify-self-end self-start text-foreground"
+        data-entry-id={String(props.entry.entryId)}
+      >
+        {props.entry.text.trim().length === 0 ? null : (
+          <div className="rounded-2xl bg-primary/10 px-4 py-2.5 shadow-sm shadow-primary/10">
+            <MarkdownText text={props.entry.text} />
+          </div>
+        )}
+        {props.entry.attachments !== undefined ? (
+          <MessageAttachments attachments={props.entry.attachments} />
+        ) : null}
+      </article>
+    );
+  }
 
   return (
     <article
@@ -55,12 +75,11 @@ export function TranscriptItem(props: {
         hasTable ? "w-full max-w-full" : "max-w-[min(82ch,100%)]",
         props.entry.role === "assistant" &&
           cn("justify-self-start text-foreground", isError && "text-destructive"),
-        props.entry.role === "user" &&
-          "w-fit max-w-[min(64ch,82%)] justify-self-end rounded-2xl bg-primary/10 px-4 py-2.5 text-foreground shadow-sm shadow-primary/10",
       )}
       data-entry-id={String(props.entry.entryId)}
     >
-      <MarkdownText text={props.entry.text} />
+      {isPending ? <AssistantLoadingIndicator /> : null}
+      {props.entry.text.trim().length === 0 ? null : <MarkdownText text={props.entry.text} />}
       {traceId !== undefined ? (
         <Button
           className="group mt-3 h-7 min-h-7 max-w-full gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1 font-mono text-xs font-semibold text-muted-foreground shadow-none transition duration-200 hover:border-primary/45 hover:bg-primary/15 hover:text-primary"
@@ -81,6 +100,72 @@ export function TranscriptItem(props: {
         </Button>
       ) : null}
     </article>
+  );
+}
+
+function AssistantLoadingIndicator() {
+  return (
+    <div
+      aria-label="Assistant is responding"
+      className="inline-flex h-9 min-h-9 items-center gap-2 rounded-xl border border-border/70 bg-muted/35 px-3 text-muted-foreground shadow-sm"
+      role="status"
+    >
+      <span className="flex items-center gap-1" aria-hidden="true">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:300ms]" />
+      </span>
+      <span className="font-mono text-[11px] font-semibold uppercase text-muted-foreground">
+        Thinking
+      </span>
+    </div>
+  );
+}
+
+function MessageAttachments(props: {
+  attachments: NonNullable<Extract<TranscriptEntry, { kind: "message" }>["attachments"]>;
+}) {
+  return (
+    <div className="mt-2 flex max-w-full flex-wrap gap-2">
+      {props.attachments.map((attachment, index) => {
+        const key = `${attachment.kind}-${attachment.name ?? attachment.mediaType ?? index}-${index}`;
+        if (attachment.kind === "image") {
+          const src =
+            attachment.url ??
+            (attachment.data === undefined
+              ? undefined
+              : `data:${attachment.mediaType ?? "image/png"};base64,${attachment.data}`);
+          return (
+            <div
+              className="overflow-hidden rounded-lg border border-border/80 bg-card/80"
+              key={key}
+            >
+              {src === undefined ? (
+                <div className="grid h-20 w-24 place-items-center px-2 text-center font-mono text-[10px] text-muted-foreground">
+                  Image
+                </div>
+              ) : (
+                <img
+                  alt={attachment.name ?? "Attached image"}
+                  className="h-20 w-24 object-cover"
+                  src={src}
+                />
+              )}
+            </div>
+          );
+        }
+        return (
+          <span
+            className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/80 bg-card/80 px-2 py-1 font-mono text-[11px] font-medium text-muted-foreground"
+            key={key}
+          >
+            <span className="min-w-0 truncate">
+              {attachment.name ?? attachment.mediaType ?? "Document"}
+            </span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
 

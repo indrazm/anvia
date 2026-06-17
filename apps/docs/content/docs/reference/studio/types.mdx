@@ -95,7 +95,9 @@ type StudioConfig = {
   description?: string;
   version?: string;
   agents: StudioAgentConfig[];
+  models?: StudioModelsConfig;
   pipelines: StudioPipelineConfig[];
+  evals: StudioEvalSuiteConfig[];
   chat: { quickPrompts: Record<string, string[]> };
   capabilities: Partial<Record<StudioCapability, StudioCapabilityConfig>>;
   unsupportedCapabilities: StudioCapability[];
@@ -107,6 +109,88 @@ Purpose: configuration returned by Studio runtime and HTTP config endpoints.
 Return behavior: `Studio.config()` returns `StudioConfig`. Pipelines are top-level Studio targets beside agents.
 
 Notable errors: none directly.
+
+## Model Configuration Types
+
+```ts
+type StudioModelRef = string | { provider: string; model: string };
+
+type StudioModelModality = "text" | "image" | "document" | "audio" | "video";
+
+type StudioModelModalities = {
+  input: StudioModelModality[];
+  output?: StudioModelModality[];
+};
+
+type StudioModelDefinition = {
+  id: string;
+  name?: string;
+  description?: string;
+  modalities?: StudioModelModalities;
+  capabilities?: Partial<CompletionModelCapabilities>;
+  metadata?: JsonObject;
+};
+
+type StudioModelProvider = {
+  id: string;
+  name?: string;
+  defaultModel?: string;
+  models?: StudioModelDefinition[];
+  createCompletionModel(model: string): CompletionModel | StreamingCompletionModel;
+  listModels?: () => Promise<ModelList>;
+  metadata?: JsonObject;
+};
+
+type StudioAgentModelPolicy = {
+  default?: StudioModelRef;
+  allowed?: Array<StudioModelRef | `${string}:*`>;
+};
+
+type StudioModelConfig = {
+  providers: StudioModelProvider[];
+  default?: StudioModelRef;
+  agents?: Record<string, StudioAgentModelPolicy>;
+};
+
+type StudioModelSummary = StudioModelDefinition & {
+  ref: string;
+  providerId: string;
+  providerName?: string;
+};
+
+type StudioModelProviderConfig = {
+  id: string;
+  name?: string;
+  defaultModel?: string;
+  models: StudioModelSummary[];
+  metadata?: JsonObject;
+  warning?: string;
+};
+
+type StudioAgentModelPolicyConfig = {
+  default?: string;
+  allowed?: string[];
+};
+
+type StudioModelsConfig = {
+  providers: StudioModelProviderConfig[];
+  default?: string;
+  agents: Record<string, StudioAgentModelPolicyConfig>;
+};
+
+type StudioAgentModelsSummary = {
+  agentId: string;
+  defaultModel?: string;
+  models: StudioModelSummary[];
+  warnings?: JsonObject[];
+};
+```
+
+Purpose: configure the provider/model menu Studio exposes for agent runs. `StudioModelProvider` bridges human-facing model metadata to runtime `CompletionModel` instances. `StudioModelModalities` records whether a model accepts text, image, document, audio, or video input and which output modalities it can produce.
+
+Return behavior: `StudioModelConfig` is accepted through `new Studio(targets, { models })`. `StudioModelsConfig` appears on `GET /config`; `StudioAgentModelsSummary` appears on `GET /agents/:agentId/models`; `StudioModelSummary` values use canonical `provider:model` refs for UI selection and HTTP run requests.
+
+Notable errors: run requests that select a model outside an agent's `StudioAgentModelPolicy` return `bad_request`. Unsupported modality selections are reported as warnings when metadata is available.
 
 ## Tool Metadata Types
 
@@ -167,6 +251,14 @@ type StudioAgentMcpServerMetadata = {
 type StudioAgentMcpsSummary = {
   agentId: string;
   servers: StudioAgentMcpServerMetadata[];
+};
+
+type StudioTranscriptAttachment = {
+  kind: "image" | "document";
+  name?: string;
+  mediaType?: string;
+  data?: string;
+  url?: string;
 };
 ```
 
@@ -288,6 +380,7 @@ type AgentRunRequest = {
   message: string | Message;
   history?: Message[];
   sessionId?: string;
+  model?: StudioModelRef;
   stream?: boolean;
   maxTurns?: number;
   toolConcurrency?: number;
