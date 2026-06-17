@@ -83,6 +83,39 @@ describe("PromptRequest", () => {
     expect(model.requests[0]?.chatHistory[0]).toEqual(Message.user("hello"));
   });
 
+  it("send consumes steering queued before no-tool finalization", async () => {
+    const model = new QueueModel([
+      response([AssistantContent.text("first")]),
+      response([AssistantContent.text("second")]),
+    ]);
+    let steer: ((input: string) => boolean) | undefined;
+    const agent = new AgentBuilder("test-agent", model)
+      .hook(
+        createHook({
+          onTurnEnd({ turn }) {
+            if (turn === 1) {
+              expect(steer?.("revise")).toBe(true);
+            }
+          },
+        }),
+      )
+      .build();
+    const request = agent.prompt("hello");
+    steer = request.steer.bind(request);
+
+    const result = await request.send();
+
+    expect(result.output).toBe("second");
+    expect(model.requests).toHaveLength(2);
+    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(Message.user("revise"));
+    expect(result.messages).toEqual([
+      Message.user("hello"),
+      Message.assistant("first"),
+      Message.user("revise"),
+      Message.assistant("second"),
+    ]);
+  });
+
   it("merges repeated instruction blocks", async () => {
     const model = new QueueModel([response([AssistantContent.text("done")])]);
     const agent = new AgentBuilder("test-agent", model)
@@ -721,6 +754,36 @@ describe("PromptRequest", () => {
     await expect(agent.prompt("hello").send()).rejects.toThrow("No queued response");
 
     expect(events).toEqual(["completion_error:No queued response", "run_error:No queued response"]);
+  });
+
+  it("rejects steering after final, error, and cancel", async () => {
+    const finalModel = new QueueModel([response([AssistantContent.text("done")])]);
+    const finalAgent = new AgentBuilder("test-agent", finalModel).build();
+    const finalRequest = finalAgent.prompt("hello");
+
+    const result = await finalRequest.send();
+    const finalMessages = [...result.messages];
+
+    expect(finalRequest.steer("late")).toBe(false);
+    expect(result.messages).toEqual(finalMessages);
+    expect(finalModel.requests).toHaveLength(1);
+
+    const errorRequest = new AgentBuilder("test-agent", new QueueModel([])).build().prompt("hello");
+    await expect(errorRequest.send()).rejects.toThrow("No queued response");
+    expect(errorRequest.steer("late")).toBe(false);
+
+    const cancelRequest = new AgentBuilder("test-agent", new QueueModel([]))
+      .hook(
+        createHook({
+          onRunStart() {
+            return cancelPrompt("stop");
+          },
+        }),
+      )
+      .build()
+      .prompt("hello");
+    await expect(cancelRequest.send()).rejects.toBeInstanceOf(PromptCancelledError);
+    expect(cancelRequest.steer("late")).toBe(false);
   });
 
   it("runs tool error hooks and keeps tool errors as model-visible results", async () => {
