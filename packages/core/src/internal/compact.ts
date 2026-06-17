@@ -20,3 +20,7 @@ export function compact<T extends Record<string, unknown>>(obj: T): Compact<T> {
   }
   return result as Compact<T>;
 }
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

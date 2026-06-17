@@ -19,7 +19,7 @@ import type {
 import type { Agent } from "./agent";
 import type { PromptHook, ToolHookArgs } from "./hooks";
 import { runControl, toolCallControl } from "./hooks";
-import type { AgentChildStreamEvent } from "./request";
+import type { AgentChildStreamEvent } from "./request-types";
 
 const MCP_TOOL_METADATA_KEY = Symbol.for("anvia.mcp.tool.metadata");
 
