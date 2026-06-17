@@ -47,6 +47,8 @@ export function TranscriptItem(props: {
   const hasTable = props.entry.role === "assistant" && hasMarkdownTable(props.entry.text);
   const isError =
     props.entry.role === "assistant" && "tone" in props.entry && props.entry.tone === "error";
+  const isPending =
+    props.entry.role === "assistant" && "tone" in props.entry && props.entry.tone === "pending";
 
   if (props.entry.role === "user") {
     return (
@@ -76,6 +78,7 @@ export function TranscriptItem(props: {
       )}
       data-entry-id={String(props.entry.entryId)}
     >
+      {isPending ? <AssistantLoadingIndicator /> : null}
       {props.entry.text.trim().length === 0 ? null : <MarkdownText text={props.entry.text} />}
       {traceId !== undefined ? (
         <Button
@@ -97,6 +100,25 @@ export function TranscriptItem(props: {
         </Button>
       ) : null}
     </article>
+  );
+}
+
+function AssistantLoadingIndicator() {
+  return (
+    <div
+      aria-label="Assistant is responding"
+      className="inline-flex h-9 min-h-9 items-center gap-2 rounded-xl border border-border/70 bg-muted/35 px-3 text-muted-foreground shadow-sm"
+      role="status"
+    >
+      <span className="flex items-center gap-1" aria-hidden="true">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:150ms]" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary [animation-delay:300ms]" />
+      </span>
+      <span className="font-mono text-[11px] font-semibold uppercase text-muted-foreground">
+        Thinking
+      </span>
+    </div>
   );
 }
 

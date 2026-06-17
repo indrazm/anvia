@@ -1085,6 +1085,13 @@ export function StudioConsole() {
           ? {}
           : { attachments: transcriptAttachmentsForPrompt(promptAttachments) }),
       },
+      {
+        entryId: nextTranscriptId(),
+        kind: "message",
+        role: "assistant",
+        text: "",
+        tone: "pending",
+      },
     ]);
 
     try {
@@ -1325,8 +1332,11 @@ export function StudioConsole() {
       appendSessionLogEntry(event.log);
       return true;
     }
-    if (event.type === "final" && event.trace?.traceId !== undefined) {
-      assignAssistantTraceId(event.trace.traceId);
+    if (event.type === "final") {
+      if (event.trace?.traceId !== undefined) {
+        assignAssistantTraceId(event.trace.traceId);
+      }
+      clearPendingAssistant();
       return true;
     }
     if (event.type === "error") {
@@ -1362,7 +1372,12 @@ export function StudioConsole() {
       const next = [...current];
       const last = next.at(-1);
       if (last?.kind === "message" && last.role === "assistant") {
-        next[next.length - 1] = { ...last, text: `${last.text}${delta}` };
+        if (last.tone === "pending") {
+          const { tone: _tone, ...readyMessage } = last;
+          next[next.length - 1] = { ...readyMessage, text: delta };
+        } else {
+          next[next.length - 1] = { ...last, text: `${last.text}${delta}` };
+        }
       } else {
         next.push({
           entryId: nextTranscriptId(),
@@ -1376,16 +1391,25 @@ export function StudioConsole() {
   }
 
   function appendAssistantError(message: string) {
-    setMessages((current) => [
-      ...current,
-      {
-        entryId: nextTranscriptId(),
-        kind: "message",
-        role: "assistant",
+    setMessages((current) => {
+      const next = [...current];
+      const last = next.at(-1);
+      const entry = {
+        entryId:
+          last?.kind === "message" && last.role === "assistant" && last.tone === "pending"
+            ? last.entryId
+            : nextTranscriptId(),
+        kind: "message" as const,
+        role: "assistant" as const,
         text: message,
-        tone: "error",
-      },
-    ]);
+        tone: "error" as const,
+      };
+      if (last?.kind === "message" && last.role === "assistant" && last.tone === "pending") {
+        next[next.length - 1] = entry;
+        return next;
+      }
+      return [...next, entry];
+    });
   }
 
   function assignAssistantTraceId(traceId: string) {
@@ -1402,9 +1426,28 @@ export function StudioConsole() {
     });
   }
 
+  function clearPendingAssistant() {
+    setMessages((current) => withoutPendingAssistant(current));
+  }
+
+  function withoutPendingAssistant(entries: TranscriptEntry[]): TranscriptEntry[] {
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (
+        entry?.kind === "message" &&
+        entry.role === "assistant" &&
+        entry.tone === "pending" &&
+        entry.text.trim().length === 0
+      ) {
+        return entries.filter((_, itemIndex) => itemIndex !== index);
+      }
+    }
+    return [...entries];
+  }
+
   function updateToolApproval(approval: ToolApprovalUpdate) {
     setMessages((current) => {
-      const next = [...current];
+      const next = withoutPendingAssistant(current);
       const matchedIndex = findMatchingToolIndexByCall(next, approval.toolName, approval.callId);
       if (matchedIndex < 0) {
         next.push({
@@ -1442,7 +1485,7 @@ export function StudioConsole() {
 
   function updateToolQuestion(question: ToolQuestionUpdate) {
     setMessages((current) => {
-      const next = [...current];
+      const next = withoutPendingAssistant(current);
       const matchedIndex = findMatchingToolIndexByCall(next, question.toolName, question.callId);
       if (matchedIndex < 0) {
         next.push({
@@ -1543,7 +1586,7 @@ export function StudioConsole() {
 
   function appendReasoningText(delta: string, reasoningId: string | undefined) {
     setMessages((current) => {
-      const next = [...current];
+      const next = withoutPendingAssistant(current);
       const last = next.at(-1);
       if (last?.kind === "reasoning" && (last.reasoningId ?? "") === (reasoningId ?? "")) {
         next[next.length - 1] = { ...last, text: `${last.text}${delta}` };
@@ -1561,7 +1604,7 @@ export function StudioConsole() {
 
   function appendToolCall(toolName: string, args: string, callId: string | undefined) {
     setMessages((current) => [
-      ...current,
+      ...withoutPendingAssistant(current),
       {
         entryId: nextTranscriptId(),
         kind: "tool",
@@ -1580,7 +1623,7 @@ export function StudioConsole() {
     structuredResult?: ToolResultContent[];
   }) {
     setMessages((current) => {
-      const next = [...current];
+      const next = withoutPendingAssistant(current);
       const matchedIndex = findMatchingToolIndex(next, props.toolName, props.callId);
       if (matchedIndex >= 0) {
         const existing = next[matchedIndex];
@@ -1618,7 +1661,7 @@ export function StudioConsole() {
       return;
     }
     setMessages((current) => {
-      const next = [...current];
+      const next = withoutPendingAssistant(current);
       const matchedIndex = findMatchingToolIndex(next, event.toolName, event.toolCallId);
       if (matchedIndex < 0) {
         next.push({
