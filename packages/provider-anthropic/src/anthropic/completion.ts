@@ -71,6 +71,10 @@ export class AnthropicCompletionModel implements StreamingCompletionModel {
     const stream = await this.client.messages.create(params as never);
     const toolIdsByIndex = new Map<number, string>();
     const blocksWithInitialToolInput = new Set<number>();
+    const streamUsage = Usage.empty();
+    const streamUsageFields = emptyAnthropicStreamUsageFields();
+    let hasStreamUsage = false;
+    let streamMessageId: string | undefined;
     for await (const event of stream as unknown as AsyncIterable<unknown>) {
       if (isPlainObject(event) && event.type === "content_block_start") {
         const index = numberFrom(event.index);
@@ -83,25 +87,131 @@ export class AnthropicCompletionModel implements StreamingCompletionModel {
           blocksWithInitialToolInput.add(index);
         }
       }
+      if (isPlainObject(event)) {
+        if (event.type === "message_start" && isPlainObject(event.message)) {
+          streamMessageId = stringFrom(event.message.id) ?? streamMessageId;
+        }
+        hasStreamUsage =
+          applyAnthropicStreamUsage(event, streamUsage, streamUsageFields) || hasStreamUsage;
+      }
       for (const mapped of fromAnthropicStreamEvent(event)) {
+        const streamMapped =
+          mapped.type === "final" && hasStreamUsage
+            ? {
+                ...mapped,
+                response: {
+                  ...mapped.response,
+                  usage: mergeUsage(mapped.response.usage, streamUsage, streamUsageFields),
+                },
+              }
+            : mapped;
         if (
-          mapped.type === "tool_call_delta" &&
-          mapped.argumentsDelta !== undefined &&
+          streamMapped.type === "tool_call_delta" &&
+          streamMapped.argumentsDelta !== undefined &&
           isPlainObject(event) &&
           event.type === "content_block_delta" &&
           blocksWithInitialToolInput.has(numberFrom(event.index))
         ) {
           continue;
         }
-        if (mapped.type === "tool_call_delta" && mapped.id.startsWith("tool_")) {
-          const index = Number(mapped.id.slice("tool_".length));
-          yield { ...mapped, id: toolIdsByIndex.get(index) ?? mapped.id };
+        if (streamMapped.type === "tool_call_delta" && streamMapped.id.startsWith("tool_")) {
+          const index = Number(streamMapped.id.slice("tool_".length));
+          yield { ...streamMapped, id: toolIdsByIndex.get(index) ?? streamMapped.id };
         } else {
-          yield mapped;
+          yield streamMapped;
         }
+      }
+      if (isPlainObject(event) && event.type === "message_stop" && !isPlainObject(event.message)) {
+        const response: CompletionResponse = {
+          choice: [],
+          usage: copyUsage(streamUsage),
+          rawResponse: event,
+        };
+        if (streamMessageId !== undefined) {
+          response.messageId = streamMessageId;
+        }
+        yield { type: "final", response };
       }
     }
   }
+}
+
+type AnthropicStreamUsageFields = {
+  inputTokens: boolean;
+  outputTokens: boolean;
+  cachedInputTokens: boolean;
+  cacheCreationInputTokens: boolean;
+};
+
+function emptyAnthropicStreamUsageFields(): AnthropicStreamUsageFields {
+  return {
+    inputTokens: false,
+    outputTokens: false,
+    cachedInputTokens: false,
+    cacheCreationInputTokens: false,
+  };
+}
+
+function applyAnthropicStreamUsage(
+  event: Record<string, unknown>,
+  usage: Usage,
+  fields: AnthropicStreamUsageFields,
+): boolean {
+  let changed = false;
+
+  if (event.type === "message_start" && isPlainObject(event.message)) {
+    const source = isPlainObject(event.message.usage) ? event.message.usage : undefined;
+    if (source !== undefined) {
+      if ("input_tokens" in source) {
+        usage.inputTokens = numberFrom(source.input_tokens);
+        fields.inputTokens = true;
+        changed = true;
+      }
+      if ("cache_read_input_tokens" in source) {
+        usage.cachedInputTokens = numberFrom(source.cache_read_input_tokens);
+        fields.cachedInputTokens = true;
+        changed = true;
+      }
+      if ("cache_creation_input_tokens" in source) {
+        usage.cacheCreationInputTokens = numberFrom(source.cache_creation_input_tokens);
+        fields.cacheCreationInputTokens = true;
+        changed = true;
+      }
+    }
+  }
+
+  if (event.type === "message_delta") {
+    const source = isPlainObject(event.usage) ? event.usage : undefined;
+    if (source !== undefined && "output_tokens" in source) {
+      usage.outputTokens = Math.max(usage.outputTokens, numberFrom(source.output_tokens));
+      fields.outputTokens = true;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    usage.totalTokens = usage.inputTokens + usage.outputTokens;
+  }
+
+  return changed;
+}
+
+function mergeUsage(base: Usage, stream: Usage, fields: AnthropicStreamUsageFields): Usage {
+  const inputTokens = fields.inputTokens ? stream.inputTokens : base.inputTokens;
+  const outputTokens = fields.outputTokens ? stream.outputTokens : base.outputTokens;
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    cachedInputTokens: fields.cachedInputTokens ? stream.cachedInputTokens : base.cachedInputTokens,
+    cacheCreationInputTokens: fields.cacheCreationInputTokens
+      ? stream.cacheCreationInputTokens
+      : base.cacheCreationInputTokens,
+  };
+}
+
+function copyUsage(usage: Usage): Usage {
+  return { ...usage };
 }
 
 export function toAnthropicMessagesParams(

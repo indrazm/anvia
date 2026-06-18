@@ -2,6 +2,7 @@ import { AgentBuilder } from "@anvia/core/agent";
 import {
   AssistantContent,
   type CompletionRequest,
+  type CompletionResponse,
   type CompletionStreamEvent,
   Message,
   ToolContent,
@@ -409,6 +410,235 @@ describe("Anthropic Messages mapping", () => {
     ).toEqual([{ type: "tool_call_delta", id: "toolu_1", name: "lookup" }]);
   });
 
+  it("reports usage from normal streamed text responses with bare message_stop", async () => {
+    const model = anthropicModelWithStreams([
+      [
+        {
+          type: "message_start",
+          message: {
+            id: "msg_1",
+            usage: { input_tokens: 10, cache_read_input_tokens: 3 },
+          },
+        },
+        { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+        { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello" } },
+        { type: "content_block_stop", index: 0 },
+        {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: { output_tokens: 4 },
+        },
+        { type: "message_stop" },
+      ],
+    ]);
+    const agent = new AgentBuilder("test-agent", model).build();
+
+    const events = await collect(agent.prompt("say hello").stream());
+
+    expect(events).toContainEqual({
+      type: "text_delta",
+      turn: 1,
+      delta: "Hello",
+    });
+    expect(events.at(-1)).toMatchObject({
+      type: "final",
+      output: "Hello",
+      usage: {
+        inputTokens: 10,
+        outputTokens: 4,
+        totalTokens: 14,
+        cachedInputTokens: 3,
+      },
+    });
+    expect(events.find((event) => event.type === "turn_end")).toMatchObject({
+      type: "turn_end",
+      response: { messageId: "msg_1" },
+    });
+  });
+
+  it("preserves streamed cache usage fields", async () => {
+    const response = finalResponseFrom(
+      await collectStreamEvents([
+        {
+          type: "message_start",
+          message: {
+            id: "msg_1",
+            usage: {
+              input_tokens: 20,
+              cache_read_input_tokens: 7,
+              cache_creation_input_tokens: 5,
+            },
+          },
+        },
+        {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: { output_tokens: 6 },
+        },
+        { type: "message_stop" },
+      ]),
+    );
+
+    expect(response.usage).toEqual({
+      ...Usage.empty(),
+      inputTokens: 20,
+      outputTokens: 6,
+      totalTokens: 26,
+      cachedInputTokens: 7,
+      cacheCreationInputTokens: 5,
+    });
+  });
+
+  it("keeps thinking stream reasoning deltas and reports usage", async () => {
+    const events = await collectStreamEvents([
+      {
+        type: "message_start",
+        message: { id: "msg_1", usage: { input_tokens: 12 } },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "thinking_delta", thinking: "Think." },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "signature_delta", signature: "sig_1" },
+      },
+      {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn", stop_sequence: null },
+        usage: { output_tokens: 8 },
+      },
+      { type: "message_stop" },
+    ]);
+
+    expect(events).toContainEqual({
+      type: "reasoning_delta",
+      id: "thinking_0",
+      delta: "Think.",
+      contentType: "text",
+    });
+    expect(events).toContainEqual({
+      type: "reasoning_delta",
+      id: "thinking_0",
+      delta: "",
+      contentType: "text",
+      signature: "sig_1",
+    });
+    expect(finalResponseFrom(events).usage).toMatchObject({
+      inputTokens: 12,
+      outputTokens: 8,
+      totalTokens: 20,
+    });
+  });
+
+  it("keeps streamed tool id remapping and reports usage", async () => {
+    const events = await collectStreamEvents([
+      {
+        type: "message_start",
+        message: { id: "msg_1", usage: { input_tokens: 15 } },
+      },
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "toolu_write", name: "Write", input: {} },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "input_json_delta", partial_json: '{"file_path":"src/main.tsx"}' },
+      },
+      {
+        type: "message_delta",
+        delta: { stop_reason: "tool_use", stop_sequence: null },
+        usage: { output_tokens: 9 },
+      },
+      { type: "message_stop" },
+    ]);
+
+    expect(events).toContainEqual({
+      type: "tool_call_delta",
+      id: "toolu_write",
+      name: "Write",
+    });
+    expect(events).toContainEqual({
+      type: "tool_call_delta",
+      id: "toolu_write",
+      argumentsDelta: '{"file_path":"src/main.tsx"}',
+    });
+    expect(finalResponseFrom(events).usage).toMatchObject({
+      inputTokens: 15,
+      outputTokens: 9,
+      totalTokens: 24,
+    });
+  });
+
+  it("keeps full message_stop.message handling while preserving streamed usage", async () => {
+    const response = finalResponseFrom(
+      await collectStreamEvents([
+        {
+          type: "message_start",
+          message: { id: "msg_1", usage: { input_tokens: 10 } },
+        },
+        {
+          type: "message_delta",
+          delta: { stop_reason: "end_turn", stop_sequence: null },
+          usage: { output_tokens: 4 },
+        },
+        {
+          type: "message_stop",
+          message: {
+            id: "msg_1",
+            content: [{ type: "text", text: "Full final text" }],
+          },
+        },
+      ]),
+    );
+
+    expect(response.choice).toEqual([AssistantContent.text("Full final text")]);
+    expect(response.messageId).toBe("msg_1");
+    expect(response.usage).toMatchObject({
+      inputTokens: 10,
+      outputTokens: 4,
+      totalTokens: 14,
+    });
+  });
+
+  it("keeps full message_stop.message usage fields not present in streamed usage", async () => {
+    const response = finalResponseFrom(
+      await collectStreamEvents([
+        {
+          type: "message_start",
+          message: { id: "msg_1", usage: { input_tokens: 10 } },
+        },
+        {
+          type: "message_stop",
+          message: {
+            id: "msg_1",
+            content: [{ type: "text", text: "Full final text" }],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 4,
+              cache_read_input_tokens: 2,
+              cache_creation_input_tokens: 1,
+            },
+          },
+        },
+      ]),
+    );
+
+    expect(response.choice).toEqual([AssistantContent.text("Full final text")]);
+    expect(response.usage).toEqual({
+      ...Usage.empty(),
+      inputTokens: 10,
+      outputTokens: 4,
+      totalTokens: 14,
+      cachedInputTokens: 2,
+      cacheCreationInputTokens: 1,
+    });
+  });
+
   it("preserves complete tool input from streamed content_block_start events", async () => {
     const events = await collectStreamEvents([
       {
@@ -570,6 +800,16 @@ async function collectStreamEvents(events: unknown[]): Promise<CompletionStreamE
     mapped.push(event);
   }
   return mapped;
+}
+
+function finalResponseFrom(events: CompletionStreamEvent[]): CompletionResponse {
+  const event = events.find(
+    (item): item is Extract<CompletionStreamEvent, { type: "final" }> => item.type === "final",
+  );
+  if (event === undefined) {
+    throw new Error("Expected final stream event");
+  }
+  return event.response;
 }
 
 function anthropicModelWithStreams(streams: unknown[][]): AnthropicCompletionModel {
