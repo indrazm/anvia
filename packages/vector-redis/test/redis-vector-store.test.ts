@@ -134,9 +134,9 @@ describe("RedisVectorStore", () => {
     });
 
     expect(client.hashes.size).toBe(1);
-    const entries = [...client.hashes.entries()];
-    expect(entries.length).toBeGreaterThan(0);
-    const fields = entries[0]?.[1];
+    const fields = Object.values(Object.fromEntries(client.hashes))[0];
+    expect(fields).toBeDefined();
+    if (!fields) throw new Error("expected fields");
     expect(fields.__anvia_document_id).toBe("doc1");
     expect(fields.__anvia_document).toBe(JSON.stringify({ id: "doc1", title: "Cat guide" }));
     expect(fields.kind).toBe("animal");
