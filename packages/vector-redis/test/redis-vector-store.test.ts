@@ -134,9 +134,10 @@ describe("RedisVectorStore", () => {
     });
 
     expect(client.hashes.size).toBe(1);
-    const fields = Object.values(Object.fromEntries(client.hashes))[0];
-    expect(fields).toBeDefined();
-    if (!fields) throw new Error("expected fields");
+    const hashEntries = Array.from(client.hashes.values());
+    expect(hashEntries.length).toBe(1);
+    // biome-ignore lint/style/noNonNullAssertion: test assertion above guarantees existence
+    const fields: Record<string, unknown> = hashEntries[0]!;
     expect(fields.__anvia_document_id).toBe("doc1");
     expect(fields.__anvia_document).toBe(JSON.stringify({ id: "doc1", title: "Cat guide" }));
     expect(fields.kind).toBe("animal");
