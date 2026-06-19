@@ -138,7 +138,7 @@ async execute({ orderId, amount, reason }) {
 | Failure | Fix |
 | --- | --- |
 | duplicate refund | idempotency key in service layer |
-| model performs write without approval | tool approval metadata or `onToolCall` hook |
+| model performs write without approval | tool `approval` policy and centralized `.approvals(...)` handler |
 | approval blocks HTTP request too long | store approval and resume asynchronously |
 | audit only appears in traces | write product audit records |
 | admin data leaks | enforce actor and tenant permissions in services |
@@ -157,4 +157,3 @@ async execute({ orderId, amount, reason }) {
 - [Side Effect Tools](/docs/best-practices/tool-patterns/side-effect-tools)
 - [Production Guardrails](/docs/best-practices/common-patterns/production-guardrails)
 - [Approval Handlers](/docs/guides/human-in-the-loop/approval-handlers)
-

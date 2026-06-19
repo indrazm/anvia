@@ -1,11 +1,11 @@
 ---
-title: Approval Runtimes
-description: Build the userland system that resolves approvals.
+title: Approval Handlers
+description: Build the userland system that resolves tool approvals.
 ---
 
-Approval runtimes are userland code. A hook can call a database, wait on a queue, show a UI, notify reviewers, apply permission checks, or enforce timeout policy before it returns a tool action.
+Approval handlers are userland code. Core creates an approval request when a tool `approval` policy or `tool.requestApproval(...)` hook action requires a decision. Your handler can call a database, wait on a queue, show a UI, notify reviewers, apply permission checks, or enforce timeout policy before it returns a decision.
 
-Studio gives you a local approval UI. Build your own runtime when approval needs to integrate with product permissions, Slack, ticketing systems, audit logs, or production queues.
+Studio gives you a local approval UI. Build your own handler when approval needs to integrate with product permissions, Slack, ticketing systems, audit logs, or production queues.
 
 ## Runtime Shape
 
@@ -14,12 +14,14 @@ Studio gives you a local approval UI. Build your own runtime when approval needs
 ```ts
 const approvalRuntime = {
   async waitForDecision(request: {
+    runId: string;
     toolName: string;
-    args: string;
+    args: unknown;
     reason?: string;
-  }): Promise<boolean> {
+  }): Promise<{ approved: boolean; reason?: string }> {
     const approval = await db.approval.create({
       data: {
+        runId: request.runId,
         toolName: request.toolName,
         args: request.args,
         reason: request.reason,
@@ -31,33 +33,57 @@ const approvalRuntime = {
 
     const decision = await waitUntilResolved(approval.id);
 
-    return decision.status === "approved";
+    return {
+      approved: decision.status === "approved",
+      reason: decision.reason,
+    };
   },
 };
 ```
 
 Anvia does not define this object. It is your app boundary for approval state, notifications, optional timeouts, and audit records.
 
-## Use It from a Hook
+## Use It from `.approvals(...)`
 
 ```ts
-const approvalHook = createHook({
-  async onToolCall({ toolName, args, tool }) {
-    if (toolName !== "refund_order") {
-      return tool.run();
-    }
+const agent = new AgentBuilder("support", model)
+  .tool(refundOrder)
+  .approvals({
+    async handler(request) {
+      const decision = await approvalRuntime.waitForDecision({
+        runId: request.run.runId,
+        toolName: request.toolName,
+        args: request.args,
+        reason: request.reason,
+      });
 
-    const approved = await approvalRuntime.waitForDecision({
-      toolName,
-      args,
-      reason: "Refunds require staff approval.",
-    });
+      return decision.approved
+        ? { approved: true, reason: decision.reason }
+        : {
+            approved: false,
+            reason: decision.reason,
+            rejectMessage: request.rejectMessage ?? "Tool call was not approved.",
+          };
+    },
+  })
+  .build();
+```
 
-    return approved
-      ? tool.run()
-      : tool.skip("Refund was not approved.");
-  },
-});
+Configure approvals per request when the handler needs request-local product state.
+
+```ts
+const response = await agent
+  .prompt(message)
+  .approvals({
+    handler: (request) =>
+      approvalRuntime.waitForDecision({
+        runId: request.run.runId,
+        toolName: request.toolName,
+        args: request.args,
+        reason: request.reason,
+      }),
+  })
+  .send();
 ```
 
 ## Store Review State
@@ -70,7 +96,7 @@ type ApprovalRecord = {
   runId: string;
   agentId: string;
   toolName: string;
-  args: string;
+  args: unknown;
   reason?: string;
   status: "pending" | "approved" | "rejected" | "timed_out";
   requestedAt: string;
@@ -87,7 +113,7 @@ The model prompt is not an audit log. Store tool arguments, reviewer identity, d
 Your runtime can notify one or more review surfaces.
 
 ```ts
-async function waitForDecision(request: ApprovalRequest): Promise<boolean> {
+async function waitForDecision(request: ApprovalRequest): Promise<ApprovalDecision> {
   const approval = await approvalStore.create(request);
 
   await Promise.all([
@@ -96,34 +122,45 @@ async function waitForDecision(request: ApprovalRequest): Promise<boolean> {
   ]);
 
   const decision = await approvalStore.waitUntilResolved(approval.id);
-  return decision.status === "approved";
+  return {
+    approved: decision.status === "approved",
+    reason: decision.reason,
+  };
 }
 ```
 
 `approvalStore` is also your code. It can be a Prisma model wrapper, SQL repository, queue-backed service, or any persistence layer your application already uses.
 
-The hook does not care whether the decision came from Studio, your app, Slack, email, or a queue worker. It only awaits a boolean or a richer decision object.
+The approval handler does not care whether the decision came from Studio, your app, Slack, email, or a queue worker. It only awaits a boolean or a richer decision object.
 
 ## Optional Timeouts
 
 Timeouts are not required by Anvia. If the approval promise never resolves, the agent run keeps waiting. Use a timeout when the caller needs bounded latency, especially in production HTTP requests, queues, or UIs.
 
 ```ts
-const approved = await Promise.race([
+const decision = await Promise.race([
   approvalRuntime.waitForDecision({
-    toolName,
-    args,
+    runId: request.run.runId,
+    toolName: request.toolName,
+    args: request.args,
     reason: "Refunds require staff approval.",
   }),
-  sleep(60_000).then(() => false),
+  sleep(60_000).then(() => ({
+    approved: false,
+    reason: "No reviewer approved this action in time.",
+  })),
 ]);
 
-return approved
-  ? tool.run()
-  : tool.skip("No reviewer approved this action in time.");
+return decision.approved
+  ? { approved: true }
+  : {
+      approved: false,
+      reason: decision.reason,
+      rejectMessage: "No reviewer approved this action in time.",
+    };
 ```
 
-Use clear messages because the model sees them as the skipped tool result.
+Use clear rejection messages because the model sees them as the skipped tool result.
 
 ## Rich Decisions
 
@@ -131,18 +168,21 @@ Return more than a boolean when the final tool result should include reviewer co
 
 ```ts
 const decision = await approvalRuntime.waitForDecision({
-  toolName,
-  args,
+  runId: request.run.runId,
+  toolName: request.toolName,
+  args: request.args,
   reason: "Refunds require staff approval.",
 });
 
-if (decision.status === "approved") {
-  return tool.run();
+if (decision.approved) {
+  return { approved: true, reason: decision.reason };
 }
 
-return tool.skip(
-  decision.reason ?? "The reviewer rejected this action.",
-);
+return {
+  approved: false,
+  reason: decision.reason,
+  rejectMessage: decision.reason ?? "The reviewer rejected this action.",
+};
 ```
 
-Keep the skipped message concise. It becomes the tool result the model uses to produce the final response.
+Keep the rejection message concise. It becomes the tool result the model uses to produce the final response.

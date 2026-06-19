@@ -1,11 +1,13 @@
 ---
-title: Approval by Hooks
-description: Await custom approval logic before selected tool calls execute.
+title: Hook Approval Requests
+description: Request human approval from a tool-call hook.
 ---
 
-Use `onToolCall(...)` when approval is runtime behavior rather than tool metadata. A hook can request approval before it returns `tool.run()`, `tool.skip(...)`, or `tool.cancel(...)`.
+Prefer tool-level `approval` policies for normal side-effect tools. Use `onToolCall(...)` when approval is truly request-lifecycle behavior, such as a cross-tool rule, a temporary rollout policy, or a decision that cannot live on one tool definition.
 
-Studio handles `tool.requestApproval(...)` automatically. Without Studio or another approval handler, the run cancels clearly instead of executing the guarded tool.
+A hook can request approval before it returns `tool.run()`, `tool.skip(...)`, or `tool.cancel(...)`.
+
+Studio handles `tool.requestApproval(...)` automatically. Outside Studio, configure `.approvals(...)` on the agent or request; without an approval handler, core throws `ToolApprovalRequiredError` instead of executing the guarded tool.
 
 ## Require Approval for One Tool
 
@@ -127,6 +129,35 @@ Use `.hook(...)` when the rule is a stable part of the agent.
 const agent = new AgentBuilder("support", model)
   .tool(refundOrder)
   .hook(approvalHook)
+  .build();
+```
+
+Use tool-level `approval` instead when the rule belongs to a specific side-effect tool.
+
+```ts
+const refundOrder = createTool({
+  name: "refund_order",
+  description: "Refund an eligible order.",
+  input: z.object({
+    orderId: z.string(),
+    amount: z.number().positive(),
+  }),
+  approval: {
+    when: ({ args }) => args.amount > 100,
+    reason: ({ args }) => `Refund amount is $${args.amount}.`,
+    rejectMessage: "Refund was not approved.",
+  },
+  async execute({ orderId, amount }) {
+    return refunds.create(orderId, amount);
+  },
+});
+
+const agent = new AgentBuilder("support", model)
+  .tool(refundOrder)
+  .approvals({
+    handler: ({ toolName, args, reason }) =>
+      approvals.waitForDecision({ toolName, args, reason }),
+  })
   .build();
 ```
 

@@ -7,7 +7,7 @@ Human-in-the-loop work can live in Studio during development or in your own Next
 
 ## 1. Use Studio For Local Approval UI
 
-Add approval metadata to side-effect tools:
+Add an approval policy to side-effect tools:
 
 ```ts
 const refundOrder = createTool({
@@ -37,7 +37,7 @@ import { supportAgent } from "@/app/ai/support-agent";
 new Studio([supportAgent]).start({ port: 4021 });
 ```
 
-Studio reads the approval metadata and waits for a reviewer before running protected tools.
+Studio reads the approval policy and waits for a reviewer before running protected tools.
 
 ## 2. Use A Request Hook For Product Approval
 
@@ -161,4 +161,4 @@ The `Map` is only the waiting mechanism for a single Node process. In production
 
 ## Next
 
-Add tests in [Setup Tests](/docs/frameworks/nextjs/10-setup-tests). Core concepts: [Human in the Loop](/docs/guides/human-in-the-loop), [Approval by Hooks](/docs/guides/human-in-the-loop/tool-approval), [Approval Runtimes](/docs/guides/human-in-the-loop/approval-handlers), and [Studio Tool Approvals](/docs/studio/human-in-the-loop/tool-approvals).
+Add tests in [Setup Tests](/docs/frameworks/nextjs/10-setup-tests). Core concepts: [Human in the Loop](/docs/guides/human-in-the-loop), [Hook Approval Requests](/docs/guides/human-in-the-loop/tool-approval), [Approval Handlers](/docs/guides/human-in-the-loop/approval-handlers), and [Studio Tool Approvals](/docs/studio/human-in-the-loop/tool-approvals).

@@ -75,7 +75,7 @@ const searchDocs = createTool({
 });
 ```
 
-Side-effect tools should usually be paired with [Human in the Loop](/docs/guides/human-in-the-loop) approval. You can attach passive approval metadata for runtimes such as Studio; core stores this metadata and still leaves execution control to hooks or the runtime.
+Side-effect tools should usually be paired with [Human in the Loop](/docs/guides/human-in-the-loop) approval. Add an `approval` policy to the tool so the risky condition stays next to the operation, then configure `.approvals(...)` on the agent or request to supply the decision source.
 
 ```ts
 const refundOrder = createTool({

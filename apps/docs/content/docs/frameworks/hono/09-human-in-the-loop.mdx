@@ -7,7 +7,7 @@ Hono is a good fit for human-in-the-loop routes because the same app can expose 
 
 ## 1. Use Studio During Development
 
-Add approval metadata to protected tools, then register the built agent in Studio:
+Add approval policies to protected tools, then register the built agent in Studio:
 
 ```ts
 import { Studio } from "@anvia/studio";
@@ -185,4 +185,4 @@ Use `zValidator("json", schema)` on the decision route the same way as prompt ro
 
 ## Next
 
-Add Hono route tests in [Setup Tests](/docs/frameworks/hono/10-setup-tests). Core concepts: [Human in the Loop](/docs/guides/human-in-the-loop), [Approval by Hooks](/docs/guides/human-in-the-loop/tool-approval), [Approval Runtimes](/docs/guides/human-in-the-loop/approval-handlers), and [Studio Tool Approvals](/docs/studio/human-in-the-loop/tool-approvals).
+Add Hono route tests in [Setup Tests](/docs/frameworks/hono/10-setup-tests). Core concepts: [Human in the Loop](/docs/guides/human-in-the-loop), [Hook Approval Requests](/docs/guides/human-in-the-loop/tool-approval), [Approval Handlers](/docs/guides/human-in-the-loop/approval-handlers), and [Studio Tool Approvals](/docs/studio/human-in-the-loop/tool-approvals).
