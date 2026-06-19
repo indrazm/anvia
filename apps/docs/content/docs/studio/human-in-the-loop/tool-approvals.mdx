@@ -110,8 +110,8 @@ Attach the hook to the agent with `.hook(approvalHook)` or to one run with `.wit
 ## Approval Flow
 
 1. The model requests a tool call.
-2. Studio finds approval metadata on the tool or receives `tool.requestApproval(...)` from a hook.
-3. The metadata policy or hook request says approval is required.
+2. Studio finds an `approval` policy on the tool or receives `tool.requestApproval(...)` from a hook.
+3. The tool policy or hook request says approval is required.
 4. Studio creates a pending approval.
 5. A human approves or rejects it in the UI or API.
 6. Anvia either runs the tool or sends the rejection message back to the model.

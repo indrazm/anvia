@@ -83,30 +83,35 @@ const response = await agent.prompt("Where is order A-100?").maxTurns(3).send();
 
 ## Require Approval
 
-Use hook-based tool approval when a tool should not run until an approval-capable runtime approves it.
+Use a tool `approval` policy when a tool should not run until a human approves it.
 
 ```ts
-import { createHook } from "@anvia/core";
-
-const approvalHook = createHook({
-  onToolCall({ toolName, tool }) {
-    if (toolName !== "refund_order") {
-      return tool.run();
-    }
-
-    return tool.requestApproval({
-      reason: "Refunds require staff approval.",
-      rejectMessage: "Refund was not approved.",
-    });
+const refundOrder = createTool({
+  name: "refund_order",
+  description: "Refund an eligible order.",
+  input: z.object({
+    orderId: z.string(),
+    amount: z.number().positive(),
+  }),
+  approval: {
+    when: ({ args }) => args.amount > 100,
+    reason: ({ args }) => `Review refund of $${args.amount}.`,
+    rejectMessage: "Refund was not approved.",
+  },
+  async execute({ orderId, amount }) {
+    return refunds.create(orderId, amount);
   },
 });
 
-const response = await agent
-  .prompt("Refund order A-100.")
-  .withHook(approvalHook)
-  .send();
+const agent = new AgentBuilder("support", model)
+  .tool(refundOrder)
+  .approvals({
+    handler: ({ toolName, args, reason }) =>
+      approvals.waitForDecision({ toolName, args, reason }),
+  })
+  .build();
 ```
 
-Studio handles `tool.requestApproval(...)` automatically. Without an approval handler, core cancels clearly instead of running the guarded tool.
+Studio handles approval policies automatically when the agent is run through Studio. Outside Studio, configure `.approvals(...)`; without an approval handler, core throws `ToolApprovalRequiredError` instead of running the guarded tool.
 
 For the full approval flow, read [Human in the Loop](/docs/guides/human-in-the-loop).

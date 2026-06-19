@@ -7,7 +7,7 @@ Human-in-the-loop work belongs in server routes or server functions. The agent c
 
 ## 1. Use Studio During Development
 
-Add approval metadata to a tool and register the same built agent in Studio:
+Add an approval policy to a tool and register the same built agent in Studio:
 
 ```ts
 import { Studio } from "@anvia/studio";
@@ -16,7 +16,7 @@ import { supportAgent } from "~/ai/support-agent";
 new Studio([supportAgent]).start({ port: 4021 });
 ```
 
-Studio handles the approval UI for tools with `approval` metadata. Your TanStack Start app can still expose its own routes for production users.
+Studio handles the approval UI for tools with an `approval` policy. Your TanStack Start app can still expose its own routes for production users.
 
 ## 2. Use A Request Hook In Server Code
 
@@ -140,4 +140,4 @@ For short internal workflows, the route can wait directly. For user-facing flows
 
 ## Next
 
-Add route tests in [Setup Tests](/docs/frameworks/tanstack-start/10-setup-tests). Core concepts: [Human in the Loop](/docs/guides/human-in-the-loop), [Approval by Hooks](/docs/guides/human-in-the-loop/tool-approval), [Approval Runtimes](/docs/guides/human-in-the-loop/approval-handlers), and [Studio Tool Approvals](/docs/studio/human-in-the-loop/tool-approvals).
+Add route tests in [Setup Tests](/docs/frameworks/tanstack-start/10-setup-tests). Core concepts: [Human in the Loop](/docs/guides/human-in-the-loop), [Hook Approval Requests](/docs/guides/human-in-the-loop/tool-approval), [Approval Handlers](/docs/guides/human-in-the-loop/approval-handlers), and [Studio Tool Approvals](/docs/studio/human-in-the-loop/tool-approvals).

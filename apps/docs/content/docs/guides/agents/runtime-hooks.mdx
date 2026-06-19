@@ -60,13 +60,13 @@ const hook = createHook({
 });
 ```
 
-Returning `undefined` executes the tool. `tool.run()` is still available when explicit continuation reads better. `tool.skip(...)` does not execute the tool; the message becomes the tool result sent back to the model. `tool.requestApproval(...)` asks an approval-capable runtime such as Studio to pause the tool call for a human decision.
+Returning `undefined` executes the tool. `tool.run()` is still available when explicit continuation reads better. `tool.skip(...)` does not execute the tool; the message becomes the tool result sent back to the model. `tool.requestApproval(...)` creates an approval request that Studio or the configured `.approvals(...)` handler can resolve.
 
 Tool result middleware runs after this decision produces a result string and before `onToolResult(...)` observes it.
 
 ## Await Human Approval
 
-Approval can be requested from inside the hook. Studio handles this action automatically when the agent is run through Studio.
+Approval can be requested from inside the hook. Studio handles this action automatically when the agent is run through Studio. Outside Studio, configure `.approvals(...)` on the agent or request.
 
 ```ts
 const hook = createHook({
@@ -83,7 +83,7 @@ const hook = createHook({
 });
 ```
 
-Without Studio or another approval handler, `tool.requestApproval(...)` cancels clearly instead of running the tool. If your application owns a custom approval system, you can still await it in the hook and return `tool.run()` or `tool.skip(...)` yourself.
+Without Studio or another approval handler, `tool.requestApproval(...)` throws `ToolApprovalRequiredError` instead of running the tool. If your application owns a custom approval system, prefer connecting it through `.approvals(...)`; you can still await it directly in a hook and return `tool.run()` or `tool.skip(...)` yourself.
 
 Timeouts are optional. If the awaited approval never resolves, the agent run keeps waiting; add a timeout in your app code when the caller needs bounded latency.
 

@@ -184,7 +184,7 @@ const readOnlyTools = filesystem.tools.filter((tool) =>
 | agent reads outside repo | enforce allowed paths in every file tool |
 | command is too broad | exact allow list and timeout in command tool |
 | patch applies twice | idempotency key from patch hash |
-| write happens without approval | hook or approval metadata on mutation tools |
+| write happens without approval | tool `approval` policy and centralized `.approvals(...)` handler |
 | traces leak source code | keep trace metadata to ids, paths, and summaries |
 | evals only check final prose | add task cases for tool choice, no-write mode, and patch preview |
 
@@ -203,4 +203,3 @@ const readOnlyTools = filesystem.tools.filter((tool) =>
 - [Side Effect Tools](/docs/best-practices/tool-patterns/side-effect-tools)
 - [Eval Strategy](/docs/best-practices/quality-observability/eval-strategy)
 - [Tracing and Debugging](/docs/best-practices/quality-observability/tracing-and-debugging)
-

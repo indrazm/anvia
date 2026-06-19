@@ -25,7 +25,8 @@ Use this pattern for any tool that:
 | Layer | Responsibility |
 | --- | --- |
 | tool schema | require bounded, explicit operation inputs |
-| approval metadata or hook | decide whether a human must approve |
+| approval policy | declare which tool calls require human approval |
+| approval handler | authorize, persist, audit, and return the human decision |
 | product service | enforce permissions, transaction, idempotency, and audit |
 | runner | attach actor, tenant, trace, and operation context |
 | storage | persist operation status and audit evidence |
@@ -71,27 +72,51 @@ export function createRefundTool(scope: RefundToolScope) {
 }
 ```
 
-Approval metadata is useful for Studio and approval-capable runtimes. Use a hook when approval depends on request-local state or spans multiple tools.
+The tool-level `approval` policy only declares that a call needs a decision. Configure the decision source once on the agent or request with `.approvals(...)`.
 
 ```ts
-import { createHook } from "@anvia/core";
+const agent = new AgentBuilder("support", model)
+  .tool(createRefundTool(scope))
+  .approvals({
+    async handler(request) {
+      const decision = await approvals.waitForDecision({
+        actorId: scope.userId,
+        tenantId: scope.tenantId,
+        runId: request.run.runId,
+        toolName: request.toolName,
+        args: request.args,
+        reason: request.reason,
+      });
 
-const approvalHook = createHook({
-  async onToolCall({ toolName, tool }) {
-    if (!["issue_refund", "close_account"].includes(toolName)) {
-      return tool.run();
-    }
-
-    const approved = await approvals.waitForDecision({
-      actorId: scope.userId,
-      tenantId: scope.tenantId,
-      toolName,
-    });
-
-    return approved ? tool.run() : tool.cancel("Operation was not approved.");
-  },
-});
+      return decision.approved
+        ? { approved: true, reason: decision.reason }
+        : {
+            approved: false,
+            reason: decision.reason,
+            rejectMessage: "Refund was not approved.",
+          };
+    },
+  })
+  .build();
 ```
+
+Use request-level approvals when the decision source is specific to one product workflow.
+
+```ts
+const response = await agent
+  .prompt(message)
+  .approvals({
+    handler: ({ toolName, args }) =>
+      reviewQueue.decide({
+        workflowId,
+        toolName,
+        args,
+      }),
+  })
+  .send();
+```
+
+Keep broad routing in the approval handler and tool-specific risk rules in each tool. That keeps the dangerous operation readable at the point where the tool is declared, while the app still has one place to connect auth, UI, persistence, and audit.
 
 ## Idempotency and Audit
 
@@ -132,4 +157,5 @@ Use traces to debug agent behavior. Use audit records for product accountability
 
 - [Production Guardrails](/docs/best-practices/common-patterns/production-guardrails)
 - [Human in the Loop](/docs/guides/human-in-the-loop)
+- [Human Input UI](/docs/best-practices/tool-patterns/human-input-ui)
 - [Backoffice Agent](/docs/best-practices/real-cases/backoffice-agent)

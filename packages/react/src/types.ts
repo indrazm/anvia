@@ -18,6 +18,92 @@ export type ChatMessage = {
   metadata?: unknown;
 };
 
+export type ToolApprovalStatus = "pending" | "approved" | "rejected" | "timed_out";
+
+export type ToolApproval = {
+  id: string;
+  runId?: string;
+  agentId?: string;
+  sessionId?: string;
+  toolName: string;
+  callId?: string;
+  internalCallId?: string;
+  args?: string;
+  status: ToolApprovalStatus;
+  requestedAt?: string;
+  resolvedAt?: string;
+  reason?: string;
+};
+
+export type ToolQuestionStatus = "pending" | "answered";
+
+export type ToolQuestionChoice = {
+  label: string;
+  value: string;
+};
+
+export type ToolQuestionPrompt = {
+  id: string;
+  question: string;
+  choices: ToolQuestionChoice[];
+};
+
+export type ToolQuestionAnswer = {
+  questionId: string;
+  answer: string;
+  choice?: string;
+  custom?: boolean;
+};
+
+export type ToolQuestion = {
+  id: string;
+  runId?: string;
+  agentId?: string;
+  sessionId?: string;
+  toolName: string;
+  callId?: string;
+  internalCallId?: string;
+  args?: string;
+  questions: ToolQuestionPrompt[];
+  status: ToolQuestionStatus;
+  requestedAt?: string;
+  answeredAt?: string;
+  answers?: ToolQuestionAnswer[];
+};
+
+export type ToolApprovalDecisionInput = {
+  approvalId: string;
+  approved: boolean;
+  reason?: string;
+  approval?: ToolApproval;
+};
+
+export type ToolQuestionAnswerInput = {
+  questionId: string;
+  answers: ToolQuestionAnswer[];
+  question?: ToolQuestion;
+};
+
+export type HumanInputOptions<TEvent = unknown> = {
+  endpoint?: string | URL;
+  fetch?: typeof fetch;
+  eventToApproval?: (event: TEvent) => ToolApproval | undefined;
+  eventToQuestion?: (event: TEvent) => ToolQuestion | undefined;
+  decideApproval?: (decision: ToolApprovalDecisionInput) => Promise<ToolApproval | undefined>;
+  answerQuestion?: (answer: ToolQuestionAnswerInput) => Promise<ToolQuestion | undefined>;
+};
+
+export type HumanInputState = {
+  approvals: {
+    all: ToolApproval[];
+    pending: ToolApproval[];
+  };
+  questions: {
+    all: ToolQuestion[];
+    pending: ToolQuestion[];
+  };
+};
+
 export type DefaultChatRequest = {
   message: string;
   history: ChatMessage[];
@@ -38,6 +124,7 @@ export type UseChatOptions<
   createRequest?: (input: string, messages: TMessage[]) => TRequest;
   eventToDelta?: (event: TEvent) => string | undefined;
   eventToFinal?: (event: TEvent) => string | undefined;
+  humanInput?: HumanInputOptions<TEvent>;
   onEvent?: (event: TEvent) => void;
   onError?: (error: unknown) => void;
 };
@@ -53,4 +140,10 @@ export type UseChatResult<TEvent = unknown, TMessage extends ChatMessage = ChatM
   status: UseChatStatus;
   error: unknown;
   text: string;
+  humanInput: HumanInputState;
+  decidingApprovals: Set<string>;
+  answeringQuestions: Set<string>;
+  approveTool(approvalId: string, reason?: string): Promise<void>;
+  rejectTool(approvalId: string, reason?: string): Promise<void>;
+  answerToolQuestion(questionId: string, answers: ToolQuestionAnswer[]): Promise<void>;
 };

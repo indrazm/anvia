@@ -391,6 +391,269 @@ describe("@anvia/react useChat", () => {
     await sendPromise;
     expect(result.current.status).toBe("idle");
   });
+
+  it("tracks Studio approval and question events", async () => {
+    const transport: EventTransport<unknown, unknown> = {
+      send: async function* () {
+        yield {
+          type: "tool_approval_request",
+          approval: {
+            id: "approval-1",
+            toolName: "issue_refund",
+            status: "pending",
+            reason: "Review refund.",
+          },
+        };
+        yield {
+          type: "tool_question_request",
+          question: {
+            id: "question-1",
+            toolName: "ask_question",
+            status: "pending",
+            questions: [
+              {
+                id: "priority",
+                question: "Priority?",
+                choices: [{ label: "High", value: "high" }],
+              },
+            ],
+          },
+        };
+        yield {
+          type: "tool_approval_result",
+          approval: {
+            id: "approval-1",
+            toolName: "issue_refund",
+            status: "approved",
+            reason: "Approved.",
+          },
+        };
+      },
+    };
+    const { result } = renderHook(() => useChat({ transport, humanInput: { endpoint: "" } }));
+
+    await act(async () => {
+      await result.current.send("hi");
+    });
+
+    expect(result.current.humanInput.approvals.all).toEqual([
+      expect.objectContaining({
+        id: "approval-1",
+        toolName: "issue_refund",
+        status: "approved",
+      }),
+    ]);
+    expect(result.current.humanInput.approvals.pending).toEqual([]);
+    expect(result.current.humanInput.questions.pending).toEqual([
+      expect.objectContaining({
+        id: "question-1",
+        toolName: "ask_question",
+        status: "pending",
+      }),
+    ]);
+  });
+
+  it("submits Studio approval decisions and question answers to default endpoints", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/approvals/approval-1/decision") {
+        expect(init?.method).toBe("POST");
+        expect(init?.body).toBe(JSON.stringify({ approved: true, reason: "looks good" }));
+        return new Response(
+          JSON.stringify({
+            id: "approval-1",
+            toolName: "issue_refund",
+            status: "approved",
+          }),
+        );
+      }
+      if (url === "/questions/question-1/answer") {
+        expect(init?.method).toBe("POST");
+        expect(init?.body).toBe(
+          JSON.stringify({
+            answers: [{ questionId: "priority", answer: "High", choice: "high" }],
+          }),
+        );
+        return new Response(
+          JSON.stringify({
+            id: "question-1",
+            toolName: "ask_question",
+            status: "answered",
+            questions: [],
+            answers: [{ questionId: "priority", answer: "High", choice: "high" }],
+          }),
+        );
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    const transport: EventTransport<unknown, unknown> = {
+      send: async function* () {
+        yield {
+          type: "tool_approval_request",
+          approval: { id: "approval-1", toolName: "issue_refund", status: "pending" },
+        };
+        yield {
+          type: "tool_question_request",
+          question: {
+            id: "question-1",
+            toolName: "ask_question",
+            status: "pending",
+            questions: [
+              {
+                id: "priority",
+                question: "Priority?",
+                choices: [{ label: "High", value: "high" }],
+              },
+            ],
+          },
+        };
+      },
+    };
+    const { result } = renderHook(() =>
+      useChat({ transport, humanInput: { endpoint: "", fetch: fetchMock as typeof fetch } }),
+    );
+
+    await act(async () => {
+      await result.current.send("hi");
+    });
+    await act(async () => {
+      await result.current.approveTool("approval-1", "looks good");
+      await result.current.answerToolQuestion("question-1", [
+        { questionId: "priority", answer: "High", choice: "high" },
+      ]);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.humanInput.approvals.pending).toEqual([]);
+    expect(result.current.humanInput.questions.pending).toEqual([]);
+    expect(result.current.humanInput.questions.all[0]?.answers).toEqual([
+      { questionId: "priority", answer: "High", choice: "high" },
+    ]);
+  });
+
+  it("supports custom human input event mapping and handlers", async () => {
+    const decideApproval = vi.fn(async () => ({
+      id: "a1",
+      toolName: "custom_tool",
+      status: "rejected" as const,
+    }));
+    const answerQuestion = vi.fn(async () => ({
+      id: "q1",
+      toolName: "custom_question",
+      status: "answered" as const,
+      questions: [],
+    }));
+    const transport: EventTransport<unknown, { kind: string; payload: unknown }> = {
+      send: async function* () {
+        yield {
+          kind: "approval",
+          payload: { id: "a1", toolName: "custom_tool", status: "pending" },
+        };
+        yield {
+          kind: "question",
+          payload: { id: "q1", toolName: "custom_question", status: "pending", questions: [] },
+        };
+      },
+    };
+    const { result } = renderHook(() =>
+      useChat({
+        transport,
+        humanInput: {
+          eventToApproval: (event) =>
+            event.kind === "approval"
+              ? (event.payload as {
+                  id: string;
+                  toolName: string;
+                  status: "pending";
+                })
+              : undefined,
+          eventToQuestion: (event) =>
+            event.kind === "question"
+              ? (event.payload as {
+                  id: string;
+                  toolName: string;
+                  status: "pending";
+                  questions: [];
+                })
+              : undefined,
+          decideApproval,
+          answerQuestion,
+        },
+      }),
+    );
+
+    await act(async () => {
+      await result.current.send("hi");
+    });
+    await act(async () => {
+      await result.current.rejectTool("a1", "no");
+      await result.current.answerToolQuestion("q1", []);
+    });
+
+    expect(decideApproval).toHaveBeenCalledWith({
+      approvalId: "a1",
+      approved: false,
+      reason: "no",
+      approval: { id: "a1", toolName: "custom_tool", status: "pending" },
+    });
+    expect(answerQuestion).toHaveBeenCalledWith({
+      questionId: "q1",
+      answers: [],
+      question: { id: "q1", toolName: "custom_question", status: "pending", questions: [] },
+    });
+    expect(result.current.humanInput.approvals.all[0]?.status).toBe("rejected");
+    expect(result.current.humanInput.questions.all[0]?.status).toBe("answered");
+  });
+
+  it("guards duplicate human input submissions while a request is in flight", async () => {
+    let resolveDecision!: (value: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveDecision = resolve;
+        }),
+    );
+    const transport: EventTransport<unknown, unknown> = {
+      send: async function* () {
+        yield {
+          type: "tool_approval_request",
+          approval: { id: "approval-1", toolName: "issue_refund", status: "pending" },
+        };
+      },
+    };
+    const { result } = renderHook(() =>
+      useChat({ transport, humanInput: { endpoint: "", fetch: fetchMock as typeof fetch } }),
+    );
+
+    await act(async () => {
+      await result.current.send("hi");
+    });
+
+    let first!: Promise<void>;
+    await act(async () => {
+      first = result.current.approveTool("approval-1");
+    });
+    expect(result.current.decidingApprovals.has("approval-1")).toBe(true);
+    await act(async () => {
+      await result.current.approveTool("approval-1");
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveDecision(
+        new Response(
+          JSON.stringify({
+            id: "approval-1",
+            toolName: "issue_refund",
+            status: "approved",
+          }),
+        ),
+      );
+      await first;
+    });
+
+    expect(result.current.decidingApprovals.has("approval-1")).toBe(false);
+  });
 });
 
 async function collect<T>(events: AsyncIterable<T>): Promise<T[]> {
