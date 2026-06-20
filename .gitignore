@@ -4,6 +4,7 @@ coverage
 .turbo
 .wrangler
 .DS_Store
+.published-packages.json
 LAUNCH.md
 *.tsbuildinfo
 .env
