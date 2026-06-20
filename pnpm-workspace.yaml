@@ -2,8 +2,6 @@ packages:
   - "packages/*"
   - "apps/*"
   - "examples/*"
-overrides:
-  '@anvia/core': "workspace:*"
 allowBuilds:
   '@google/genai': true
   esbuild: true
@@ -11,3 +9,6 @@ allowBuilds:
   protobufjs: true
   sharp: true
   workerd: true
+overrides:
+  '@anvia/core': "workspace:*"
+  apache-arrow: 18.1.0
