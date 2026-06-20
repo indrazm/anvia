@@ -45,6 +45,29 @@ describe("FastEmbedEmbeddingModel", () => {
     ]);
   });
 
+  it("returns no embeddings for empty input without calling the runtime", async () => {
+    const runtime: FastEmbedRuntime = {
+      embed: vi.fn(async function* () {
+        yield [[1, 0]];
+      }),
+    };
+    const model = new FastEmbedEmbeddingModel(runtime);
+
+    await expect(model.embedTexts([])).resolves.toEqual([]);
+    expect(runtime.embed).not.toHaveBeenCalled();
+  });
+
+  it("normalizes invalid and fractional max batch sizes", () => {
+    const runtime: FastEmbedRuntime = {
+      embed: vi.fn(async function* () {
+        yield [];
+      }),
+    };
+
+    expect(new FastEmbedEmbeddingModel(runtime, { maxBatchSize: 0 }).maxBatchSize).toBe(1);
+    expect(new FastEmbedEmbeddingModel(runtime, { maxBatchSize: 2.9 }).maxBatchSize).toBe(2);
+  });
+
   it("creates a default BGE Small embedding model", async () => {
     const runtime: FastEmbedRuntime = {
       embed: vi.fn(async function* () {
@@ -105,5 +128,28 @@ describe("FastEmbedEmbeddingModel", () => {
     await expect(model.embedTexts(["one", "two"])).rejects.toThrow(
       "returned 1 embeddings for 2 texts",
     );
+  });
+
+  it("rejects non-array batches from FastEmbed", async () => {
+    const runtime: FastEmbedRuntime = {
+      embed: vi.fn(async function* () {
+        yield "not-a-batch";
+      }),
+    };
+    const model = new FastEmbedEmbeddingModel(runtime);
+
+    await expect(model.embedTexts(["one"])).rejects.toThrow("invalid batch at offset 0");
+  });
+
+  it("rejects invalid vectors with the correct absolute index", async () => {
+    const runtime: FastEmbedRuntime = {
+      embed: vi.fn(async function* () {
+        yield [[1, 0]];
+        yield [new DataView(new ArrayBuffer(8))];
+      }),
+    };
+    const model = new FastEmbedEmbeddingModel(runtime);
+
+    await expect(model.embedTexts(["one", "two"])).rejects.toThrow("invalid vector at index 1");
   });
 });

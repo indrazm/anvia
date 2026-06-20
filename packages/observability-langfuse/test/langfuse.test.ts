@@ -381,6 +381,188 @@ describe("langfuse", () => {
     );
   });
 
+  it("marks skipped tools as warnings", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const toolObservation = fakeObservation("tool", "trace-1", "obs-tool");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(toolObservation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "public", secretKey: "secret" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("skip"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+    const tool = await run.startTool?.({
+      turn: 1,
+      toolName: "get_ticket",
+      args: "{}",
+      toolCall: AssistantContent.toolCall("call-1", "get_ticket", {}),
+      internalCallId: "internal-1",
+      toolCallId: "call-1",
+    });
+
+    await tool?.end({
+      turn: 1,
+      toolName: "get_ticket",
+      args: "{}",
+      toolCall: AssistantContent.toolCall("call-1", "get_ticket", {}),
+      result: "",
+      skipped: true,
+      internalCallId: "internal-1",
+      toolCallId: "call-1",
+    });
+
+    expect(toolObservation.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "WARNING",
+        statusMessage: "Tool call skipped by hook",
+      }),
+    );
+  });
+
+  it("records tool and streamed child agent errors", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const parentTool = fakeObservation("parent-tool", "trace-1", "obs-parent-tool");
+    const childAgent = fakeObservation("child-agent", "trace-1", "obs-child-agent");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(parentTool);
+    parentTool.startObservation.mockReturnValueOnce(childAgent);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "public", secretKey: "secret" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("delegate"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+    const toolCall = AssistantContent.toolCall("call-child", "ask_child", {});
+    const tool = await run.startTool?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        event: { type: "error", error: new Error("child failed") },
+      },
+    });
+    await tool?.error?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      error: "tool failed",
+    });
+
+    expect(childAgent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "ERROR",
+        statusMessage: "child failed",
+        output: { error: "child failed" },
+      }),
+    );
+    expect(parentTool.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "ERROR",
+        statusMessage: "tool failed",
+        output: { error: "tool failed" },
+      }),
+    );
+  });
+
+  it("closes open streamed child observations when the parent tool ends", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const parentTool = fakeObservation("parent-tool", "trace-1", "obs-parent-tool");
+    const childAgent = fakeObservation("child-agent", "trace-1", "obs-child-agent");
+    const childGeneration = fakeObservation("child-generation", "trace-1", "obs-child-generation");
+    const childTool = fakeObservation("child-tool", "trace-1", "obs-child-tool");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(parentTool);
+    parentTool.startObservation.mockReturnValueOnce(childAgent);
+    childAgent.startObservation.mockReturnValueOnce(childGeneration).mockReturnValueOnce(childTool);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "public", secretKey: "secret" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("delegate"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+    const toolCall = AssistantContent.toolCall("call-child", "ask_child", {});
+    const tool = await run.startTool?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        event: { type: "turn_start", turn: 1, prompt: userMessage("inspect"), history: [] },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        event: {
+          type: "tool_call",
+          turn: 1,
+          toolCall: AssistantContent.toolCall("call-open", "open_tool", {}),
+        },
+      },
+    });
+    await tool?.end({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall,
+      result: "done",
+      skipped: false,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    expect(childGeneration.end).toHaveBeenCalledOnce();
+    expect(childTool.end).toHaveBeenCalledOnce();
+    expect(childAgent.end).toHaveBeenCalledOnce();
+  });
+
   it("scores traces through the Langfuse public API", async () => {
     const tracing = langfuse.create({
       publicKey: "public",
@@ -536,6 +718,61 @@ describe("langfuse", () => {
         value: 0.7,
       }),
     );
+  });
+
+  it("maps additional eval score shapes and malformed trace outputs", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-object", input: "input" },
+      output: { trace: { traceId: "trace-object" } },
+      metric: metric("object"),
+      outcome: EvalOutcome.pass({ score: 0.4 }),
+    });
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-false", input: "input" },
+      output: { trace: { traceId: "trace-false" } },
+      metric: metric("boolean"),
+      outcome: EvalOutcome.fail(false),
+    });
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-fallback", input: "input" },
+      output: { trace: { traceId: "trace-fallback" } },
+      metric: metric("fallback"),
+      outcome: EvalOutcome.pass(undefined),
+    });
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-malformed", input: "input" },
+      output: { trace: "not-a-trace" },
+      metric: metric("malformed"),
+      outcome: EvalOutcome.pass(true),
+    });
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-missing-trace-id", input: "input" },
+      output: { trace: { traceId: 123 } },
+      metric: metric("missing"),
+      outcome: EvalOutcome.pass(true),
+    });
+
+    expect(score).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ traceId: "trace-object", value: 0.4 }),
+    );
+    expect(score).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ traceId: "trace-false", value: 0 }),
+    );
+    expect(score).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ traceId: "trace-fallback", value: 1 }),
+    );
+    expect(score).toHaveBeenCalledTimes(3);
   });
 });
 

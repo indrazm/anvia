@@ -42,6 +42,30 @@ describe("TransformersEmbeddingModel", () => {
     ]);
   });
 
+  it("uses default pooling and normalization options", async () => {
+    const extractor: TransformersFeatureExtractionPipeline = vi.fn(async () => ({
+      tolist: () => [[0.1, 0.2]],
+    }));
+    const model = new TransformersEmbeddingModel(extractor);
+
+    await model.embedTexts(["alpha"]);
+
+    expect(extractor).toHaveBeenCalledWith(["alpha"], {
+      pooling: "mean",
+      normalize: true,
+    });
+  });
+
+  it("returns no embeddings for empty input without calling the extractor", async () => {
+    const extractor: TransformersFeatureExtractionPipeline = vi.fn(async () => ({
+      tolist: () => [[0.1, 0.2]],
+    }));
+    const model = new TransformersEmbeddingModel(extractor);
+
+    await expect(model.embedTexts([])).resolves.toEqual([]);
+    expect(extractor).not.toHaveBeenCalled();
+  });
+
   it("creates a default All-MiniLM embedding model", async () => {
     const extractor: TransformersFeatureExtractionPipeline = vi.fn(async () => ({
       tolist: () => [[1, 0]],
@@ -67,5 +91,23 @@ describe("TransformersEmbeddingModel", () => {
     await expect(model.embedTexts(["one", "two"])).rejects.toThrow(
       "returned 1 embeddings for 2 texts",
     );
+  });
+
+  it("rejects non-array embedding output", async () => {
+    const extractor: TransformersFeatureExtractionPipeline = vi.fn(async () => ({
+      tolist: () => "not-vectors",
+    }));
+    const model = new TransformersEmbeddingModel(extractor);
+
+    await expect(model.embedTexts(["one"])).rejects.toThrow("returned 0 embeddings for 1 texts");
+  });
+
+  it("rejects invalid vectors", async () => {
+    const extractor: TransformersFeatureExtractionPipeline = vi.fn(async () => ({
+      tolist: () => [["not-a-number"]],
+    }));
+    const model = new TransformersEmbeddingModel(extractor);
+
+    await expect(model.embedTexts(["one"])).rejects.toThrow("invalid vector at index 0");
   });
 });
