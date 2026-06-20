@@ -43,6 +43,19 @@ describe("otel", () => {
     expect(getTracer).toHaveBeenCalledWith("@anvia/otel", "1.2.3");
   });
 
+  it("uses the generic run span name when no agent name is provided", async () => {
+    const tracer = new FakeTracer();
+    const tracing = otel.create({ tracer: tracer.tracer });
+
+    await tracing.startRun({
+      prompt: userMessage("hello"),
+      history: [],
+      maxTurns: 1,
+    });
+
+    expect(tracer.spans[0]?.name).toBe("agent.run");
+  });
+
   it("maps runs, generations, tools, and attributes to OpenTelemetry spans", async () => {
     const tracer = new FakeTracer();
     const tracing = otel.create({ tracer: tracer.tracer, serviceName: "cookbook" });
@@ -160,6 +173,77 @@ describe("otel", () => {
     });
     expect(root?.status).toEqual({ code: SpanStatusCode.OK });
     expect(root?.ended).toBe(true);
+  });
+
+  it("records generation request options and output schema metadata", async () => {
+    const tracer = new FakeTracer();
+    const tracing = otel.create({ tracer: tracer.tracer });
+    const run = await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hello"),
+      history: [],
+      maxTurns: 1,
+    });
+
+    const generation = await run?.startGeneration?.({
+      turn: 1,
+      request: {
+        model: "test-model",
+        chatHistory: [userMessage("hello")],
+        documents: [],
+        tools: [
+          {
+            name: "get_ticket",
+            description: "Get a ticket",
+            parameters: { type: "object" },
+          },
+        ],
+        temperature: 0.2,
+        maxTokens: 128,
+        toolChoice: { type: "function", name: "get_ticket" },
+        additionalParams: {},
+        outputSchema: { type: "object" },
+      },
+    });
+
+    await generation?.end({
+      turn: 1,
+      response: {
+        messageId: "msg-1",
+        choice: [AssistantContent.text("Done")],
+        usage: usage(1, 1),
+        rawResponse: {},
+      },
+    });
+
+    expect(tracer.spans[1]?.attributes).toMatchObject({
+      "anvia.generation.temperature": 0.2,
+      "anvia.generation.max_tokens": 128,
+      "anvia.generation.tool_choice": "get_ticket",
+      "anvia.generation.tool_count": 1,
+      "anvia.generation.has_output_schema": true,
+    });
+  });
+
+  it("serializes unsupported trace metadata as a failure marker", async () => {
+    const tracer = new FakeTracer();
+    const tracing = otel.create({ tracer: tracer.tracer });
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hello"),
+      history: [],
+      maxTurns: 1,
+      trace: {
+        metadata: { circular },
+      },
+    });
+
+    expect(tracer.spans[0]?.attributes["anvia.trace.metadata.circular"]).toBe(
+      "<failed to serialize>",
+    );
   });
 
   it("records run, generation, and tool errors", async () => {
@@ -350,6 +434,113 @@ describe("otel", () => {
       "anvia.child_agent.id": "child",
       "anvia.tool.result": "7",
     });
+  });
+
+  it("records streamed child agent errors", async () => {
+    const tracer = new FakeTracer();
+    const tracing = otel.create({ tracer: tracer.tracer });
+    const run = await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("delegate"),
+      history: [],
+      maxTurns: 1,
+    });
+    const parentToolCall = AssistantContent.toolCall("call-child", "ask_child", {});
+    const tool = await run?.startTool?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: { type: "error", error: "child failed" },
+      },
+    });
+
+    const childAgent = tracer.spans.find((span) => span.name === "Child_Agent.run");
+    expect(childAgent?.exceptions).toEqual(["child failed"]);
+    expect(childAgent?.status).toEqual({
+      code: SpanStatusCode.ERROR,
+      message: "child failed",
+    });
+    expect(childAgent?.ended).toBe(true);
+  });
+
+  it("ends open streamed child spans when the parent tool ends", async () => {
+    const tracer = new FakeTracer();
+    const tracing = otel.create({ tracer: tracer.tracer });
+    const run = await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("delegate"),
+      history: [],
+      maxTurns: 1,
+    });
+    const parentToolCall = AssistantContent.toolCall("call-child", "ask_child", {});
+    const tool = await run?.startTool?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: { type: "turn_start", turn: 1, prompt: userMessage("inspect"), history: [] },
+      },
+    });
+    await tool?.streamEvent?.({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall: parentToolCall,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+      event: {
+        agentId: "child",
+        agentName: "Child Agent",
+        event: {
+          type: "tool_call",
+          turn: 1,
+          toolCall: AssistantContent.toolCall("call-open", "open_tool", {}),
+        },
+      },
+    });
+    await tool?.end({
+      turn: 1,
+      toolName: "ask_child",
+      args: "{}",
+      toolCall: parentToolCall,
+      result: "done",
+      skipped: false,
+      internalCallId: "internal-child",
+      toolCallId: "call-child",
+    });
+
+    expect(tracer.spans.find((span) => span.name === "Child_Agent.run")?.ended).toBe(true);
+    expect(tracer.spans.find((span) => span.name === "Child_Agent.model.turn.1")?.ended).toBe(true);
+    expect(tracer.spans.find((span) => span.name === "Child_Agent.open_tool")?.ended).toBe(true);
   });
 
   it("joins valid incoming trace ids and ignores invalid ones", async () => {
