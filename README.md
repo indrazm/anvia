@@ -119,7 +119,7 @@ pnpm cookbook:studio:01
 
 ## Project Activity
 
-![Alt](https://repobeats.axiom.co/api/embed/a63db5f32641718a48cb706d9957e94fa413871d.svg "Repobeats analytics image")
+![Repobeats analytics image](https://repobeats.axiom.co/api/embed/a63db5f32641718a48cb706d9957e94fa413871d.svg "Repobeats analytics image")
 
 ## License
 
