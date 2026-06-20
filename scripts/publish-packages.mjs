@@ -6,6 +6,9 @@ import path from "node:path";
 const root = process.cwd();
 const packagesRoot = path.join(root, "packages");
 const registry = process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY;
+const npmTag = readOption("--tag", process.env.NPM_TAG ?? "latest");
+const skipGitTags =
+  process.env.SKIP_GIT_TAGS === "true" || process.argv.includes("--skip-git-tags");
 
 const packageDirs = findPackageDirs(packagesRoot);
 const packages = packageDirs
@@ -42,7 +45,7 @@ for (const pkg of sortedPackages) {
     "--access",
     publishConfig?.access ?? "public",
     "--tag",
-    "latest",
+    npmTag,
   ];
   const result = spawnSync("npm", args, {
     cwd: root,
@@ -64,7 +67,11 @@ if (published.length > 0) {
   for (const pkg of published) {
     console.info(`${pkg.name}@${pkg.version}`);
   }
-  createGitTags(published);
+  if (skipGitTags) {
+    console.info("Skipping git tag creation.");
+  } else {
+    createGitTags(published);
+  }
 }
 
 if (failed.length > 0) {
@@ -98,6 +105,20 @@ function findPackageDirs(dir) {
 
 function readPackageJson(dir) {
   return JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8"));
+}
+
+function readOption(name, fallback) {
+  const index = process.argv.indexOf(name);
+  if (index === -1) {
+    return fallback;
+  }
+
+  const value = process.argv[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`${name} requires a value`);
+  }
+
+  return value;
 }
 
 async function isVersionPublished(name, version) {

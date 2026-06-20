@@ -99,6 +99,29 @@ That command runs:
 pnpm --filter './packages/*' build && changeset publish
 ```
 
+## Publish Preview Packages
+
+Preview packages are early-access builds from `main`. They do not use Changesets, do not create GitHub Releases, and do not update the `latest` npm tag.
+
+To publish a preview:
+
+1. Open GitHub Actions.
+2. Select the `Publish Preview Packages` workflow.
+3. Click `Run workflow`.
+4. Run it from the `main` branch.
+
+The workflow publishes every public package with a generated prerelease version:
+
+```txt
+0.7.2-preview.20260620T153000.abc1234
+```
+
+Users can install preview packages explicitly:
+
+```sh
+pnpm add @anvia/core@preview
+```
+
 ## Manual Version Check
 
 To preview what Changesets sees locally:
