@@ -1,10 +1,4 @@
-import {
-  createHook,
-  type HookAction,
-  type PromptHook,
-  type ToolCallHookAction,
-} from "@anvia/core/agent";
-import { type Message as CoreMessage, type JsonObject, Message } from "@anvia/core/completion";
+import type { JsonObject } from "@anvia/core/completion";
 import { Agent } from "@anvia/core/internal/agent";
 import { Pipeline } from "@anvia/core/pipeline";
 import { serve } from "@hono/node-server";
@@ -12,7 +6,6 @@ import type { Hono } from "hono";
 import { Hono as HonoApp } from "hono";
 import { StudioTraceObserver } from "../traces/trace-observer";
 import type {
-  AgentRunStreamEvent,
   AnviaStudio,
   StudioAgent,
   StudioConfig,
@@ -29,6 +22,8 @@ import {
   resolveStudioUiOptions,
   studioUiEntryPath,
 } from "../ui/routes";
+import { registerAgentRunRoute } from "./agent-runs";
+import { cloneAgent } from "./agent-utils";
 import { createApprovalRuntime, registerApprovalRoutes } from "./approvals";
 import { compact } from "./compact";
 import {
@@ -36,49 +31,22 @@ import {
   agentRuntimeSummary,
   buildConfig,
   runnerId,
-  type StudioRuntimeOptions,
   unsupportedCapabilities,
 } from "./config";
 import { registerEvalRoutes } from "./evals";
-import { errorResponse, serializeError, unsupportedCapability } from "./http";
+import { errorResponse, unsupportedCapability } from "./http";
 import { registerKnowledgeRoutes } from "./knowledge";
 import { registerMcpRoutes } from "./mcps";
 import { registerMemoryRoutes } from "./memory";
-import {
-  createStudioModelRegistry,
-  ModelSelectionError,
-  registerModelRoutes,
-  resolveStudioModel,
-  STUDIO_MODEL_METADATA_KEY,
-  sessionModelRef,
-} from "./models";
+import { createStudioModelRegistry, registerModelRoutes } from "./models";
 import {
   observeStores,
   registerObservabilityRoutes,
   StudioObservabilityHub,
 } from "./observability";
+import type { StudioRuntimeOptions } from "./options";
 import { registerPipelineRoutes } from "./pipelines";
 import { createQuestionRuntime, registerQuestionRoutes } from "./questions";
-import {
-  AsyncEventQueue,
-  mergeRunAndApprovalEvents,
-  optionalTitle,
-  parseRunRequest,
-  persistStreamingSessionTranscript,
-  streamAgentRunEvents,
-  traceForRun,
-  transcriptFromMessages,
-} from "./runs";
-import {
-  appendSessionLog,
-  memoryLoadedLog,
-  memorySavedLog,
-  runCompletedLog,
-  runFailedLog,
-  runReceivedLog,
-  runStartedLog,
-  streamSessionRunLogs,
-} from "./session-logs";
 import { registerSessionRoutes } from "./sessions";
 import { normalizeAgents, normalizePipelines, resolveStores } from "./shared";
 import { registerStatusRoutes } from "./status";
@@ -311,266 +279,12 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
     ...compact({ runStore: stores.pipelineRuns }),
   });
 
-  app.post("/agents/:agentId/runs", async (c) => {
-    const agentId = c.req.param("agentId");
-    const agent = agentMap.get(agentId);
-    if (agent === undefined) {
-      return errorResponse(c, 404, "not_found", "Agent not found");
-    }
-
-    const body = await parseRunRequest(c);
-    if ("error" in body) {
-      return body.error;
-    }
-
-    if (body.sessionId !== undefined && stores.sessions === undefined) {
-      return unsupportedCapability(c, "sessions");
-    }
-
-    const session =
-      body.sessionId === undefined ? undefined : await stores.sessions?.getSession(body.sessionId);
-    if (body.sessionId !== undefined && session === undefined) {
-      return errorResponse(c, 404, "not_found", "Session not found");
-    }
-    if (session !== undefined && session.agentId !== agentId) {
-      return errorResponse(c, 400, "bad_request", "Session belongs to another agent");
-    }
-
-    let selectedModel: ReturnType<typeof resolveStudioModel>;
-    try {
-      selectedModel = resolveStudioModel(modelRegistry, {
-        agent,
-        request: body,
-        sessionMetadata: session?.metadata,
-      });
-    } catch (error) {
-      if (error instanceof ModelSelectionError) {
-        return errorResponse(c, 400, "bad_request", error.message);
-      }
-      throw error;
-    }
-    const runAgent =
-      selectedModel.model === undefined
-        ? agent.agent
-        : cloneAgent(agent.agent, { model: selectedModel.model });
-
-    const runId = globalThis.crypto.randomUUID();
-    const runStartedAt = Date.now();
-    if (session !== undefined) {
-      await appendSessionLog(
-        stores.sessions,
-        runReceivedLog({
-          sessionId: session.id,
-          runId,
-          agentId,
-          message: body.message,
-          stream: body.stream === true,
-          ...compact({ maxTurns: body.maxTurns }),
-          ...compact({ toolConcurrency: body.toolConcurrency }),
-          hasTrace: body.trace !== undefined,
-          ...(body.metadata === undefined && selectedModel.ref === undefined
-            ? {}
-            : {
-                metadata: {
-                  ...(body.metadata ?? {}),
-                  ...(selectedModel.ref === undefined
-                    ? {}
-                    : { [STUDIO_MODEL_METADATA_KEY]: selectedModel.ref }),
-                },
-              }),
-        }),
-      );
-    }
-    if (session !== undefined && selectedModel.ref !== undefined) {
-      for (const warning of selectedModel.warnings) {
-        await appendSessionLog(stores.sessions, {
-          sessionId: session.id,
-          runId,
-          level: "warn",
-          category: "model",
-          event: "model.warning",
-          message: typeof warning.message === "string" ? warning.message : "Model warning",
-          metadata: warning,
-        });
-      }
-      if (sessionModelRef(session.metadata) !== selectedModel.ref) {
-        await stores.sessions?.updateSessionMetadata?.(session.id, {
-          ...(session.metadata ?? {}),
-          [STUDIO_MODEL_METADATA_KEY]: selectedModel.ref,
-        });
-      }
-    }
-    const memoryMetadata = {
-      agentId,
-      ...(body.metadata ?? {}),
-      ...(selectedModel.ref === undefined
-        ? {}
-        : { [STUDIO_MODEL_METADATA_KEY]: selectedModel.ref }),
-      studioRunId: runId,
-    };
-    const promptMessage = normalizePromptMessage(body.message);
-    const sessionStore = stores.sessions;
-    const shouldPersistSessionMessages =
-      session !== undefined &&
-      sessionStore !== undefined &&
-      !usesStoreAsAgentMemory(runAgent, sessionStore);
-    if (shouldPersistSessionMessages) {
-      await sessionStore.append({
-        context: { sessionId: session.id, metadata: memoryMetadata },
-        runId,
-        turn: 1,
-        messages: [promptMessage],
-      });
-    }
-    const request =
-      session !== undefined
-        ? runAgent.memory === undefined
-          ? runAgent.prompt([...session.messages, promptMessage])
-          : runAgent.session(session.id, { metadata: memoryMetadata }).prompt(body.message)
-        : runAgent.prompt(
-            body.history !== undefined ? [...body.history, promptMessage] : body.message,
-          );
-    if (body.maxTurns !== undefined) {
-      request.maxTurns(body.maxTurns);
-    }
-    if (body.toolConcurrency !== undefined) {
-      request.withToolConcurrency(body.toolConcurrency);
-    }
-    if (body.trace !== undefined) {
-      request.withTrace(traceForRun(body.trace, agentId, session));
-    } else if (session !== undefined) {
-      request.withTrace(traceForRun(undefined, agentId, session));
-    }
-
-    if (body.stream === true) {
-      const runtimeEvents = new AsyncEventQueue<AgentRunStreamEvent>();
-      request.approvals(
-        approvalRuntime.createApprovals({
-          runId,
-          agentId,
-          ...compact({ sessionId: session?.id }),
-          ...compact({ metadata: body.metadata }),
-          emit: (event) => runtimeEvents.push(event),
-        }),
-      );
-      const effectiveHook = composeHooks(
-        runAgent.hook,
-        questionRuntime.createHook({
-          runId,
-          agentId,
-          ...compact({ sessionId: session?.id }),
-          ...compact({ metadata: body.metadata }),
-          emit: (event) => runtimeEvents.push(event),
-        }),
-      );
-      if (effectiveHook !== undefined) {
-        request.requestHook(effectiveHook);
-      }
-      const runStream = mergeRunAndApprovalEvents(request.stream(), runtimeEvents);
-      const stream =
-        session === undefined || sessionStore === undefined
-          ? runStream
-          : persistStreamingSessionTranscript({
-              stream: streamSessionRunLogs({
-                stream: runStream,
-                store: sessionStore,
-                session,
-                runId,
-                startedAt: runStartedAt,
-              }),
-              store: sessionStore,
-              session,
-              message: body.message,
-              runId,
-              persistGeneratedMessages: shouldPersistSessionMessages,
-            });
-      return streamAgentRunEvents(c, stream);
-    }
-
-    try {
-      if (session !== undefined) {
-        await appendSessionLog(sessionStore, runStartedLog(session, runId));
-        await appendSessionLog(sessionStore, memoryLoadedLog(session, runId));
-      }
-      const effectiveHook = composeHooks(
-        runAgent.hook,
-        questionRuntime.createHook({
-          runId,
-          agentId,
-          ...compact({ sessionId: session?.id }),
-          ...compact({ metadata: body.metadata }),
-        }),
-      );
-      request.approvals(
-        approvalRuntime.createApprovals({
-          runId,
-          agentId,
-          ...compact({ sessionId: session?.id }),
-          ...compact({ metadata: body.metadata }),
-        }),
-      );
-      if (effectiveHook !== undefined) {
-        request.requestHook(effectiveHook);
-      }
-      const response = await request.send();
-      if (session !== undefined && sessionStore !== undefined) {
-        if (shouldPersistSessionMessages) {
-          const generatedMessages = response.messages.slice(1);
-          if (generatedMessages.length > 0) {
-            await sessionStore.append({
-              context: { sessionId: session.id, metadata: memoryMetadata },
-              runId,
-              turn: 1,
-              messages: generatedMessages,
-            });
-          }
-        }
-        await sessionStore.saveSessionRunTranscript({
-          id: session.id,
-          runId,
-          ...optionalTitle(body.message),
-          transcript: transcriptFromMessages(response.messages),
-          status: "success",
-        });
-        await appendSessionLog(
-          sessionStore,
-          runCompletedLog({
-            sessionId: session.id,
-            runId,
-            durationMs: Date.now() - runStartedAt,
-            usage: response.usage,
-            output: response.output,
-            messageCount: response.messages.length,
-          }),
-        );
-        await appendSessionLog(
-          sessionStore,
-          memorySavedLog({
-            sessionId: session.id,
-            runId,
-            messageCount: response.messages.length,
-          }),
-        );
-      }
-      return c.json(response);
-    } catch (error) {
-      if (session !== undefined && sessionStore !== undefined) {
-        const messages = await sessionStore.load({
-          sessionId: session.id,
-          metadata: memoryMetadata,
-        });
-        await sessionStore.saveSessionRunTranscript({
-          id: session.id,
-          runId,
-          ...optionalTitle(body.message),
-          transcript: transcriptFromMessages(messages.slice(session.messageCount)),
-          status: "error",
-          error: serializeError(error),
-        });
-        await appendSessionLog(sessionStore, runFailedLog(session.id, runId, error, runStartedAt));
-      }
-      return errorResponse(c, 500, "internal_error", "Agent run failed", serializeError(error));
-    }
+  registerAgentRunRoute(app, {
+    agentMap,
+    stores,
+    modelRegistry,
+    approvalRuntime,
+    questionRuntime,
   });
 
   if (stores.sessions !== undefined) {
@@ -607,14 +321,6 @@ function createStudioApp(options: StudioRuntimeOptions): StudioApp {
   };
 }
 
-function normalizePromptMessage(message: string | CoreMessage): CoreMessage {
-  return typeof message === "string" ? Message.user(message) : message;
-}
-
-function usesStoreAsAgentMemory(agent: Agent, store: StudioSessionStore): boolean {
-  return agent.memory?.store === store;
-}
-
 function withStudioTraceObserver(
   studioAgent: StudioAgent,
   traceStore: StudioTraceStore | undefined,
@@ -634,80 +340,8 @@ function withStudioTraceObserver(
   };
 }
 
-function cloneAgent(
-  agent: Agent,
-  overrides: Partial<ConstructorParameters<typeof Agent>[0]> = {},
-): Agent {
-  return new Agent({
-    id: agent.id,
-    name: agent.name,
-    description: agent.description,
-    model: agent.model,
-    instructions: agent.instructions,
-    staticContext: agent.staticContext,
-    temperature: agent.temperature,
-    maxTokens: agent.maxTokens,
-    additionalParams: agent.additionalParams,
-    toolSet: agent.toolSet,
-    toolChoice: agent.toolChoice,
-    defaultMaxTurns: agent.defaultMaxTurns,
-    hook: agent.hook,
-    outputSchema: agent.outputSchema,
-    observers: agent.observers,
-    dynamicContexts: agent.dynamicContexts,
-    dynamicTools: agent.dynamicTools,
-    memory: agent.memory,
-    ...overrides,
-  });
-}
-
 function hasStudioTraceObserver(agent: Agent): boolean {
   return agent.observers.some(
     (registration) => registration.observer instanceof StudioTraceObserver,
   );
-}
-
-function composeHooks(
-  first: PromptHook | undefined,
-  second: PromptHook | undefined,
-): PromptHook | undefined {
-  if (first === undefined) {
-    return second;
-  }
-  if (second === undefined) {
-    return first;
-  }
-
-  return createHook({
-    async onCompletionCall(args): Promise<HookAction | undefined> {
-      const firstAction = await first.onCompletionCall?.(args);
-      return firstAction?.type === "terminate"
-        ? firstAction
-        : ((await second.onCompletionCall?.(args)) ?? undefined);
-    },
-    async onCompletionResponse(args): Promise<HookAction | undefined> {
-      const firstAction = await first.onCompletionResponse?.(args);
-      return firstAction?.type === "terminate"
-        ? firstAction
-        : ((await second.onCompletionResponse?.(args)) ?? undefined);
-    },
-    async onToolCall(args): Promise<ToolCallHookAction | undefined> {
-      const firstAction = await first.onToolCall?.(args);
-      if (
-        firstAction?.type === "skip" ||
-        firstAction?.type === "terminate" ||
-        firstAction?.type === "approval_request"
-      ) {
-        return firstAction;
-      }
-      const secondAction = await second.onToolCall?.(args);
-      return secondAction ?? firstAction ?? undefined;
-    },
-    async onToolResult(args): Promise<HookAction | undefined> {
-      const firstAction = await first.onToolResult?.(args);
-      return firstAction?.type === "terminate"
-        ? firstAction
-        : ((await second.onToolResult?.(args)) ?? undefined);
-    },
-  });
 }

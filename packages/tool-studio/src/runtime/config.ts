@@ -1,5 +1,4 @@
 import type { JsonValue } from "@anvia/core/completion";
-import { compact } from "./compact";
 import type {
   StudioAgent,
   StudioAgentConfig,
@@ -7,36 +6,17 @@ import type {
   StudioCapability,
   StudioCapabilityConfig,
   StudioConfig,
-  StudioEvalSuite,
-  StudioEvalSuiteConfig,
   StudioPipeline,
   StudioPipelineConfig,
-  StudioStores,
-  StudioUiOptions,
 } from "../types";
+import { compact } from "./compact";
+import { evalConfig } from "./eval-config";
 import { serializeUnknown } from "./json";
 import { createStudioModelRegistry, studioModelsConfig } from "./models";
+import type { ResolvedStores, StudioRuntimeOptions } from "./options";
 import { agentHasMcpTools, agentToolItems, mcpServerName } from "./tool-metadata";
 
-export type ResolvedStores = {
-  sessions?: import("../types").StudioSessionStore;
-  traces?: import("../types").StudioTraceStore;
-  pipelineLogs?: import("../types").StudioPipelineLogStore;
-  pipelineRuns?: import("../types").StudioPipelineRunStore;
-};
-
-export type StudioRuntimeOptions = {
-  id?: string;
-  name?: string;
-  description?: string;
-  version?: string;
-  agents: StudioAgent[];
-  pipelines: StudioPipeline[];
-  evals: StudioEvalSuite[];
-  models?: import("../types").StudioModelConfig;
-  stores?: StudioStores;
-  ui?: boolean | StudioUiOptions;
-};
+export type { ResolvedStores, StudioRuntimeOptions } from "./options";
 
 export function runnerId(options: StudioRuntimeOptions): string {
   return options.id ?? "anvia-studio";
@@ -180,19 +160,9 @@ export function capabilityConfig(
   return capabilities;
 }
 
-export function evalConfig(suite: StudioEvalSuite): StudioEvalSuiteConfig {
-  return compact({
-    id: suite.id ?? suite.name,
-    name: suite.name,
-    description: suite.description,
-    caseCount: suite.cases.length,
-    metricNames: suite.metrics.map((metric) => metric.name),
-    concurrency: suite.concurrency,
-    metadata: suite.metadata,
-  }) as StudioEvalSuiteConfig;
-}
-
-export function unsupportedCapabilities(stores: ResolvedStores): import("../types").StudioCapability[] {
+export function unsupportedCapabilities(
+  stores: ResolvedStores,
+): import("../types").StudioCapability[] {
   return [
     ...(stores.sessions === undefined ? (["sessions"] as const) : []),
     ...(stores.traces === undefined ? (["traces"] as const) : []),

@@ -4,13 +4,12 @@ import type {
   StudioObservabilityEventType,
   StudioPipelineLogStore,
   StudioSessionStore,
-  StudioTrace,
   StudioTraceStore,
-  StudioTraceSummary,
 } from "../types";
-import type { ResolvedStores } from "./config";
 import { compact } from "./compact";
+import type { ResolvedStores } from "./options";
 import { streamStudioJsonl } from "./streams";
+import { traceSummary } from "./trace-summary";
 
 type ObservabilitySubscription = {
   close: () => void;
@@ -49,9 +48,13 @@ export function observeStores(stores: ResolvedStores, hub: StudioObservabilityHu
   return {
     ...stores,
     ...compact({
-      sessions: stores.sessions !== undefined ? observeSessionStore(stores.sessions, hub) : undefined,
+      sessions:
+        stores.sessions !== undefined ? observeSessionStore(stores.sessions, hub) : undefined,
       traces: stores.traces !== undefined ? observeTraceStore(stores.traces, hub) : undefined,
-      pipelineLogs: stores.pipelineLogs !== undefined ? observePipelineLogStore(stores.pipelineLogs, hub) : undefined,
+      pipelineLogs:
+        stores.pipelineLogs !== undefined
+          ? observePipelineLogStore(stores.pipelineLogs, hub)
+          : undefined,
     }),
   };
 }
@@ -221,23 +224,4 @@ function parseEventTypes(
 
 function isEventType(value: string): value is StudioObservabilityEventType {
   return value === "session_log" || value === "pipeline_log" || value === "trace";
-}
-
-function traceSummary(trace: StudioTrace): StudioTraceSummary {
-  return {
-    id: trace.id,
-    sessionId: trace.sessionId,
-    status: trace.status,
-    startedAt: trace.startedAt,
-    observationCount: trace.observations.length,
-    ...compact({
-      name: trace.name,
-      endedAt: trace.endedAt,
-      durationMs: trace.durationMs,
-      output: trace.output,
-      error: trace.error,
-      usage: trace.usage,
-      metadata: trace.metadata,
-    }),
-  };
 }

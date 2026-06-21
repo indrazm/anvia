@@ -13,6 +13,9 @@ import type {
   StudioPipelineRunStore,
 } from "../types";
 import { compact } from "./compact";
+import { pipelineConfig } from "./config";
+import { serializeError } from "./errors";
+import { errorResponse } from "./http";
 import { toJsonValue } from "./json";
 import {
   appendPipelineLog,
@@ -24,10 +27,8 @@ import {
   pipelineStageLog,
 } from "./pipeline-logs";
 import { AsyncEventQueue } from "./runs";
-import { pipelineConfig } from "./config";
-import { errorResponse, parseJsonBody, serializeError } from "./http";
-import { isJsonObject, isObject } from "./type-guards";
 import { streamStudioJsonl } from "./streams";
+import { isJsonObject, isObject } from "./type-guards";
 
 export function registerPipelineRoutes(
   app: Hono,

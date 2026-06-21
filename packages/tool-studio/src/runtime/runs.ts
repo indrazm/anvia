@@ -1,10 +1,10 @@
 import type { AgentStreamEvent } from "@anvia/core/agent";
 import type { Message } from "@anvia/core/completion";
-import type { AgentTraceOptions } from "@anvia/core/observability";
 import type { Context } from "hono";
 import type {
   AgentRunRequest,
   AgentRunStreamEvent,
+  AgentTraceOptions,
   StudioSession,
   StudioSessionStore,
   StudioTranscriptAttachment,
@@ -12,8 +12,10 @@ import type {
   StudioTranscriptEntry,
 } from "../types";
 import { compact } from "./compact";
-import { errorResponse, parseJsonBody, serializeError } from "./http";
+import { serializeError } from "./errors";
+import { errorResponse } from "./http";
 import { formatJson } from "./json";
+import { streamStudioJsonl } from "./streams";
 import {
   isAgentTraceOptions,
   isJsonObject,
@@ -23,7 +25,6 @@ import {
   isObject,
   isPositiveInteger,
 } from "./type-guards";
-import { streamStudioJsonl } from "./streams";
 
 export { transcriptFromMessages } from "./transcript";
 
@@ -224,15 +225,17 @@ function acceptTranscriptStreamEvent(
   if (event.type === "tool_result") {
     const matched = findTranscriptToolEntry(transcript, event.toolName, event.toolCallId);
     if (matched === undefined) {
-      transcript.push(compact({
-        entryId: transcript.length,
-        kind: "tool" as const,
-        toolName: event.toolName,
-        callId: event.toolCallId,
-        args: event.args,
-        result: event.result,
-        structuredResult: event.structuredResult,
-      }) as StudioTranscriptEntry);
+      transcript.push(
+        compact({
+          entryId: transcript.length,
+          kind: "tool" as const,
+          toolName: event.toolName,
+          callId: event.toolCallId,
+          args: event.args,
+          result: event.result,
+          structuredResult: event.structuredResult,
+        }) as StudioTranscriptEntry,
+      );
       return;
     }
     matched.args = matched.args ?? event.args;
@@ -244,15 +247,17 @@ function acceptTranscriptStreamEvent(
   if (event.type === "agent_tool_event") {
     const matched = findTranscriptToolEntry(transcript, event.toolName, event.toolCallId);
     if (matched === undefined) {
-      transcript.push(compact({
-        entryId: transcript.length,
-        kind: "tool" as const,
-        toolName: event.toolName,
-        callId: event.toolCallId,
-        childEvents: [childAgentTranscriptEvent(event)].filter(
-          (childEvent): childEvent is StudioTranscriptChildAgentEvent => childEvent !== undefined,
-        ),
-      }) as StudioTranscriptEntry);
+      transcript.push(
+        compact({
+          entryId: transcript.length,
+          kind: "tool" as const,
+          toolName: event.toolName,
+          callId: event.toolCallId,
+          childEvents: [childAgentTranscriptEvent(event)].filter(
+            (childEvent): childEvent is StudioTranscriptChildAgentEvent => childEvent !== undefined,
+          ),
+        }) as StudioTranscriptEntry,
+      );
       return;
     }
     appendChildAgentTranscriptEvent(matched, event);
@@ -527,12 +532,14 @@ function appendTranscriptReasoningText(
     last.text = `${last.text}${delta}`;
     return;
   }
-  transcript.push(compact({
-    entryId: transcript.length,
-    kind: "reasoning" as const,
-    reasoningId,
-    text: delta,
-  }) as StudioTranscriptEntry);
+  transcript.push(
+    compact({
+      entryId: transcript.length,
+      kind: "reasoning" as const,
+      reasoningId,
+      text: delta,
+    }) as StudioTranscriptEntry,
+  );
 }
 
 function findTranscriptToolEntry(

@@ -1,5 +1,4 @@
 import type { AgentStreamEvent, PromptResponse } from "@anvia/core/agent";
-import { compact } from "./runtime/compact";
 import type {
   CompletionModel,
   CompletionModelCapabilities,
@@ -10,13 +9,11 @@ import type {
   ToolResultContent,
   Usage,
 } from "@anvia/core/completion";
-import type { RunEvalSuiteOptions } from "@anvia/core/evals";
 import type { Agent } from "@anvia/core/internal/agent";
-import type { MemoryStore } from "@anvia/core/memory";
 import type { ModelList } from "@anvia/core/model-listing";
-import type { AgentTraceInfo, AgentTraceOptions } from "@anvia/core/observability";
 import type { Pipeline, PipelineGraph } from "@anvia/core/pipeline";
 import type { Hono } from "hono";
+import { compact } from "./shared/compact";
 
 export type StudioCapability =
   | "agents"
@@ -31,6 +28,22 @@ export type StudioCapability =
   | "status"
   | "tools"
   | "traces";
+
+export type AgentTraceInfo = {
+  traceId?: string | undefined;
+  observationId?: string | undefined;
+};
+
+export type AgentTraceOptions = {
+  name?: string | undefined;
+  userId?: string | undefined;
+  sessionId?: string | undefined;
+  metadata?: Record<string, unknown> | undefined;
+  tags?: string[] | undefined;
+  version?: string | undefined;
+  traceId?: string | undefined;
+  failOnObserverError?: boolean | undefined;
+};
 
 export type StudioModelRef = string | { provider: string; model: string };
 
@@ -171,10 +184,23 @@ export type StudioPipelineDetail = StudioPipelineConfig & {
 };
 
 export type StudioEvalSuite<
-  Input = unknown,
-  Output = unknown,
-  Expected = unknown,
-> = RunEvalSuiteOptions<Input, Output, Expected> & {
+  // biome-ignore lint/suspicious/noExplicitAny: Studio accepts heterogeneous eval suites.
+  Input = any,
+  // biome-ignore lint/suspicious/noExplicitAny: Studio accepts heterogeneous eval suites.
+  _Output = any,
+  // biome-ignore lint/suspicious/noExplicitAny: Studio accepts heterogeneous eval suites.
+  _Expected = any,
+> = {
+  name: string;
+  cases: Array<Input>;
+  // biome-ignore lint/suspicious/noExplicitAny: Studio passes eval targets through to core.
+  target: any;
+  // biome-ignore lint/suspicious/noExplicitAny: Studio only reads metric names and passes metrics through.
+  metrics: any[];
+  concurrency?: number;
+  // biome-ignore lint/suspicious/noExplicitAny: Studio passes reporters through to core.
+  reporters?: any[];
+  failOnReporterError?: boolean;
   id?: string;
   description?: string;
   metadata?: JsonObject;
@@ -430,7 +456,34 @@ export type StudioSessionLogListOptions = {
   after?: number;
 };
 
-export type StudioSessionStore = MemoryStore & {
+export type StudioMemoryContext = {
+  sessionId: string;
+  userId?: string | undefined;
+  metadata?: JsonObject | undefined;
+};
+
+export type StudioMemoryAppendInput = {
+  context: StudioMemoryContext;
+  runId: string;
+  turn: number;
+  messages: Message[];
+};
+
+export type StudioMemoryErrorInput = {
+  context: StudioMemoryContext;
+  runId: string;
+  error: unknown;
+  messages: Message[];
+};
+
+export type StudioMemoryStore = {
+  load(context: StudioMemoryContext): Promise<Message[]>;
+  append(input: StudioMemoryAppendInput): Promise<void>;
+  clear(context: StudioMemoryContext): Promise<void>;
+  recordError?(input: StudioMemoryErrorInput): Promise<void>;
+};
+
+export type StudioSessionStore = StudioMemoryStore & {
   readonly kind?: string;
   listSessions(
     options: StudioSessionListOptions,

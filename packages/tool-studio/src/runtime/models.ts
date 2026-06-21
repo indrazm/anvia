@@ -16,7 +16,8 @@ import type {
   StudioModelsConfig,
 } from "../types";
 import { compact } from "./compact";
-import { errorResponse, serializeError } from "./http";
+import { serializeError } from "./errors";
+import { errorResponse } from "./http";
 
 export const STUDIO_MODEL_METADATA_KEY = "studioModel";
 
@@ -72,13 +73,18 @@ export function createStudioModelRegistry(
     providers.set(id, {
       ...provider,
       id,
-      ...compact({ defaultModel: provider.defaultModel !== undefined ? normalizeModelId(provider.defaultModel) : undefined }),
+      ...compact({
+        defaultModel:
+          provider.defaultModel !== undefined ? normalizeModelId(provider.defaultModel) : undefined,
+      }),
       staticModels,
     });
   }
 
   return {
-    ...compact({ defaultModel: config.default !== undefined ? normalizeModelRef(config.default) : undefined }),
+    ...compact({
+      defaultModel: config.default !== undefined ? normalizeModelRef(config.default) : undefined,
+    }),
     providers,
     agentPolicies: normalizeAgentPolicies(config.agents ?? {}),
     modelCache: new Map(),
@@ -99,7 +105,11 @@ export function studioModelsConfig(
     );
     return {
       id: provider.id,
-      ...compact({ name: provider.name, defaultModel: provider.defaultModel, metadata: provider.metadata }),
+      ...compact({
+        name: provider.name,
+        defaultModel: provider.defaultModel,
+        metadata: provider.metadata,
+      }),
       models,
     };
   });
@@ -324,7 +334,12 @@ async function providerCatalog(provider: RuntimeProvider): Promise<StudioModelPr
 
   return {
     id: provider.id,
-    ...compact({ name: provider.name, defaultModel: provider.defaultModel, metadata: provider.metadata, warning }),
+    ...compact({
+      name: provider.name,
+      defaultModel: provider.defaultModel,
+      metadata: provider.metadata,
+      warning,
+    }),
     models: [...models.values()].sort((left, right) => left.ref.localeCompare(right.ref)),
   };
 }

@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
+import type { JsonObject, Message } from "@anvia/core/completion";
 import type {
   AgentRunStreamEvent,
   StudioSession,
@@ -7,8 +7,8 @@ import type {
   StudioSessionStore,
 } from "../types";
 import { compact } from "./compact";
+import { serializeError } from "./errors";
 import { formatUnknown } from "./json";
-import { serializeError } from "./http";
 
 export async function appendSessionLog(
   store: StudioSessionStore | undefined,
@@ -534,5 +534,3 @@ function numericValue(value: unknown): number | undefined {
 function byteLength(value: string | undefined): number {
   return value === undefined ? 0 : new TextEncoder().encode(value).byteLength;
 }
-
-

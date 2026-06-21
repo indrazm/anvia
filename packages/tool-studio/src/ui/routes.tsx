@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import type { Hono } from "hono";
+import type { Context, Hono, Next } from "hono";
 import type { StudioUiOptions } from "../types";
 
 export type ResolvedStudioUiOptions = {
@@ -36,13 +36,6 @@ export function registerStudioUi(app: Hono, options: ResolvedStudioUiOptions): v
   const renderShell = () =>
     renderStudioUi({
       options,
-      routePath: options.path,
-      clientScript: scriptPath,
-      stylesheet: stylePath,
-    });
-  const renderRootShell = () =>
-    renderStudioUi({
-      options,
       routePath: "",
       clientScript: scriptPath,
       stylesheet: stylePath,
@@ -52,34 +45,48 @@ export function registerStudioUi(app: Hono, options: ResolvedStudioUiOptions): v
     app.get("/", (c) => c.redirect(studioUiEntryPath(options)));
   }
 
-  app.get(options.path, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/:sessionId`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/playground`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/playground/:sessionId`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/tracing`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/tracing/:traceId`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/tracing/sessions/:sessionId`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/tracing/*`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/sessions`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/agents`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/tools`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/mcps`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/pipelines`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/evals`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/memory`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/status`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/knowledge`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/knowledge/:tab`, async (c) => c.html(await renderShell()));
-  app.get(`${options.path}/knowledge/*`, async (c) => c.html(await renderShell()));
+  app.get(options.path, (c) => c.redirect(studioUiEntryPath(options)));
+  app.get(`${options.path}/playground`, (c) => c.redirect("/playground"));
+  app.get(`${options.path}/playground/:sessionId`, (c) =>
+    c.redirect(`/playground/${encodeURIComponent(c.req.param("sessionId"))}`),
+  );
+  app.get(`${options.path}/tracing`, (c) => c.redirect("/tracing"));
+  app.get(`${options.path}/tracing/:traceId`, (c) =>
+    c.redirect(`/tracing/${encodeURIComponent(c.req.param("traceId"))}`),
+  );
+  app.get(`${options.path}/tracing/sessions/:sessionId`, (c) =>
+    c.redirect(`/tracing/sessions/${encodeURIComponent(c.req.param("sessionId"))}`),
+  );
+  app.get(`${options.path}/sessions`, (c) => c.redirect("/sessions"));
+  app.get(`${options.path}/agents`, (c) => c.redirect("/agents"));
+  app.get(`${options.path}/tools`, (c) => c.redirect("/tools"));
+  app.get(`${options.path}/mcps`, (c) => c.redirect("/mcps"));
+  app.get(`${options.path}/pipelines`, (c) => c.redirect("/pipelines"));
+  app.get(`${options.path}/evals`, (c) => c.redirect("/evals"));
+  app.get(`${options.path}/memory`, (c) => c.redirect("/memory"));
+  app.get(`${options.path}/status`, (c) => c.redirect("/status"));
+  app.get(`${options.path}/knowledge`, (c) => c.redirect("/knowledge"));
+  app.get(`${options.path}/knowledge/:tab`, (c) =>
+    c.redirect(`/knowledge/${encodeURIComponent(c.req.param("tab"))}`),
+  );
 
-  if (options.rootRoutes) {
-    app.get("/playground", async (c) => c.html(await renderRootShell()));
-    app.get("/playground/:sessionId", async (c) => c.html(await renderRootShell()));
-    app.get("/tracing", async (c) => c.html(await renderRootShell()));
-    app.get("/tracing/:traceId", async (c) => c.html(await renderRootShell()));
-    app.get("/tracing/sessions/:sessionId", async (c) => c.html(await renderRootShell()));
-    app.get("/tracing/*", async (c) => c.html(await renderRootShell()));
-  }
+  app.get("/playground", async (c) => c.html(await renderShell()));
+  app.get("/playground/:sessionId", async (c) => c.html(await renderShell()));
+  app.get("/tracing", async (c) => c.html(await renderShell()));
+  app.get("/tracing/:traceId", async (c) => c.html(await renderShell()));
+  app.get("/tracing/sessions/:sessionId", async (c) => c.html(await renderShell()));
+  app.get("/tracing/*", async (c) => c.html(await renderShell()));
+  app.get("/sessions", shellWhenHtml(renderShell));
+  app.get("/agents", shellWhenHtml(renderShell));
+  app.get("/tools", async (c) => c.html(await renderShell()));
+  app.get("/mcps", async (c) => c.html(await renderShell()));
+  app.get("/pipelines", shellWhenHtml(renderShell));
+  app.get("/evals", shellWhenHtml(renderShell));
+  app.get("/memory", async (c) => c.html(await renderShell()));
+  app.get("/status", shellWhenHtml(renderShell));
+  app.get("/knowledge", shellWhenHtml(renderShell));
+  app.get("/knowledge/:tab", shellWhenKnowledgeTab(renderShell));
+  app.get("/knowledge/*", shellWhenHtml(renderShell));
 
   app.get(scriptPath, async () => {
     if (options.clientScript === undefined) {
@@ -121,6 +128,34 @@ export function registerStudioUi(app: Hono, options: ResolvedStudioUiOptions): v
       },
     });
   });
+}
+
+function shellWhenHtml(renderShell: () => Promise<string>) {
+  return async (c: Context, next: Next) => {
+    const accept = c.req.header("accept") ?? "";
+    if (!accept.includes("text/html")) {
+      return next();
+    }
+    return c.html(await renderShell());
+  };
+}
+
+function shellWhenKnowledgeTab(renderShell: () => Promise<string>) {
+  return async (c: Context, next: Next) => {
+    if (!isKnowledgeTabRoute(c.req.param("tab"))) {
+      return next();
+    }
+    return c.html(await renderShell());
+  };
+}
+
+function isKnowledgeTabRoute(tab: string | undefined): boolean {
+  return (
+    tab === "static-context" ||
+    tab === "dynamic-context" ||
+    tab === "dynamic-tools" ||
+    tab === "retrieval-log"
+  );
 }
 
 async function renderStudioUi(props: {
@@ -194,8 +229,8 @@ function normalizeUiPath(path: string): string {
   return withoutTrailingSlash;
 }
 
-export function studioUiEntryPath(options: ResolvedStudioUiOptions): string {
-  return `${options.path}/playground`;
+export function studioUiEntryPath(_options: ResolvedStudioUiOptions): string {
+  return "/playground";
 }
 
 async function readBundledUiIndex(): Promise<string> {

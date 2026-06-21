@@ -5,32 +5,12 @@ import type {
   StudioPipelineLogStore,
   StudioPipelineRunStore,
   StudioSessionStore,
-  StudioStores,
   StudioTraceStore,
-  StudioUiOptions,
 } from "../types";
-import type { StudioEvalSuite, StudioModelConfig } from "../types";
 import { compact } from "./compact";
+import type { ResolvedStores, StudioRuntimeOptions } from "./options";
 
-export type ResolvedStores = {
-  sessions?: StudioSessionStore;
-  traces?: StudioTraceStore;
-  pipelineLogs?: StudioPipelineLogStore;
-  pipelineRuns?: StudioPipelineRunStore;
-};
-
-export type StudioRuntimeOptions = {
-  id?: string;
-  name?: string;
-  description?: string;
-  version?: string;
-  agents: StudioAgent[];
-  pipelines: StudioPipeline[];
-  evals: StudioEvalSuite[];
-  models?: StudioModelConfig;
-  stores?: StudioStores;
-  ui?: boolean | StudioUiOptions;
-};
+export type { ResolvedStores, StudioRuntimeOptions } from "./options";
 
 export function resolveStores(options: StudioRuntimeOptions): ResolvedStores {
   const defaultStore = defaultStudioStore();

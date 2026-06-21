@@ -38,7 +38,7 @@ describe("Studio UI routes", () => {
     expect(resolveStudioUiOptions({ path: "/" }).path).toBe("/ui");
   });
 
-  it("registers redirects, shell routes, and root compatibility routes", async () => {
+  it("registers root shell routes and redirects configured page paths", async () => {
     const app = new Hono();
     const options = resolveStudioUiOptions({
       path: "/studio",
@@ -51,12 +51,16 @@ describe("Studio UI routes", () => {
     expect(redirect.status).toBe(302);
     expect(redirect.headers.get("location")).toBe(studioUiEntryPath(options));
 
-    const shell = await app.request("http://studio.test/studio/tracing/trace_1");
+    const legacy = await app.request("http://studio.test/studio/tracing/trace_1");
+    expect(legacy.status).toBe(302);
+    expect(legacy.headers.get("location")).toBe("/tracing/trace_1");
+
+    const shell = await app.request("http://studio.test/tracing/trace_1");
     expect(shell.status).toBe(200);
     expect(shell.headers.get("content-type")).toContain("text/html");
     const shellHtml = await shell.text();
     expect(shellHtml).toContain("<title>Ops &lt;Studio&gt;</title>");
-    expect(shellHtml).toContain('data-ui-path="/studio"');
+    expect(shellHtml).toContain('data-ui-path=""');
     expect(shellHtml).toContain('data-ui-compat-path="/studio"');
     expect(shellHtml).toContain('src="/studio/assets/client.js"');
 
@@ -93,7 +97,7 @@ describe("Studio UI routes", () => {
     expect(missing.status).toBe(404);
   });
 
-  it("does not serve client script or root routes when disabled", async () => {
+  it("serves root page routes while configured page paths redirect", async () => {
     const app = new Hono();
     registerStudioUi(
       app,
@@ -105,10 +109,14 @@ describe("Studio UI routes", () => {
     );
 
     expect((await app.request("http://studio.test/")).status).toBe(404);
-    expect((await app.request("http://studio.test/tracing")).status).toBe(404);
+    expect((await app.request("http://studio.test/tracing")).status).toBe(200);
     expect((await app.request("http://studio.test/studio/assets/client.js")).status).toBe(404);
 
-    const shell = await app.request("http://studio.test/studio/knowledge/dynamic-context");
+    const legacy = await app.request("http://studio.test/studio/knowledge/dynamic-context");
+    expect(legacy.status).toBe(302);
+    expect(legacy.headers.get("location")).toBe("/knowledge/dynamic-context");
+
+    const shell = await app.request("http://studio.test/knowledge/dynamic-context");
     expect(shell.status).toBe(200);
     expect(await shell.text()).toContain("Anvia Studio");
   });
