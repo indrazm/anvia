@@ -1,5 +1,5 @@
 import type { JsonObject, JsonValue, Message } from "@anvia/core/completion";
-import type { AgentTraceOptions } from "@anvia/core/observability";
+import type { AgentTraceOptions } from "../types";
 
 export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

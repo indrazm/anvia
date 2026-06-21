@@ -2,6 +2,7 @@ node_modules
 dist
 coverage
 .turbo
+.lexa
 .wrangler
 .DS_Store
 .published-packages.json

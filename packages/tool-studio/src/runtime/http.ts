@@ -1,7 +1,6 @@
 import type { JsonValue } from "@anvia/core/completion";
 import type { Context } from "hono";
 import type { StudioCapability, StudioErrorCode, StudioErrorResponse } from "../types";
-import { serializeUnknown } from "./json";
 import { isObject } from "./type-guards";
 
 export function errorResponse(
@@ -31,10 +30,6 @@ export function unsupportedCapability(c: Context, capability: StudioCapability):
     `Capability "${capability}" is not implemented by this runner`,
     { capability },
   );
-}
-
-export function serializeError(error: unknown): JsonValue {
-  return serializeUnknown(error);
 }
 
 /**

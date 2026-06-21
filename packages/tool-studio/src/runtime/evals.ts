@@ -2,9 +2,9 @@ import { runEvalSuite } from "@anvia/core/evals";
 import type { Context, Hono } from "hono";
 import type { StudioEvalRunRequest, StudioEvalRunResponse, StudioEvalSuite } from "../types";
 import { compact } from "./compact";
-import { toJsonValue } from "./json";
-import { evalConfig } from "./config";
+import { evalConfig } from "./eval-config";
 import { errorResponse } from "./http";
+import { toJsonValue } from "./json";
 import { isJsonObject, isObject, isPositiveInteger } from "./type-guards";
 
 export function registerEvalRoutes(

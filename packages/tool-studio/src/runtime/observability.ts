@@ -4,13 +4,12 @@ import type {
   StudioObservabilityEventType,
   StudioPipelineLogStore,
   StudioSessionStore,
-  StudioTrace,
   StudioTraceStore,
-  StudioTraceSummary,
 } from "../types";
-import type { ResolvedStores } from "./config";
 import { compact } from "./compact";
+import type { ResolvedStores } from "./options";
 import { streamStudioJsonl } from "./streams";
+import { traceSummary } from "./trace-summary";
 
 type ObservabilitySubscription = {
   close: () => void;
@@ -19,6 +18,7 @@ type ObservabilitySubscription = {
 };
 
 const defaultBufferSize = 1000;
+const observedStoreTargets = new WeakMap<object, object>();
 
 export class StudioObservabilityHub {
   private readonly subscriptions = new Set<ObservabilitySubscription>();
@@ -49,9 +49,13 @@ export function observeStores(stores: ResolvedStores, hub: StudioObservabilityHu
   return {
     ...stores,
     ...compact({
-      sessions: stores.sessions !== undefined ? observeSessionStore(stores.sessions, hub) : undefined,
+      sessions:
+        stores.sessions !== undefined ? observeSessionStore(stores.sessions, hub) : undefined,
       traces: stores.traces !== undefined ? observeTraceStore(stores.traces, hub) : undefined,
-      pipelineLogs: stores.pipelineLogs !== undefined ? observePipelineLogStore(stores.pipelineLogs, hub) : undefined,
+      pipelineLogs:
+        stores.pipelineLogs !== undefined
+          ? observePipelineLogStore(stores.pipelineLogs, hub)
+          : undefined,
     }),
   };
 }
@@ -139,7 +143,7 @@ function observeSessionStore(
   store: StudioSessionStore,
   hub: StudioObservabilityHub,
 ): StudioSessionStore {
-  return new Proxy(store, {
+  const proxy = new Proxy(store, {
     get(target, property, receiver) {
       if (property !== "appendSessionLog") {
         return boundProperty(target, property, receiver);
@@ -155,13 +159,15 @@ function observeSessionStore(
       };
     },
   });
+  observedStoreTargets.set(proxy, store);
+  return proxy;
 }
 
 function observePipelineLogStore(
   store: StudioPipelineLogStore,
   hub: StudioObservabilityHub,
 ): StudioPipelineLogStore {
-  return new Proxy(store, {
+  const proxy = new Proxy(store, {
     get(target, property, receiver) {
       if (property !== "appendPipelineLog") {
         return boundProperty(target, property, receiver);
@@ -174,10 +180,12 @@ function observePipelineLogStore(
       };
     },
   });
+  observedStoreTargets.set(proxy, store);
+  return proxy;
 }
 
 function observeTraceStore(store: StudioTraceStore, hub: StudioObservabilityHub): StudioTraceStore {
-  return new Proxy(store, {
+  const proxy = new Proxy(store, {
     get(target, property, receiver) {
       if (property !== "saveTrace") {
         return boundProperty(target, property, receiver);
@@ -190,6 +198,12 @@ function observeTraceStore(store: StudioTraceStore, hub: StudioObservabilityHub)
       };
     },
   });
+  observedStoreTargets.set(proxy, store);
+  return proxy;
+}
+
+export function rawObservedStore<T extends object>(store: T): T {
+  return (observedStoreTargets.get(store) as T | undefined) ?? store;
 }
 
 function boundProperty<T extends object>(
@@ -221,23 +235,4 @@ function parseEventTypes(
 
 function isEventType(value: string): value is StudioObservabilityEventType {
   return value === "session_log" || value === "pipeline_log" || value === "trace";
-}
-
-function traceSummary(trace: StudioTrace): StudioTraceSummary {
-  return {
-    id: trace.id,
-    sessionId: trace.sessionId,
-    status: trace.status,
-    startedAt: trace.startedAt,
-    observationCount: trace.observations.length,
-    ...compact({
-      name: trace.name,
-      endedAt: trace.endedAt,
-      durationMs: trace.durationMs,
-      output: trace.output,
-      error: trace.error,
-      usage: trace.usage,
-      metadata: trace.metadata,
-    }),
-  };
 }

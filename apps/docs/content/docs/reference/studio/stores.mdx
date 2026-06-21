@@ -22,6 +22,43 @@ Return behavior: `false` disables sessions, pipeline logs, or pipeline runs. Omi
 
 Notable errors: none directly.
 
+## Memory Store Types
+
+```ts
+type StudioMemoryContext = {
+  sessionId: string;
+  userId?: string;
+  metadata?: JsonObject;
+};
+
+type StudioMemoryAppendInput = {
+  context: StudioMemoryContext;
+  runId: string;
+  turn: number;
+  messages: Message[];
+};
+
+type StudioMemoryErrorInput = {
+  context: StudioMemoryContext;
+  runId: string;
+  error: unknown;
+  messages: Message[];
+};
+
+type StudioMemoryStore = {
+  load(context: StudioMemoryContext): Promise<Message[]>;
+  append(input: StudioMemoryAppendInput): Promise<void>;
+  clear(context: StudioMemoryContext): Promise<void>;
+  recordError?(input: StudioMemoryErrorInput): Promise<void>;
+};
+```
+
+Purpose: define the persistence contract Studio uses to load, append, clear, and record errors for session memory.
+
+Return behavior: `StudioSessionStore` extends `StudioMemoryStore`, so custom session stores must implement these memory methods. `recordError` is optional and is called when a run fails after memory context is available.
+
+Notable errors: store implementations may reject when persistence operations fail.
+
 ## In-Memory Store
 
 ```ts

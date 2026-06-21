@@ -2323,16 +2323,16 @@ describe("Anvia studio", () => {
 
     const redirect = await runner.fetch(new Request("http://runner.test/"));
     expect(redirect.status).toBe(302);
-    expect(redirect.headers.get("location")).toBe("/ui/playground");
+    expect(redirect.headers.get("location")).toBe("/playground");
 
-    const shell = await runner.fetch(new Request("http://runner.test/ui"));
+    const shell = await runner.fetch(new Request("http://runner.test/playground"));
     expect(shell.status).toBe(200);
     const html = await shell.text();
     expect(html).toContain('id="anvia-ui"');
 
-    const sessionShell = await runner.fetch(new Request("http://runner.test/ui/session_1"));
-    expect(sessionShell.status).toBe(200);
-    await expect(sessionShell.text()).resolves.toContain('data-ui-path="/ui"');
+    const legacy = await runner.fetch(new Request("http://runner.test/ui"));
+    expect(legacy.status).toBe(302);
+    expect(legacy.headers.get("location")).toBe("/playground");
 
     for (const path of [
       "/playground",
@@ -2340,28 +2340,49 @@ describe("Anvia studio", () => {
       "/tracing",
       "/tracing/trace_1",
       "/tracing/sessions/session_1",
-      "/ui/playground",
-      "/ui/playground/session_1",
-      "/ui/tracing",
-      "/ui/tracing/trace_1",
-      "/ui/tracing/sessions/session_1",
-      "/ui/sessions",
-      "/ui/agents",
-      "/ui/tools",
-      "/ui/pipelines",
-      "/ui/evals",
-      "/ui/mcps",
-      "/ui/memory",
-      "/ui/status",
-      "/ui/knowledge",
-      "/ui/knowledge/static-context",
-      "/ui/knowledge/dynamic-context",
-      "/ui/knowledge/dynamic-tools",
-      "/ui/knowledge/retrieval-log",
+      "/sessions",
+      "/agents",
+      "/tools",
+      "/pipelines",
+      "/evals",
+      "/mcps",
+      "/memory",
+      "/status",
+      "/knowledge",
+      "/knowledge/static-context",
+      "/knowledge/dynamic-context",
+      "/knowledge/dynamic-tools",
+      "/knowledge/retrieval-log",
     ]) {
-      const routeShell = await runner.fetch(new Request(`http://runner.test${path}`));
+      const routeShell = await runner.fetch(
+        new Request(`http://runner.test${path}`, {
+          headers: { accept: "text/html" },
+        }),
+      );
       expect(routeShell.status).toBe(200);
       await expect(routeShell.text()).resolves.toContain('id="anvia-ui"');
+    }
+
+    for (const [path, location] of [
+      ["/ui/playground", "/playground"],
+      ["/ui/playground/session_1", "/playground/session_1"],
+      ["/ui/tracing", "/tracing"],
+      ["/ui/tracing/trace_1", "/tracing/trace_1"],
+      ["/ui/tracing/sessions/session_1", "/tracing/sessions/session_1"],
+      ["/ui/sessions", "/sessions"],
+      ["/ui/agents", "/agents"],
+      ["/ui/tools", "/tools"],
+      ["/ui/pipelines", "/pipelines"],
+      ["/ui/evals", "/evals"],
+      ["/ui/mcps", "/mcps"],
+      ["/ui/memory", "/memory"],
+      ["/ui/status", "/status"],
+      ["/ui/knowledge", "/knowledge"],
+      ["/ui/knowledge/static-context", "/knowledge/static-context"],
+    ]) {
+      const legacyRoute = await runner.fetch(new Request(`http://runner.test${path}`));
+      expect(legacyRoute.status).toBe(302);
+      expect(legacyRoute.headers.get("location")).toBe(location);
     }
   });
 
@@ -3478,6 +3499,12 @@ describe("Anvia studio", () => {
       await runner.fetch(new Request("http://runner.test/traces?limit=10"))
     ).json()) as { traces: Array<{ id: string }> };
     expect(all.traces).toHaveLength(3);
+
+    const detailed = (await (
+      await runner.fetch(new Request("http://runner.test/traces?include=detail&limit=10"))
+    ).json()) as { traces: Array<{ id: string; observations: unknown[] }> };
+    expect(detailed.traces).toHaveLength(3);
+    expect(detailed.traces[0]?.observations).toBeInstanceOf(Array);
 
     const main = (await (
       await runner.fetch(new Request("http://runner.test/traces?agentId=main&limit=10"))

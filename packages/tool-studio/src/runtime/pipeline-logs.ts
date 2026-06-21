@@ -7,8 +7,8 @@ import type {
   StudioPipelineLogStore,
 } from "../types";
 import { compact } from "./compact";
+import { serializeError } from "./errors";
 import { formatUnknown } from "./json";
-import { serializeError } from "./http";
 
 export async function appendPipelineLog(
   store: StudioPipelineLogStore | undefined,
