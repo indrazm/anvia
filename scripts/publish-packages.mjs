@@ -1,11 +1,21 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 const root = process.cwd();
 const packagesRoot = path.join(root, "packages");
 const registry = process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY;
+const publishedPackagesFile = process.env.PUBLISHED_PACKAGES_FILE;
 const npmTag = readOption("--tag", process.env.NPM_TAG ?? "latest");
 const skipGitTags =
   process.env.SKIP_GIT_TAGS === "true" || process.argv.includes("--skip-git-tags");
@@ -82,6 +92,8 @@ if (failed.length > 0) {
   process.exit(1);
 }
 
+writePublishedPackages(published);
+
 if (published.length === 0) {
   console.warn("No unpublished projects to publish");
 }
@@ -105,6 +117,16 @@ function findPackageDirs(dir) {
 
 function readPackageJson(dir) {
   return JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8"));
+}
+
+function writePublishedPackages(releases) {
+  if (publishedPackagesFile === undefined || publishedPackagesFile.length === 0) {
+    return;
+  }
+
+  const filePath = path.resolve(root, publishedPackagesFile);
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(releases, null, 2)}\n`);
 }
 
 function readOption(name, fallback) {
