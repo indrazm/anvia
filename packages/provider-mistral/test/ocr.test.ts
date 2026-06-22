@@ -72,6 +72,40 @@ describe("Mistral OCR models", () => {
     expect(response.rawResponse).toEqual(ocrResponse());
   });
 
+  it("does not allow additional params to override OCR model or document", async () => {
+    const calls: unknown[] = [];
+    const client = new MistralClient({
+      client: {
+        ocr: {
+          process: async (params: unknown) => {
+            calls.push(params);
+            return { pages: [] };
+          },
+        },
+      } as never,
+    });
+
+    await client.ocrModel("custom-ocr").ocr({
+      source: { type: "file_id", fileId: "file-123" },
+      additionalParams: {
+        model: "unsafe-model",
+        document: { type: "document_url", documentUrl: "https://example.com/unsafe.pdf" },
+        includeImageBase64: true,
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        model: "custom-ocr",
+        document: {
+          type: "file",
+          fileId: "file-123",
+        },
+        includeImageBase64: true,
+      },
+    ]);
+  });
+
   it("maps image URL and file id OCR requests", async () => {
     const calls: unknown[] = [];
     const client = new MistralClient({

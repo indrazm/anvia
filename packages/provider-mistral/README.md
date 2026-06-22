@@ -75,6 +75,9 @@ The v1 adapter supports text completions, streaming, tools, tool choice, structu
 - `MistralEmbeddingModelOptions`
 - `MistralOcrRequest`
 - `MistralOcrResponse`
+- `MistralOcrSource`
+- `MistralOcrPage`
+- `MistralOcrUploadedFile`
 - `MISTRAL_OCR_LATEST`
 - `mistralMessageHelpers`
 - `mistral`

@@ -157,7 +157,10 @@ export class MistralOcrModel {
     };
 
     if (request.additionalParams !== undefined && isPlainObject(request.additionalParams)) {
-      Object.assign(params, request.additionalParams);
+      const additionalParams = { ...request.additionalParams };
+      delete additionalParams.model;
+      delete additionalParams.document;
+      Object.assign(params, additionalParams);
     }
 
     if (request.pages !== undefined) params.pages = request.pages;

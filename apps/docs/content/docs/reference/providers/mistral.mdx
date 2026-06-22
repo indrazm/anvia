@@ -81,16 +81,31 @@ type MistralOcrSource =
   | { type: "document_url"; url: string; documentName?: string }
   | { type: "image_url"; url: string }
   | { type: "file_id"; fileId: string }
-  | { type: "bytes"; data: Uint8Array | ArrayBuffer; filename: string };
+  | {
+      type: "bytes";
+      data: Uint8Array | ArrayBuffer;
+      filename: string;
+      expiry?: number | null;
+      visibility?: "workspace" | "user";
+    };
 
 type MistralOcrPage = {
   index: number;
   markdown: string;
   images: unknown[];
+  tables?: unknown[];
+  hyperlinks?: string[];
+  header?: string | null;
+  footer?: string | null;
+  dimensions?: unknown;
+  confidenceScores?: unknown;
 };
 
 type MistralOcrUploadedFile = {
   id: string;
+  filename?: string;
+  sizeBytes?: number;
+  purpose?: string;
   rawResponse: unknown;
 };
 
