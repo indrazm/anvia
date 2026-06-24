@@ -1,11 +1,13 @@
 import { AssistantContent, type Message, type Usage } from "@anvia/core/completion";
-import { EvalOutcome, runEvalSuite } from "@anvia/core/evals";
+import { EvalOutcome, exactMatch, runEvalSuite } from "@anvia/core/evals";
 import type {
   AgentGenerationStartArgs,
   AgentRunObserver,
   AgentToolObserver,
 } from "@anvia/core/observability";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createLangfuseDatasetClient } from "../src/dataset-client";
+import { runEvalAsExperiment } from "../src/experiment-runner";
 import { createLangfuseEvalReporter as createReporter, langfuse } from "../src/index";
 import { ScoreQueue } from "../src/scoring";
 
@@ -2453,4 +2455,410 @@ function metric(name: string) {
     name,
     evaluate: () => EvalOutcome.pass(true),
   };
+}
+
+describe("LangfuseDatasetClient", () => {
+  function readJsonBody(body: unknown): unknown {
+    if (typeof body !== "string") return body;
+    try {
+      return JSON.parse(body);
+    } catch {
+      return body;
+    }
+  }
+
+  function makeFetchResponse(body: unknown, status = 200): Response {
+    return new Response(typeof body === "string" ? body : JSON.stringify(body), {
+      status,
+    });
+  }
+
+  function basicAuthHeader(publicKey: string, secretKey: string): string {
+    const encoded = Buffer.from(`${publicKey}:${secretKey}`).toString("base64");
+    return `Basic ${encoded}`;
+  }
+
+  it("createDataset PUTs to /api/public/datasets/:name with auth", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(makeFetchResponse({ id: 1 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const dataset = await client.createDataset({
+      name: "support-set",
+      description: "smoke",
+      metadata: { owner: "team" },
+    });
+
+    expect(dataset.name).toBe("support-set");
+    expect(dataset.description).toBe("smoke");
+    expect(dataset.metadata).toEqual({ owner: "team" });
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/public/datasets/support-set");
+    expect(init.method).toBe("PUT");
+    const headers = new Headers(init.headers);
+    expect(headers.get("Authorization")).toBe(basicAuthHeader("pk", "sk"));
+    expect(readJsonBody(init.body)).toEqual({
+      name: "support-set",
+      description: "smoke",
+      metadata: { owner: "team" },
+    });
+  });
+
+  it("getDataset GETs the dataset and returns items", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(
+        makeFetchResponse({
+          name: "support-set",
+          description: "smoke",
+          metadata: { owner: "team" },
+          items: [
+            { id: "i-1", input: { q: "hi" }, expected: "hello" },
+            { id: "i-2", input: { q: "bye" } },
+          ],
+          meta: { totalPages: 1 },
+        }),
+      ),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const dataset = await client.getDataset<{ q: string }, string>("support-set");
+
+    expect(dataset.name).toBe("support-set");
+    expect(dataset.description).toBe("smoke");
+    expect(dataset.metadata).toEqual({ owner: "team" });
+    expect(dataset.items).toHaveLength(2);
+    expect(dataset.items[0]?.id).toBe("i-1");
+    expect(dataset.items[0]?.input).toEqual({ q: "hi" });
+    expect(dataset.items[0]?.expected).toBe("hello");
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/public/datasets/support-set?page=1&limit=50");
+    expect(init.method).toBe("GET");
+  });
+
+  it("getDataset paginates until exhausted", async () => {
+    vi.mocked(fetch)
+      .mockReturnValueOnce(
+        Promise.resolve(
+          makeFetchResponse({
+            name: "support-set",
+            items: [{ id: "i-1", input: "a" }],
+            meta: { totalPages: 2 },
+          }),
+        ),
+      )
+      .mockReturnValueOnce(
+        Promise.resolve(
+          makeFetchResponse({
+            name: "support-set",
+            items: [{ id: "i-2", input: "b" }],
+            meta: { totalPages: 2 },
+          }),
+        ),
+      );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+      pageSize: 1,
+    });
+    const dataset = await client.getDataset<string, string>("support-set");
+
+    expect(dataset.items).toHaveLength(2);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    const secondCall = vi.mocked(fetch).mock.calls[1] as [string, RequestInit];
+    expect(secondCall[0]).toContain("page=2");
+  });
+
+  it("upsertItems POSTs the items array", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(new Response(null, { status: 204 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    await client.upsertItems("support-set", [
+      { id: "i-1", input: { q: "hi" }, expected: "hello" },
+      { id: "i-2", input: { q: "bye" } },
+    ]);
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/public/datasets/support-set/items");
+    expect(init.method).toBe("POST");
+    expect(readJsonBody(init.body)).toEqual({
+      items: [
+        { id: "i-1", input: { q: "hi" }, expected: "hello" },
+        { id: "i-2", input: { q: "bye" } },
+      ],
+    });
+  });
+
+  it("upsertItems throws on non-2xx with the response body", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(makeFetchResponse("bad request", 400)));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+
+    await expect(client.upsertItems("support-set", [{ id: "i-1", input: "x" }])).rejects.toThrow(
+      /bad request/,
+    );
+  });
+
+  it("runExperiment accepts local items and POSTs one batched run", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(new Response(null, { status: 204 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const result = await client.runExperiment({
+      datasetName: "support-set",
+      runName: "run-1",
+      items: [
+        { id: "i-1", input: { q: "hi" }, expected: "hello" },
+        { id: "i-2", input: { q: "bye" } },
+      ],
+      run: (item) => ({
+        output: `out-${item.id}`,
+        trace: { traceId: `trace-${item.id}`, observationId: `obs-${item.id}` },
+      }),
+    });
+
+    expect(result).toEqual({
+      runName: "run-1",
+      datasetName: "support-set",
+      posted: 2,
+      errors: [],
+    });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/public/dataset-run-items");
+    expect(init.method).toBe("POST");
+    expect(readJsonBody(init.body)).toEqual({
+      runName: "run-1",
+      datasetItemRuns: [
+        {
+          datasetItemId: "i-1",
+          traceId: "trace-i-1",
+          observationId: "obs-i-1",
+          output: "out-i-1",
+        },
+        {
+          datasetItemId: "i-2",
+          traceId: "trace-i-2",
+          observationId: "obs-i-2",
+          output: "out-i-2",
+        },
+      ],
+    });
+  });
+
+  it("runExperiment pulls items from a remote dataset when items are not provided", async () => {
+    vi.mocked(fetch)
+      .mockReturnValueOnce(
+        Promise.resolve(
+          makeFetchResponse({
+            name: "remote-set",
+            items: [
+              { id: "i-1", input: "a" },
+              { id: "i-2", input: "b" },
+            ],
+            meta: { totalPages: 1 },
+          }),
+        ),
+      )
+      .mockReturnValueOnce(Promise.resolve(new Response(null, { status: 204 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const result = await client.runExperiment({
+      datasetName: "remote-set",
+      runName: "run-2",
+      run: (item) => ({ output: `out-${item.id}`, trace: undefined }),
+    });
+
+    expect(result.posted).toBe(2);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    const [getUrl] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(getUrl).toContain("/api/public/datasets/remote-set?");
+    const [postUrl] = vi.mocked(fetch).mock.calls[1] as [string];
+    expect(postUrl).toContain("/api/public/dataset-run-items");
+  });
+
+  it("runExperiment continues on per-item errors", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(new Response(null, { status: 204 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const result = await client.runExperiment({
+      datasetName: "support-set",
+      runName: "run-3",
+      items: [
+        { id: "i-1", input: "a" },
+        { id: "i-2", input: "b" },
+        { id: "i-3", input: "c" },
+      ],
+      run: (item) => {
+        if (item.id === "i-2") throw new Error("kaboom");
+        return { output: `out-${item.id}`, trace: undefined };
+      },
+    });
+
+    expect(result.posted).toBe(2);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]?.itemId).toBe("i-2");
+    expect((result.errors[0]?.error as Error).message).toBe("kaboom");
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    const body = readJsonBody(init.body) as { datasetItemRuns: unknown[] };
+    expect(body.datasetItemRuns).toHaveLength(2);
+  });
+
+  it("runExperiment throws on non-2xx POST", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(makeFetchResponse("server error", 500)));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+
+    await expect(
+      client.runExperiment({
+        datasetName: "support-set",
+        runName: "run-4",
+        items: [{ id: "i-1", input: "a" }],
+        run: (item) => ({ output: `out-${item.id}`, trace: undefined }),
+      }),
+    ).rejects.toThrow(/server error/);
+  });
+
+  it("runExperiment returns empty posted count when dataset has no items", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(makeFetchResponse({ name: "empty-set", items: [], meta: { totalPages: 1 } })),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const result = await client.runExperiment({
+      datasetName: "empty-set",
+      runName: "run-5",
+      run: (item) => ({ output: `out-${item.id}`, trace: undefined }),
+    });
+
+    expect(result).toEqual({
+      runName: "run-5",
+      datasetName: "empty-set",
+      posted: 0,
+      errors: [],
+    });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runEvalAsExperiment", () => {
+  it("runs the eval suite and posts a dataset run with per-case outputs and traces", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(new Response(null, { status: 204 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const { suite, datasetRun } = await runEvalAsExperiment(
+      {
+        name: "smoke",
+        cases: [
+          { id: "c-1", input: "a", expected: "A" },
+          { id: "c-2", input: "b", expected: "B" },
+        ],
+        target: async (input) =>
+          ({ output: input.toUpperCase(), trace: { traceId: `trace-${input}` } }) as never,
+        metrics: [exactMatch()],
+        reporters: [],
+      },
+      {
+        tracing,
+        client,
+        datasetName: "smoke-set",
+        runName: "smoke-run",
+      },
+    );
+
+    expect(suite.passed).toBe(2);
+    expect(datasetRun.posted).toBe(2);
+    expect(datasetRun.errors).toEqual([]);
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      runName: string;
+      datasetItemRuns: Array<{
+        datasetItemId: string;
+        traceId?: string;
+        output: unknown;
+      }>;
+    };
+    expect(body.runName).toBe("smoke-run");
+    expect(body.datasetItemRuns).toHaveLength(2);
+    expect(body.datasetItemRuns[0]?.datasetItemId).toBe("c-1");
+    expect(body.datasetItemRuns[0]?.traceId).toBe("trace-a");
+    expect(body.datasetItemRuns[1]?.datasetItemId).toBe("c-2");
+    expect(body.datasetItemRuns[1]?.traceId).toBe("trace-b");
+  });
+
+  it("wires the metric reporter and the dataset run separately", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(new Response(null, { status: 204 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const reporter = createReporter(tracing);
+    const client = createDatasetClient(tracing, {
+      publicKey: "pk",
+      secretKey: "sk",
+    });
+    const { suite } = await runEvalAsExperiment(
+      {
+        name: "smoke",
+        cases: [{ id: "c-1", input: "a", expected: "a" }],
+        target: async (input) => input,
+        metrics: [exactMatch()],
+        reporters: [reporter],
+      },
+      {
+        tracing,
+        client,
+        datasetName: "smoke-set",
+        runName: "smoke-run",
+      },
+    );
+
+    expect(suite.passed).toBe(1);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+});
+
+function createDatasetClient(
+  tracing: ReturnType<typeof langfuse.create>,
+  options: Parameters<typeof createLangfuseDatasetClient>[1] = {},
+): ReturnType<typeof createLangfuseDatasetClient> {
+  return createLangfuseDatasetClient(tracing, options);
 }

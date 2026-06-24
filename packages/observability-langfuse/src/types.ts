@@ -53,3 +53,69 @@ export type LangfuseEvalReporterOptions = {
   truncateInputAt?: number | undefined;
   includeMessages?: boolean | undefined;
 };
+
+export type LangfuseDatasetClientOptions = {
+  baseUrl?: string | undefined;
+  publicKey?: string | undefined;
+  secretKey?: string | undefined;
+  pageSize?: number | undefined;
+  timeoutMs?: number | undefined;
+};
+
+export type LangfuseDatasetItem<Input = unknown, Expected = unknown> = {
+  id: string;
+  input: Input;
+  expected?: Expected | undefined;
+  metadata?: Record<string, JsonValue | undefined> | undefined;
+};
+
+export type LangfuseDataset<Input = unknown, Expected = unknown> = {
+  name: string;
+  description?: string | undefined;
+  metadata?: Record<string, JsonValue | undefined> | undefined;
+  items: LangfuseDatasetItem<Input, Expected>[];
+};
+
+export type LangfuseRunItemResult<Output = unknown> = {
+  output: Output;
+  trace?: { traceId: string; observationId?: string | undefined } | undefined;
+};
+
+export type LangfuseRunItemError = {
+  itemId: string;
+  error: unknown;
+};
+
+export type LangfuseRunExperimentOptions<Input = unknown, Output = unknown, Expected = unknown> = {
+  datasetName: string;
+  runName: string;
+  description?: string | undefined;
+  metadata?: Record<string, JsonValue | undefined> | undefined;
+  items?: LangfuseDatasetItem<Input, Expected>[] | undefined;
+  run: (
+    item: LangfuseDatasetItem<Input, Expected>,
+  ) => LangfuseRunItemResult<Output> | Promise<LangfuseRunItemResult<Output>>;
+};
+
+export type LangfuseRunExperimentResult = {
+  runName: string;
+  datasetName: string;
+  posted: number;
+  errors: LangfuseRunItemError[];
+};
+
+export type LangfuseDatasetClient = {
+  createDataset(dataset: {
+    name: string;
+    description?: string | undefined;
+    metadata?: Record<string, JsonValue | undefined> | undefined;
+  }): Promise<LangfuseDataset<unknown, unknown>>;
+  getDataset<Input, Expected>(name: string): Promise<LangfuseDataset<Input, Expected>>;
+  upsertItems<Input, Expected>(
+    name: string,
+    items: LangfuseDatasetItem<Input, Expected>[],
+  ): Promise<void>;
+  runExperiment<Input, Output, Expected>(
+    options: LangfuseRunExperimentOptions<Input, Output, Expected>,
+  ): Promise<LangfuseRunExperimentResult>;
+};

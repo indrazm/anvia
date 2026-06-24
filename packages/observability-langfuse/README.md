@@ -266,10 +266,102 @@ points at the most recent run. For true concurrency, manage your
 own context (e.g. capture the run observer or build your own
 mapping keyed on user/session).
 
+## Datasets & Experiment runs
+
+Bridge `@anvia/core/evals` to Langfuse's dataset / experiment-run
+workflow. The dataset client surfaces the four endpoints you need
+to create a dataset, fetch its items, upsert items, and post a
+batched dataset-run-items payload.
+
+```ts
+import {
+  createLangfuseDatasetClient,
+  runEvalAsExperiment,
+  langfuse,
+} from "@anvia/langfuse";
+
+const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+const client = createLangfuseDatasetClient(tracing, {
+  publicKey: "pk",
+  secretKey: "sk",
+});
+
+await client.createDataset({ name: "support-smoke" });
+await client.upsertItems("support-smoke", [
+  { id: "c-1", input: { q: "hi" }, expected: "hello" },
+  { id: "c-2", input: { q: "bye" } },
+]);
+
+const dataset = await client.getDataset("support-smoke");
+console.log(dataset.items);
+
+await client.runExperiment({
+  datasetName: "support-smoke",
+  runName: "smoke-2026-06",
+  run: (item) => ({
+    output: `answer-for-${item.id}`,
+    trace: { traceId: `trace-${item.id}` },
+  }),
+});
+```
+
+For eval suites, `runEvalAsExperiment` runs the suite and posts a
+dataset run alongside the metric scores:
+
+```ts
+import { runEvalAsExperiment } from "@anvia/langfuse";
+
+const { suite, datasetRun } = await runEvalAsExperiment(
+  {
+    name: "smoke",
+    cases: [
+      { id: "c-1", input: "a", expected: "A" },
+      { id: "c-2", input: "b", expected: "B" },
+    ],
+    target: async (input) => input.toUpperCase(),
+    metrics: [/* ... */],
+    reporters: [/* existing reporters still score */],
+  },
+  {
+    tracing,
+    datasetName: "smoke-set",
+    runName: "smoke-run",
+  },
+);
+
+console.log(suite.passed, datasetRun.posted);
+```
+
+### Options
+
+- `createLangfuseDatasetClient(tracing, options)`:
+  - `publicKey`, `secretKey`, `baseUrl`: override the tracing
+    instance's resolved values. Falls back to env vars
+    (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`).
+  - `pageSize` (default `50`): dataset item pagination.
+  - `timeoutMs` (default `30_000`): per-request timeout via
+    `AbortSignal.timeout`.
+- `client.runExperiment({ ... })`:
+  - `items` (optional): supply items directly to skip the
+    `getDataset` round trip.
+  - `run`: invoked per item, returns `{ output, trace? }`.
+    Per-item failures are caught and surfaced in the result's
+    `errors` array; only successful items reach the batched POST.
+
+### Failure handling
+
+`runExperiment` continues on per-item errors. The `errors` array
+contains `{ itemId, error }` entries for failed items; the POST
+still goes out with the successful subset. Non-2xx on the
+batched POST throws (and the items that already errored are
+also included in the thrown error's context).
+
 ## Exports
 
 - `langfuse`
+- `createLangfuseDatasetClient`
 - `createLangfuseEvalReporter`
+- `runEvalAsExperiment`
 - `LangfuseScoreError`
 - `LangfuseTracing`
 - `LangfuseTraceHandle`
@@ -277,6 +369,16 @@ mapping keyed on user/session).
 - `LangfuseScoreArgs`
 - `LangfuseScoreDataType`
 - `LangfuseEvalReporterOptions`
+- `LangfuseDatasetClient`
+- `LangfuseDatasetClientOptions`
+- `LangfuseDataset`
+- `LangfuseDatasetItem`
+- `LangfuseRunExperimentOptions`
+- `LangfuseRunExperimentResult`
+- `LangfuseRunItemResult`
+- `LangfuseRunItemError`
+- `RunEvalAsExperimentOptions`
+- `RunEvalAsExperimentResult`
 
 ## Development
 
