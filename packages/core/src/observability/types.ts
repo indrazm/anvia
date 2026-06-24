@@ -29,12 +29,18 @@ export type AgentTraceOptions = {
   failOnObserverError?: boolean | undefined;
 };
 
+export type AgentRunPromptRef = {
+  name: string;
+  version?: number | undefined;
+};
+
 export type AgentRunStartArgs = {
   agentName?: string | undefined;
   agentDescription?: string | undefined;
   instructions?: string | undefined;
   trace?: AgentTraceOptions | undefined;
   prompt: Message;
+  promptRef?: AgentRunPromptRef | undefined;
   history: Message[];
   maxTurns: number;
 };

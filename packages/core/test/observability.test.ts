@@ -16,6 +16,7 @@ import {
   type AgentRunErrorArgs,
   type AgentRunEventArgs,
   type AgentRunObserver,
+  type AgentRunPromptRef,
   type AgentRunStartArgs,
   type AgentToolEndArgs,
   type AgentToolErrorArgs,
@@ -848,3 +849,17 @@ async function collect<T>(events: AsyncIterable<T>): Promise<T[]> {
   }
   return result;
 }
+
+describe("AgentRunPromptRef", () => {
+  it("is accepted on AgentRunStartArgs", () => {
+    const promptRef: AgentRunPromptRef = { name: "support.system", version: 3 };
+    const args: AgentRunStartArgs = {
+      prompt: { role: "user", content: [{ type: "text", text: "hi" }] },
+      history: [],
+      maxTurns: 1,
+      promptRef,
+    };
+    expect(args.promptRef?.name).toBe("support.system");
+    expect(args.promptRef?.version).toBe(3);
+  });
+});

@@ -356,11 +356,68 @@ still goes out with the successful subset. Non-2xx on the
 batched POST throws (and the items that already errored are
 also included in the thrown error's context).
 
+## Prompt management
+
+Pull prompts from Langfuse's prompt store and link generations to
+the prompt version. The tracing instance attaches the prompt name
+and version to the root trace and every generation in the run
+when a prompt ref is configured.
+
+```ts
+import { createLangfusePromptClient, langfuse } from "@anvia/langfuse";
+
+const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+const prompts = createLangfusePromptClient(tracing, {
+  publicKey: "pk",
+  secretKey: "sk",
+});
+
+const prompt = await prompts.getPrompt("support.system");
+console.log(prompt.prompt, prompt.version);
+
+await tracing.startRun({
+  agentName: "support",
+  prompt: { role: "user", content: [{ type: "text", text: "hi" }] },
+  history: [],
+  maxTurns: 3,
+  promptRef: { name: "support.system", version: prompt.version },
+});
+```
+
+`promptRef` is also accepted on `trace.metadata` (keys
+`promptName` and `promptVersion`) for back-compat with users who
+already attach metadata to `withTrace(...)`.
+
+### Prompt client options
+
+- `cacheTtlMs` (default `60_000`): in-memory TTL per
+  `${name}::${version}::${label}` key.
+- `timeoutMs` (default `30_000`): per-request timeout via
+  `AbortSignal.timeout`.
+- `publicKey`, `secretKey`, `baseUrl`: override the tracing
+  instance's resolved values, falling back to env vars.
+
+### Per-call options
+
+- `getPrompt(name, { version?, label?, cacheTtlMs?, refresh? })`:
+  - `version` and `label` filter the upstream request.
+  - `cacheTtlMs` overrides the client default for this call.
+  - `refresh: true` skips the cache and re-fetches.
+
+### Helpers
+
+- `getPromptText(name, options?)`: returns the prompt string;
+  throws if the prompt is a chat prompt.
+- `getPromptChat(name, options?)`: returns the chat message
+  array; throws if the prompt is a text prompt.
+- `refresh()`: clears the cache.
+
 ## Exports
 
 - `langfuse`
 - `createLangfuseDatasetClient`
 - `createLangfuseEvalReporter`
+- `createLangfusePromptClient`
 - `runEvalAsExperiment`
 - `LangfuseScoreError`
 - `LangfuseTracing`
@@ -377,6 +434,11 @@ also included in the thrown error's context).
 - `LangfuseRunExperimentResult`
 - `LangfuseRunItemResult`
 - `LangfuseRunItemError`
+- `LangfusePromptClient`
+- `LangfusePromptClientOptions`
+- `LangfusePromptGetOptions`
+- `LangfusePrompt`
+- `LangfuseChatMessage`
 - `RunEvalAsExperimentOptions`
 - `RunEvalAsExperimentResult`
 

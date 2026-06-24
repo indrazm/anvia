@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLangfuseDatasetClient } from "../src/dataset-client";
 import { runEvalAsExperiment } from "../src/experiment-runner";
 import { createLangfuseEvalReporter as createReporter, langfuse } from "../src/index";
+import { createLangfusePromptClient } from "../src/prompt-client";
 import { ScoreQueue } from "../src/scoring";
 
 const mocks = vi.hoisted(() => ({
@@ -2861,4 +2862,325 @@ function createDatasetClient(
   options: Parameters<typeof createLangfuseDatasetClient>[1] = {},
 ): ReturnType<typeof createLangfuseDatasetClient> {
   return createLangfuseDatasetClient(tracing, options);
+}
+
+describe("LangfusePromptClient", () => {
+  function makePromptJson(body: Record<string, unknown>, status = 200): Response {
+    return new Response(JSON.stringify(body), { status });
+  }
+
+  function basicAuth(publicKey: string, secretKey: string): string {
+    const encoded = Buffer.from(`${publicKey}:${secretKey}`).toString("base64");
+    return `Basic ${encoded}`;
+  }
+
+  it("getPrompt GETs /api/public/v2/prompts/:name with auth", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(
+        makePromptJson({
+          name: "support.system",
+          version: 3,
+          labels: ["production"],
+          prompt: "You are a support agent.",
+          type: "text",
+          tags: ["qa"],
+        }),
+      ),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    const prompt = await client.getPrompt("support.system");
+
+    expect(prompt.name).toBe("support.system");
+    expect(prompt.version).toBe(3);
+    expect(prompt.labels).toEqual(["production"]);
+    expect(prompt.prompt).toBe("You are a support agent.");
+    expect(prompt.type).toBe("text");
+    expect(prompt.tags).toEqual(["qa"]);
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/public/v2/prompts/support.system");
+    const headers = new Headers(init.headers);
+    expect(headers.get("Authorization")).toBe(basicAuth("pk", "sk"));
+  });
+
+  it("getPrompt includes ?version and ?label when supplied", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(
+        makePromptJson({
+          name: "support.system",
+          version: 2,
+          prompt: "old",
+          type: "text",
+        }),
+      ),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    await client.getPrompt("support.system", { version: 2, label: "staging" });
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    expect(url).toContain("version=2");
+    expect(url).toContain("label=staging");
+  });
+
+  it("getPrompt returns the cached value within the TTL", async () => {
+    vi.mocked(fetch).mockReturnValue(
+      Promise.resolve(
+        makePromptJson({
+          name: "support.system",
+          version: 1,
+          prompt: "cached",
+          type: "text",
+        }),
+      ),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    const a = await client.getPrompt("support.system");
+    const b = await client.getPrompt("support.system");
+    expect(a).toBe(b);
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+  });
+
+  it("getPrompt refetches after the TTL elapses", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetch).mockImplementation(async () =>
+        makePromptJson({
+          name: "support.system",
+          version: 1,
+          prompt: "fresh",
+          type: "text",
+        }),
+      );
+
+      const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+      const client = createPromptClient(tracing, {
+        publicKey: "pk",
+        secretKey: "sk",
+        cacheTtlMs: 1000,
+      });
+      await client.getPrompt("support.system");
+      vi.advanceTimersByTime(2000);
+      await client.getPrompt("support.system");
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("getPrompt({ refresh: true }) skips the cache", async () => {
+    vi.mocked(fetch).mockImplementation(async () =>
+      makePromptJson({
+        name: "support.system",
+        version: 1,
+        prompt: "fresh",
+        type: "text",
+      }),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    await client.getPrompt("support.system");
+    await client.getPrompt("support.system", { refresh: true });
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  });
+
+  it("getPrompt throws on non-2xx with the response body", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(new Response("not found", { status: 404 })),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    await expect(client.getPrompt("missing")).rejects.toThrow(/not found/);
+  });
+
+  it("getPromptText returns the string for type=text", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(
+        makePromptJson({
+          name: "support.system",
+          version: 1,
+          prompt: "You are a support agent.",
+          type: "text",
+        }),
+      ),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    await expect(client.getPromptText("support.system")).resolves.toBe("You are a support agent.");
+  });
+
+  it("getPromptText throws when the prompt is type=chat", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(
+        makePromptJson({
+          name: "support.chat",
+          version: 1,
+          prompt: [{ role: "system", content: "hi" }],
+          type: "chat",
+        }),
+      ),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    await expect(client.getPromptText("support.chat")).rejects.toThrow(/chat prompt/);
+  });
+
+  it("getPromptChat returns the array for type=chat", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(
+      Promise.resolve(
+        makePromptJson({
+          name: "support.chat",
+          version: 1,
+          prompt: [
+            { role: "system", content: "You are a support agent." },
+            { role: "user", content: "Help!" },
+          ],
+          type: "chat",
+        }),
+      ),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    await expect(client.getPromptChat("support.chat")).resolves.toEqual([
+      { role: "system", content: "You are a support agent." },
+      { role: "user", content: "Help!" },
+    ]);
+  });
+
+  it("refresh() clears the cache", async () => {
+    vi.mocked(fetch).mockImplementation(async () =>
+      makePromptJson({
+        name: "support.system",
+        version: 1,
+        prompt: "hi",
+        type: "text",
+      }),
+    );
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const client = createPromptClient(tracing, { publicKey: "pk", secretKey: "sk" });
+    await client.getPrompt("support.system");
+    client.refresh();
+    await client.getPrompt("support.system");
+    expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Langfuse prompt attribute binding", () => {
+  it("attaches prompt name and version to the root when args.promptRef is set", async () => {
+    const root = fakeObservation("root", "trace-prompt", "obs-root-prompt");
+    root.startObservation.mockReturnValue(root);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+      promptRef: { name: "support.system", version: 3 },
+    });
+
+    expect(root.otelSpan.setAttribute).toHaveBeenCalledWith(
+      "langfuse.trace.metadata.promptName",
+      "support.system",
+    );
+    expect(root.otelSpan.setAttribute).toHaveBeenCalledWith(
+      "langfuse.trace.metadata.promptVersion",
+      "3",
+    );
+  });
+
+  it("falls back to trace.metadata.promptName/promptVersion", async () => {
+    const root = fakeObservation("root", "trace-prompt-2", "obs-root-prompt-2");
+    root.startObservation.mockReturnValue(root);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+      trace: { metadata: { promptName: "support.system", promptVersion: 2 } },
+    });
+
+    expect(root.otelSpan.setAttribute).toHaveBeenCalledWith(
+      "langfuse.trace.metadata.promptName",
+      "support.system",
+    );
+    expect(root.otelSpan.setAttribute).toHaveBeenCalledWith(
+      "langfuse.trace.metadata.promptVersion",
+      "2",
+    );
+  });
+
+  it("does not attach prompt attributes when neither source is set", async () => {
+    const root = fakeObservation("root", "trace-prompt-3", "obs-root-prompt-3");
+    root.startObservation.mockReturnValue(root);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    });
+
+    const calls = (root.otelSpan.setAttribute as ReturnType<typeof vi.fn>).mock.calls;
+    const promptCalls = calls.filter(
+      ([key]) => typeof key === "string" && key.startsWith("langfuse.trace.metadata.prompt"),
+    );
+    expect(promptCalls).toEqual([]);
+  });
+
+  it("attaches prompt attributes to each generation in the run", async () => {
+    const root = fakeObservation("root", "trace-prompt-4", "obs-root-prompt-4");
+    const turn = fakeObservation("turn", "trace-prompt-4", "obs-turn-prompt-4");
+    const generation = fakeObservation("generation", "trace-prompt-4", "obs-gen-prompt-4");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const run = await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+      promptRef: { name: "support.system", version: 5 },
+    });
+    const runObserver = run as AgentRunObserver;
+
+    await runObserver.startGeneration?.(generationStartArgs());
+
+    expect(turn.startObservation).toHaveBeenCalledWith(
+      "model.turn.1",
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          promptName: "support.system",
+          promptVersion: 5,
+        }),
+      }),
+      { asType: "generation" },
+    );
+  });
+});
+
+function createPromptClient(
+  tracing: ReturnType<typeof langfuse.create>,
+  options: Parameters<typeof createLangfusePromptClient>[1] = {},
+): ReturnType<typeof createLangfusePromptClient> {
+  return createLangfusePromptClient(tracing, options);
 }

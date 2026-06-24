@@ -119,3 +119,40 @@ export type LangfuseDatasetClient = {
     options: LangfuseRunExperimentOptions<Input, Output, Expected>,
   ): Promise<LangfuseRunExperimentResult>;
 };
+
+export type LangfusePromptClientOptions = {
+  baseUrl?: string | undefined;
+  publicKey?: string | undefined;
+  secretKey?: string | undefined;
+  cacheTtlMs?: number | undefined;
+  timeoutMs?: number | undefined;
+};
+
+export type LangfusePromptGetOptions = {
+  version?: number | undefined;
+  label?: string | undefined;
+  cacheTtlMs?: number | undefined;
+  refresh?: boolean | undefined;
+};
+
+export type LangfuseChatMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string;
+};
+
+export type LangfusePrompt = {
+  name: string;
+  version: number;
+  labels: string[];
+  prompt: string | LangfuseChatMessage[];
+  type: "text" | "chat";
+  tags?: string[];
+  resolvedAt: Date;
+};
+
+export type LangfusePromptClient = {
+  getPrompt(name: string, options?: LangfusePromptGetOptions): Promise<LangfusePrompt>;
+  getPromptText(name: string, options?: LangfusePromptGetOptions): Promise<string>;
+  getPromptChat(name: string, options?: LangfusePromptGetOptions): Promise<LangfuseChatMessage[]>;
+  refresh(): void;
+};

@@ -10,6 +10,7 @@ export type {
   AgentRunErrorArgs,
   AgentRunEventArgs,
   AgentRunObserver,
+  AgentRunPromptRef,
   AgentRunStartArgs,
   AgentToolEndArgs,
   AgentToolErrorArgs,

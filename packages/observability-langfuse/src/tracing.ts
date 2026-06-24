@@ -9,6 +9,7 @@ import type {
   AgentRunErrorArgs,
   AgentRunEventArgs,
   AgentRunObserver,
+  AgentRunPromptRef,
   AgentRunStartArgs,
   AgentToolEndArgs,
   AgentToolErrorArgs,
@@ -145,10 +146,15 @@ class LangfuseAgentObserver implements LangfuseTracing {
     );
     applyTraceAttributes(root, args);
 
-    const runObserver = new LangfuseRunObserver(root, {
-      traceId: root.traceId,
-      observationId: root.id,
-    });
+    const promptRef = resolvePromptRef(args);
+    const runObserver = new LangfuseRunObserver(
+      root,
+      {
+        traceId: root.traceId,
+        observationId: root.id,
+      },
+      promptRef,
+    );
     this.currentHandle = runObserver.getHandle();
     runObserver.setCurrentHandle = (handle) => {
       this.currentHandle = handle;
@@ -281,6 +287,59 @@ function applyTraceAttributes(root: LangfuseAgent, args: AgentRunStartArgs): voi
     }
     root.otelSpan.setAttribute(`${LangfuseOtelSpanAttributes.TRACE_METADATA}.${key}`, serialized);
   }
+  const promptRef = resolvePromptRef(args);
+  if (promptRef !== undefined) {
+    root.otelSpan.setAttribute(
+      `${LangfuseOtelSpanAttributes.TRACE_METADATA}.promptName`,
+      promptRef.name,
+    );
+    if (promptRef.version !== undefined) {
+      root.otelSpan.setAttribute(
+        `${LangfuseOtelSpanAttributes.TRACE_METADATA}.promptVersion`,
+        String(promptRef.version),
+      );
+    }
+  }
+}
+
+function resolvePromptRef(args: AgentRunStartArgs): AgentRunPromptRef | undefined {
+  if (args.promptRef !== undefined) {
+    return args.promptRef;
+  }
+  const metadata = args.trace?.metadata;
+  if (metadata === undefined) {
+    return undefined;
+  }
+  const name = metadata.promptName;
+  if (typeof name !== "string" || name.length === 0) {
+    return undefined;
+  }
+  const rawVersion = metadata.promptVersion;
+  if (rawVersion === undefined || rawVersion === null) {
+    return { name };
+  }
+  const version =
+    typeof rawVersion === "number"
+      ? rawVersion
+      : typeof rawVersion === "string" && rawVersion.trim().length > 0
+        ? Number(rawVersion)
+        : undefined;
+  if (version === undefined || !Number.isFinite(version)) {
+    return { name };
+  }
+  return { name, version };
+}
+
+function promptMetadata(
+  ref: AgentRunPromptRef | undefined,
+): Record<string, string | number | undefined> {
+  if (ref === undefined) {
+    return {};
+  }
+  return {
+    promptName: ref.name,
+    ...(ref.version === undefined ? {} : { promptVersion: ref.version }),
+  };
 }
 
 function serializeMetadataValue(value: unknown): string | undefined {
@@ -304,12 +363,15 @@ class LangfuseRunObserver implements AgentRunObserver {
   setCurrentHandle: ((handle: LangfuseTraceHandle) => void) | undefined;
   clearCurrentHandle: (() => void) | undefined;
   private handle: LangfuseTraceHandle;
+  private readonly promptRef: AgentRunPromptRef | undefined;
 
   constructor(
     private readonly root: LangfuseAgent,
     readonly trace: AgentTraceInfo,
+    promptRef?: AgentRunPromptRef,
   ) {
     this.handle = this.buildHandle();
+    this.promptRef = promptRef;
   }
 
   startGeneration(args: AgentGenerationStartArgs): AgentGenerationObserver {
@@ -337,6 +399,7 @@ class LangfuseRunObserver implements AgentRunObserver {
                 },
               }
             : {}),
+          ...promptMetadata(this.promptRef),
         },
       },
       { asType: "generation" },
