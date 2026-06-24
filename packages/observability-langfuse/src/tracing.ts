@@ -24,15 +24,17 @@ import {
   type LangfuseTool,
   startObservation,
 } from "@langfuse/tracing";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import { NodeSDK } from "@opentelemetry/sdk-node";
+import { SEMRESATTRS_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import {
   agentLabel,
   childMetadata,
-  emptyToUndefined,
   errorMessage,
   generationKey,
   isRecord,
   modelParameters,
+  resolveOption,
   usageDetails,
   usageDetailsFromRecord,
 } from "./helpers.js";
@@ -50,24 +52,36 @@ class LangfuseAgentObserver implements LangfuseTracing {
   private readonly publicKey: string | undefined;
   private readonly secretKey: string | undefined;
   private readonly baseUrl: string;
+  private readonly serviceName: string | undefined;
 
   constructor(options: LangfuseTracingOptions) {
-    this.publicKey = emptyToUndefined(options.publicKey);
-    this.secretKey = emptyToUndefined(options.secretKey);
-    this.baseUrl = emptyToUndefined(options.baseUrl) ?? "https://cloud.langfuse.com";
+    this.publicKey = resolveOption(options.publicKey, process.env.LANGFUSE_PUBLIC_KEY);
+    this.secretKey = resolveOption(options.secretKey, process.env.LANGFUSE_SECRET_KEY);
+    this.baseUrl =
+      resolveOption(options.baseUrl, process.env.LANGFUSE_BASE_URL) ?? "https://cloud.langfuse.com";
+    this.serviceName = resolveOption(options.serviceName, process.env.LANGFUSE_SERVICE_NAME);
     const processorOptions: ConstructorParameters<typeof LangfuseSpanProcessor>[0] = {
       baseUrl: this.baseUrl,
     };
     if (this.publicKey !== undefined) processorOptions.publicKey = this.publicKey;
     if (this.secretKey !== undefined) processorOptions.secretKey = this.secretKey;
-    const environment = emptyToUndefined(options.environment);
+    const environment = resolveOption(
+      options.environment,
+      process.env.LANGFUSE_TRACING_ENVIRONMENT,
+    );
     if (environment !== undefined) processorOptions.environment = environment;
-    const release = emptyToUndefined(options.release);
+    const release = resolveOption(options.release, process.env.LANGFUSE_RELEASE);
     if (release !== undefined) processorOptions.release = release;
     this.processor = new LangfuseSpanProcessor(processorOptions);
-    this.sdk = new NodeSDK({
+    const sdkOptions: ConstructorParameters<typeof NodeSDK>[0] = {
       spanProcessors: [this.processor],
-    });
+    };
+    if (this.serviceName !== undefined) {
+      sdkOptions.resource = resourceFromAttributes({
+        [SEMRESATTRS_SERVICE_NAME]: this.serviceName,
+      });
+    }
+    this.sdk = new NodeSDK(sdkOptions);
     this.sdk.start();
   }
 
@@ -79,6 +93,7 @@ class LangfuseAgentObserver implements LangfuseTracing {
         history: args.history,
       },
       metadata: {
+        ...(this.serviceName !== undefined ? { serviceName: this.serviceName } : {}),
         agentName: args.agentName,
         agentDescription: args.agentDescription,
         maxTurns: args.maxTurns,

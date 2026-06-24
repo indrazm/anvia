@@ -76,6 +76,18 @@ export function emptyToUndefined(value: string | undefined): string | undefined 
   return value === undefined || value.length === 0 ? undefined : value;
 }
 
+/**
+ * Resolve an option value: prefer the explicit option, fall back to the
+ * env var, and treat empty strings as missing. Empty env vars are common
+ * when a process inherits a process manager that injects blank values.
+ */
+export function resolveOption(
+  option: string | undefined,
+  envVar: string | undefined,
+): string | undefined {
+  return emptyToUndefined(option) ?? emptyToUndefined(envVar);
+}
+
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   processorConstructor: vi.fn(),
   sdkConstructor: vi.fn(),
   startObservation: vi.fn(),
+  resourceFromAttributes: vi.fn((attributes: Record<string, unknown>) => ({
+    __resource: true,
+    attributes,
+  })),
 }));
 
 vi.mock("@langfuse/otel", () => ({
@@ -36,6 +40,15 @@ vi.mock("@opentelemetry/sdk-node", () => ({
       mocks.sdkConstructor(options);
     }
   },
+}));
+
+vi.mock("@opentelemetry/resources", () => ({
+  resourceFromAttributes: (attributes: Record<string, unknown>) =>
+    mocks.resourceFromAttributes(attributes),
+}));
+
+vi.mock("@opentelemetry/semantic-conventions", () => ({
+  SEMRESATTRS_SERVICE_NAME: "service.name",
 }));
 
 vi.mock("@langfuse/tracing", () => ({
@@ -87,6 +100,120 @@ describe("langfuse", () => {
 
     expect(mocks.forceFlush).toHaveBeenCalledOnce();
     expect(mocks.shutdown).toHaveBeenCalledOnce();
+  });
+
+  it("resolves options from environment variables when not provided explicitly", () => {
+    vi.stubEnv("LANGFUSE_PUBLIC_KEY", "env-public");
+    vi.stubEnv("LANGFUSE_SECRET_KEY", "env-secret");
+    vi.stubEnv("LANGFUSE_BASE_URL", "https://env.langfuse.test");
+    vi.stubEnv("LANGFUSE_TRACING_ENVIRONMENT", "staging");
+    vi.stubEnv("LANGFUSE_RELEASE", "env-release");
+
+    langfuse.create();
+
+    expect(mocks.processorConstructor).toHaveBeenCalledWith({
+      baseUrl: "https://env.langfuse.test",
+      publicKey: "env-public",
+      secretKey: "env-secret",
+      environment: "staging",
+      release: "env-release",
+    });
+  });
+
+  it("prefers explicit options over environment variables", () => {
+    vi.stubEnv("LANGFUSE_PUBLIC_KEY", "env-public");
+    vi.stubEnv("LANGFUSE_SECRET_KEY", "env-secret");
+    vi.stubEnv("LANGFUSE_TRACING_ENVIRONMENT", "staging");
+    vi.stubEnv("LANGFUSE_RELEASE", "env-release");
+
+    langfuse.create({
+      publicKey: "option-public",
+      secretKey: "option-secret",
+      environment: "prod",
+      release: "option-release",
+    });
+
+    expect(mocks.processorConstructor).toHaveBeenCalledWith({
+      baseUrl: "https://cloud.langfuse.com",
+      publicKey: "option-public",
+      secretKey: "option-secret",
+      environment: "prod",
+      release: "option-release",
+    });
+  });
+
+  it("treats empty string env values as missing", () => {
+    vi.stubEnv("LANGFUSE_PUBLIC_KEY", "");
+    vi.stubEnv("LANGFUSE_SECRET_KEY", "");
+
+    langfuse.create();
+
+    const call = mocks.processorConstructor.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(call).toBeDefined();
+    expect(call).not.toHaveProperty("publicKey");
+    expect(call).not.toHaveProperty("secretKey");
+  });
+
+  it("surfaces serviceName as a NodeSDK resource attribute when set via option", () => {
+    langfuse.create({ serviceName: "support-agent" });
+
+    expect(mocks.resourceFromAttributes).toHaveBeenCalledWith({
+      "service.name": "support-agent",
+    });
+    expect(mocks.sdkConstructor).toHaveBeenCalledWith({
+      spanProcessors: [expect.any(Object)],
+      resource: expect.objectContaining({
+        __resource: true,
+        attributes: { "service.name": "support-agent" },
+      }),
+    });
+  });
+
+  it("surfaces serviceName as a NodeSDK resource attribute when set via env", () => {
+    vi.stubEnv("LANGFUSE_SERVICE_NAME", "env-service");
+
+    langfuse.create();
+
+    expect(mocks.resourceFromAttributes).toHaveBeenCalledWith({
+      "service.name": "env-service",
+    });
+    expect(mocks.sdkConstructor).toHaveBeenCalledWith({
+      spanProcessors: [expect.any(Object)],
+      resource: expect.objectContaining({
+        __resource: true,
+        attributes: { "service.name": "env-service" },
+      }),
+    });
+  });
+
+  it("does not construct a NodeSDK resource when serviceName is absent", () => {
+    langfuse.create({ publicKey: "pk", secretKey: "sk" });
+
+    const call = mocks.sdkConstructor.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(call).toBeDefined();
+    expect(call).not.toHaveProperty("resource");
+    expect(mocks.resourceFromAttributes).not.toHaveBeenCalled();
+  });
+
+  it("includes serviceName in the root observation metadata", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ serviceName: "support-agent" });
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    });
+
+    expect(mocks.startObservation).toHaveBeenCalledWith(
+      "support",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ serviceName: "support-agent" }),
+      }),
+      { asType: "agent" },
+    );
   });
 
   it("maps runs, generations, tools, and trace attributes to Langfuse observations", async () => {

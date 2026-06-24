@@ -49,6 +49,28 @@ await tracing.flush();
 
 Use `flush()` after short-lived jobs. Use `shutdown()` when the process is exiting.
 
+## Configuration
+
+`langfuse.create()` accepts the following options. Any option that is
+left undefined falls back to the matching environment variable, and
+explicit options always win.
+
+| Option        | Environment variable          | Notes                                                      |
+| ------------- | ----------------------------- | ---------------------------------------------------------- |
+| `publicKey`   | `LANGFUSE_PUBLIC_KEY`         | Required for score publishing.                             |
+| `secretKey`   | `LANGFUSE_SECRET_KEY`         | Required for score publishing.                             |
+| `baseUrl`     | `LANGFUSE_BASE_URL`           | Defaults to `https://cloud.langfuse.com`.                  |
+| `environment` | `LANGFUSE_TRACING_ENVIRONMENT`| Tag attached to every trace.                               |
+| `release`     | `LANGFUSE_RELEASE`            | Tag attached to every trace.                               |
+| `serviceName` | `LANGFUSE_SERVICE_NAME`       | Recorded on the root observation and as the OTel `service.name` resource attribute. |
+
+```ts
+const tracing = langfuse.create({
+  // All fields are optional and fall back to env vars.
+  serviceName: "support-agent",
+});
+```
+
 ## Eval Scores
 
 ```ts

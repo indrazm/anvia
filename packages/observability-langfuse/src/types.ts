@@ -7,6 +7,7 @@ export type LangfuseTracingOptions = {
   baseUrl?: string | undefined;
   environment?: string | undefined;
   release?: string | undefined;
+  serviceName?: string | undefined;
 };
 
 export type LangfuseScoreArgs = {
