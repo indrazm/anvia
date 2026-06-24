@@ -8,15 +8,23 @@ export type LangfuseTracingOptions = {
   environment?: string | undefined;
   release?: string | undefined;
   serviceName?: string | undefined;
+  timeoutMs?: number | undefined;
 };
+
+export type LangfuseScoreDataType = "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
 
 export type LangfuseScoreArgs = {
   traceId?: string | undefined;
   observationId?: string | undefined;
   name: string;
-  value: number;
+  value: number | string;
+  dataType?: LangfuseScoreDataType | undefined;
   comment?: string | undefined;
   metadata?: Record<string, JsonValue | undefined> | undefined;
+  configId?: string | undefined;
+  scoreConfigId?: string | undefined;
+  environment?: string | undefined;
+  timestamp?: Date | string | undefined;
 };
 
 export type LangfuseTracing = AgentObserver & {

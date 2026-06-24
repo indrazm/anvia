@@ -98,6 +98,25 @@ const reporter = createLangfuseEvalReporter(tracing);
 
 The reporter reads trace information from eval output when available, then publishes metric scores to Langfuse.
 
+### Typed scores and overrides
+
+`tracing.score()` accepts a `dataType` (`"NUMERIC" | "CATEGORICAL" | "BOOLEAN"`), a `configId` (or its `scoreConfigId` alias), a per-score `environment` override, and a `timestamp` (Date or ISO 8601 string). The adapter validates `value` against the dataType at the boundary.
+
+```ts
+await tracing.score({
+  traceId: trace.traceId,
+  name: "verdict",
+  value: "pass",        // string for CATEGORICAL
+  dataType: "CATEGORICAL",
+  configId: "cfg-1",
+  environment: "staging",
+  timestamp: new Date(),
+});
+```
+
+The score fetch has a default timeout of 30 s, overrideable via
+`langfuse.create({ timeoutMs: ... })`.
+
 ## Exports
 
 - `langfuse`

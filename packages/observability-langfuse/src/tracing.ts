@@ -40,6 +40,8 @@ import {
 } from "./helpers.js";
 import type { LangfuseScoreArgs, LangfuseTracing, LangfuseTracingOptions } from "./types.js";
 
+type LangfuseScoreDataType = NonNullable<LangfuseScoreArgs["dataType"]>;
+
 export const langfuse = {
   create(options: LangfuseTracingOptions = {}): LangfuseTracing {
     return new LangfuseAgentObserver(options);
@@ -53,6 +55,7 @@ class LangfuseAgentObserver implements LangfuseTracing {
   private readonly secretKey: string | undefined;
   private readonly baseUrl: string;
   private readonly serviceName: string | undefined;
+  private readonly timeoutMs: number;
 
   constructor(options: LangfuseTracingOptions) {
     this.publicKey = resolveOption(options.publicKey, process.env.LANGFUSE_PUBLIC_KEY);
@@ -60,6 +63,7 @@ class LangfuseAgentObserver implements LangfuseTracing {
     this.baseUrl =
       resolveOption(options.baseUrl, process.env.LANGFUSE_BASE_URL) ?? "https://cloud.langfuse.com";
     this.serviceName = resolveOption(options.serviceName, process.env.LANGFUSE_SERVICE_NAME);
+    this.timeoutMs = options.timeoutMs ?? 30_000;
     const processorOptions: ConstructorParameters<typeof LangfuseSpanProcessor>[0] = {
       baseUrl: this.baseUrl,
     };
@@ -141,6 +145,7 @@ class LangfuseAgentObserver implements LangfuseTracing {
     if (this.publicKey === undefined || this.secretKey === undefined) {
       throw new Error("Langfuse score requires publicKey and secretKey");
     }
+    assertScoreValue(args.value, args.dataType);
 
     const body: Record<string, unknown> = {
       traceId: args.traceId,
@@ -148,8 +153,16 @@ class LangfuseAgentObserver implements LangfuseTracing {
       value: args.value,
     };
     if (args.observationId !== undefined) body.observationId = args.observationId;
+    if (args.dataType !== undefined) body.dataType = args.dataType;
     if (args.comment !== undefined) body.comment = args.comment;
     if (args.metadata !== undefined) body.metadata = args.metadata;
+    const configId = args.configId ?? args.scoreConfigId;
+    if (configId !== undefined) body.configId = configId;
+    if (args.environment !== undefined) body.environment = args.environment;
+    if (args.timestamp !== undefined) {
+      body.timestamp =
+        args.timestamp instanceof Date ? args.timestamp.toISOString() : args.timestamp;
+    }
 
     const response = await fetch(`${this.baseUrl}/api/public/scores`, {
       method: "POST",
@@ -158,12 +171,34 @@ class LangfuseAgentObserver implements LangfuseTracing {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!response.ok) {
       throw new Error(
         `Langfuse score failed with HTTP ${response.status}: ${await response.text()}`,
       );
     }
+  }
+}
+
+function assertScoreValue(value: number | string, dataType: LangfuseScoreArgs["dataType"]): void {
+  if (dataType === "NUMERIC") {
+    if (typeof value !== "number") {
+      throw new TypeError(`Langfuse score dataType=NUMERIC requires a number value`);
+    }
+    return;
+  }
+  if (dataType === "CATEGORICAL") {
+    if (typeof value !== "string") {
+      throw new TypeError(`Langfuse score dataType=CATEGORICAL requires a string value`);
+    }
+    return;
+  }
+  if (dataType === "BOOLEAN") {
+    if (value !== 0 && value !== 1) {
+      throw new TypeError(`Langfuse score dataType=BOOLEAN requires value 0 or 1`);
+    }
+    return;
   }
 }
 

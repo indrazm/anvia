@@ -1067,6 +1067,192 @@ describe("langfuse", () => {
     ).rejects.toThrow("Langfuse score requires publicKey and secretKey");
   });
 
+  it("forwards dataType through the score body", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+
+    await tracing.score({
+      traceId: "trace-1",
+      name: "quality",
+      value: 0.7,
+      dataType: "NUMERIC",
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toMatchObject({
+      dataType: "NUMERIC",
+      value: 0.7,
+    });
+
+    vi.mocked(fetch).mockClear();
+    await tracing.score({
+      traceId: "trace-1",
+      name: "verdict",
+      value: "pass",
+      dataType: "CATEGORICAL",
+    });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toMatchObject({
+      dataType: "CATEGORICAL",
+      value: "pass",
+    });
+  });
+
+  it("rejects CATEGORICAL with a non-string value", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await expect(
+      tracing.score({
+        traceId: "trace-1",
+        name: "verdict",
+        value: 1,
+        dataType: "CATEGORICAL",
+      }),
+    ).rejects.toThrow(/CATEGORICAL/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("accepts BOOLEAN scores with 0 or 1 and rejects other numbers", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+
+    await tracing.score({ traceId: "trace-1", name: "is-correct", value: 0, dataType: "BOOLEAN" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toMatchObject({
+      dataType: "BOOLEAN",
+      value: 0,
+    });
+
+    vi.mocked(fetch).mockClear();
+    await tracing.score({ traceId: "trace-1", name: "is-correct", value: 1, dataType: "BOOLEAN" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toMatchObject({
+      dataType: "BOOLEAN",
+      value: 1,
+    });
+
+    await expect(
+      tracing.score({ traceId: "trace-1", name: "is-correct", value: 2, dataType: "BOOLEAN" }),
+    ).rejects.toThrow(/BOOLEAN/);
+  });
+
+  it("rejects NUMERIC with a non-number value", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await expect(
+      tracing.score({
+        traceId: "trace-1",
+        name: "quality",
+        value: "0.5",
+        dataType: "NUMERIC",
+      }),
+    ).rejects.toThrow(/NUMERIC/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("sends configId and accepts scoreConfigId as an alias", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+
+    await tracing.score({ traceId: "trace-1", name: "quality", value: 1, configId: "cfg-1" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toMatchObject({
+      configId: "cfg-1",
+    });
+
+    vi.mocked(fetch).mockClear();
+    await tracing.score({ traceId: "trace-1", name: "quality", value: 1, scoreConfigId: "cfg-2" });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toMatchObject({
+      configId: "cfg-2",
+    });
+  });
+
+  it("prefers configId over scoreConfigId when both are set", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.score({
+      traceId: "trace-1",
+      name: "quality",
+      value: 1,
+      configId: "canonical",
+      scoreConfigId: "alias",
+    });
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));
+    expect(body.configId).toBe("canonical");
+    expect(body).not.toHaveProperty("scoreConfigId");
+  });
+
+  it("forwards environment and timestamp overrides in the score body", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.score({
+      traceId: "trace-1",
+      name: "quality",
+      value: 1,
+      environment: "staging",
+      timestamp: "2026-06-24T00:00:00Z",
+    });
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));
+    expect(body).toMatchObject({
+      environment: "staging",
+      timestamp: "2026-06-24T00:00:00Z",
+    });
+  });
+
+  it("normalizes a Date timestamp to ISO 8601", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.score({
+      traceId: "trace-1",
+      name: "quality",
+      value: 1,
+      timestamp: new Date("2026-06-24T00:00:00Z"),
+    });
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));
+    expect(body.timestamp).toBe("2026-06-24T00:00:00.000Z");
+  });
+
+  it("applies a default 30s timeout and respects timeoutMs", async () => {
+    const fetchMock = vi.mocked(fetch);
+
+    const defaultTracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await defaultTracing.score({ traceId: "trace-1", name: "quality", value: 1 });
+    const defaultSignal = (fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.signal as
+      | AbortSignal
+      | undefined;
+    expect(defaultSignal).toBeInstanceOf(AbortSignal);
+    expect(defaultSignal?.aborted).toBe(false);
+
+    vi.mocked(fetch).mockClear();
+    const slowTracing = langfuse.create({ publicKey: "pk", secretKey: "sk", timeoutMs: 50 });
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_, reject) => {
+          const signal = (init as RequestInit | undefined)?.signal as AbortSignal | undefined;
+          if (signal === undefined) {
+            reject(new Error("missing signal"));
+            return;
+          }
+          if (signal.aborted) {
+            reject(new DOMException("aborted", "AbortError"));
+            return;
+          }
+          signal.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
+    );
+    await expect(
+      slowTracing.score({ traceId: "trace-1", name: "quality", value: 1 }),
+    ).rejects.toBeInstanceOf(DOMException);
+  });
+
+  it("does not read the response body on 2xx", async () => {
+    const textSpy = vi.fn(async () => "unused");
+    const response = new Response(null, { status: 204 });
+    Object.defineProperty(response, "text", { value: textSpy });
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(response));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.score({ traceId: "trace-1", name: "quality", value: 1 });
+    expect(textSpy).not.toHaveBeenCalled();
+  });
+
+  it("includes the error response text in the rejection message", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(new Response("oops", { status: 500 })));
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await expect(tracing.score({ traceId: "trace-1", name: "quality", value: 1 })).rejects.toThrow(
+      /oops/,
+    );
+  });
+
   it("reports eval outcomes as Langfuse scores", async () => {
     const score = vi.fn();
     const reporter = createReporter({ score });
