@@ -1276,6 +1276,7 @@ describe("langfuse", () => {
         suiteName: "suite",
         caseId: "case-1",
         outcome: "pass",
+        caseInputSummary: "input",
       },
     });
   });
@@ -1414,6 +1415,352 @@ describe("langfuse", () => {
       expect.objectContaining({ traceId: "trace-fallback", value: 1 }),
     );
     expect(score).toHaveBeenCalledTimes(3);
+  });
+
+  it("forwards metric.metadata, dataType, and configId to the score body", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: "input" },
+      output: { trace: { traceId: "trace-1" } },
+      metric: {
+        name: "quality",
+        dataType: "CATEGORICAL",
+        configId: "sc-1",
+        scoreConfigId: "sc-1-alt",
+        metadata: { suite: "qa", tags: ["smoke"] },
+        evaluate: () => EvalOutcome.pass("good"),
+      },
+      outcome: EvalOutcome.pass("good"),
+    });
+
+    expect(score).toHaveBeenCalledWith(
+      expect.objectContaining({
+        traceId: "trace-1",
+        name: "quality",
+        value: "good",
+        dataType: "CATEGORICAL",
+        configId: "sc-1",
+        metadata: expect.objectContaining({
+          suite: "qa",
+          tags: ["smoke"],
+          caseInputSummary: "input",
+        }),
+      }),
+    );
+  });
+
+  it("prefers metric.configId over scoreConfigId when both are set", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: "input" },
+      output: { trace: { traceId: "trace-1" } },
+      metric: {
+        name: "quality",
+        configId: "config-wins",
+        scoreConfigId: "config-loses",
+        evaluate: () => EvalOutcome.pass(true),
+      },
+      outcome: EvalOutcome.pass(true),
+    });
+
+    expect(score).toHaveBeenCalledWith(expect.objectContaining({ configId: "config-wins" }));
+  });
+
+  it("sends categorical outcome scores as strings with dataType", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: "input" },
+      output: { trace: { traceId: "trace-1" } },
+      metric: { name: "quality", dataType: "CATEGORICAL", evaluate: () => EvalOutcome.pass("ok") },
+      outcome: EvalOutcome.pass("ok"),
+    });
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-2", input: "input" },
+      output: { trace: { traceId: "trace-2" } },
+      metric: { name: "quality", dataType: "CATEGORICAL", evaluate: () => EvalOutcome.fail(true) },
+      outcome: EvalOutcome.fail(true),
+    });
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-3", input: "input" },
+      output: { trace: { traceId: "trace-3" } },
+      metric: {
+        name: "quality",
+        dataType: "CATEGORICAL",
+        evaluate: () => EvalOutcome.pass(undefined),
+      },
+      outcome: EvalOutcome.pass(undefined),
+    });
+
+    expect(score).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ value: "ok", dataType: "CATEGORICAL" }),
+    );
+    expect(score).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ value: "true", dataType: "CATEGORICAL" }),
+    );
+    expect(score).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ value: "pass", dataType: "CATEGORICAL" }),
+    );
+  });
+
+  it("sends boolean outcomes as 0/1 when dataType is BOOLEAN", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: "input" },
+      output: { trace: { traceId: "trace-1" } },
+      metric: { name: "boolean", dataType: "BOOLEAN", evaluate: () => EvalOutcome.pass(true) },
+      outcome: EvalOutcome.pass(true),
+    });
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-2", input: "input" },
+      output: { trace: { traceId: "trace-2" } },
+      metric: { name: "boolean", dataType: "BOOLEAN", evaluate: () => EvalOutcome.pass(undefined) },
+      outcome: EvalOutcome.pass(undefined),
+    });
+
+    expect(score).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ value: 1, dataType: "BOOLEAN" }),
+    );
+    expect(score).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ value: 1, dataType: "BOOLEAN" }),
+    );
+  });
+
+  it("includes truncated case input and expected summaries", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score }, { truncateInputAt: 32 });
+
+    const bigInput = "a".repeat(200);
+    const bigExpected = { note: "b".repeat(200) };
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: bigInput, expected: bigExpected },
+      output: { trace: { traceId: "trace-1" } },
+      metric: metric("quality"),
+      outcome: EvalOutcome.pass(true),
+    });
+
+    const call = score.mock.calls[0]?.[0] as { metadata?: Record<string, unknown> };
+    expect(call.metadata?.caseInputSummary).toMatch(/^a+<truncated>$/);
+    expect(call.metadata?.caseExpectedSummary).toMatch(/<truncated>$/);
+  });
+
+  it("includes output.messages when includeMessages is not set", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: "input" },
+      output: {
+        trace: { traceId: "trace-1" },
+        messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+      },
+      metric: metric("quality"),
+      outcome: EvalOutcome.pass(true),
+    });
+
+    expect(score).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+        }),
+      }),
+    );
+  });
+
+  it("omits output.messages when includeMessages is false", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score }, { includeMessages: false });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: "input" },
+      output: {
+        trace: { traceId: "trace-1" },
+        messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+      },
+      metric: metric("quality"),
+      outcome: EvalOutcome.pass(true),
+    });
+
+    const call = score.mock.calls[0]?.[0] as { metadata?: Record<string, unknown> };
+    expect(call.metadata).not.toHaveProperty("messages");
+  });
+
+  it("falls back to args.case.input.trace when output.trace is missing", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: {
+        id: "case-1",
+        input: { trace: { traceId: "trace-from-input", observationId: "obs-from-input" } },
+      },
+      output: { output: "answer" },
+      metric: metric("quality"),
+      outcome: EvalOutcome.pass(true),
+    });
+
+    expect(score).toHaveBeenCalledWith(
+      expect.objectContaining({
+        traceId: "trace-from-input",
+        observationId: "obs-from-input",
+      }),
+    );
+  });
+
+  it("ignores malformed args.case.input.trace without throwing", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: {
+        id: "case-1",
+        input: { trace: "not-an-object" },
+      },
+      output: { output: "answer" },
+      metric: metric("quality"),
+      outcome: EvalOutcome.pass(true),
+    });
+
+    expect(score).not.toHaveBeenCalled();
+  });
+
+  it("onMissingTrace 'throw' raises when no trace can be found", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score }, { onMissingTrace: "throw" });
+
+    await expect(
+      reporter.report({
+        suiteName: "suite",
+        case: { id: "case-1", input: "input" },
+        output: "answer",
+        metric: metric("quality"),
+        outcome: EvalOutcome.pass(true),
+      }),
+    ).rejects.toThrow(/traceId/);
+  });
+
+  it("onMissingTrace 'warn' logs a console warning but does not throw", async () => {
+    const score = vi.fn();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const reporter = createReporter({ score }, { onMissingTrace: "warn" });
+
+    await expect(
+      reporter.report({
+        suiteName: "suite",
+        case: { id: "case-1", input: "input" },
+        output: "answer",
+        metric: metric("quality"),
+        outcome: EvalOutcome.pass(true),
+      }),
+    ).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(score).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("onMissingTrace 'ignore' returns silently when no trace can be found", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score }, { onMissingTrace: "ignore" });
+
+    await expect(
+      reporter.report({
+        suiteName: "suite",
+        case: { id: "case-1", input: "input" },
+        output: "answer",
+        metric: metric("quality"),
+        outcome: EvalOutcome.pass(true),
+      }),
+    ).resolves.toBeUndefined();
+    expect(score).not.toHaveBeenCalled();
+  });
+
+  it("strict: true continues to work as an alias for onMissingTrace 'throw'", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score }, { strict: true });
+
+    await expect(
+      reporter.report({
+        suiteName: "suite",
+        case: { id: "case-1", input: "input" },
+        output: "answer",
+        metric: metric("quality"),
+        outcome: EvalOutcome.pass(true),
+      }),
+    ).rejects.toThrow(/traceId/);
+  });
+
+  it("forwards args.outcome.metadata into the score metadata", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    await reporter.report({
+      suiteName: "suite",
+      case: { id: "case-1", input: "input" },
+      output: { trace: { traceId: "trace-1" } },
+      metric: metric("quality"),
+      outcome: EvalOutcome.pass(true, {
+        metadata: { judge: "llm-judge-1", rationale: "looks good" },
+      }),
+    });
+
+    expect(score).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          judge: "llm-judge-1",
+          rationale: "looks good",
+        }),
+      }),
+    );
+  });
+
+  it("does not mutate metric.metadata or case.metadata", async () => {
+    const score = vi.fn();
+    const reporter = createReporter({ score });
+
+    const metricMeta = { suite: "qa" };
+    const caseMeta = { traceId: "trace-1" };
+    const metric = {
+      name: "quality",
+      metadata: metricMeta,
+      evaluate: () => EvalOutcome.pass(true, { metadata: { reason: "looks good" } }),
+    };
+    const testCase = { id: "case-1", input: "input", metadata: caseMeta };
+
+    await reporter.report({
+      suiteName: "suite",
+      case: testCase,
+      output: "answer",
+      metric,
+      outcome: EvalOutcome.pass(true, { metadata: { reason: "looks good" } }),
+    });
+
+    expect(metricMeta).toEqual({ suite: "qa" });
+    expect(caseMeta).toEqual({ traceId: "trace-1" });
   });
 });
 

@@ -102,6 +102,62 @@ const reporter = createLangfuseEvalReporter(tracing);
 
 The reporter reads trace information from eval output when available, then publishes metric scores to Langfuse.
 
+### Eval reporter options
+
+```ts
+const reporter = createLangfuseEvalReporter(tracing, {
+  publishInvalid: false, // publish invalid outcomes as zero scores
+  onMissingTrace: "ignore", // "ignore" | "warn" | "throw"
+  truncateInputAt: 2048, // max bytes for case input/expected summaries
+  includeMessages: true, // include output.messages in score metadata
+});
+```
+
+- `onMissingTrace` decides what happens when no trace can be
+  resolved for a case. `"ignore"` (default, also when `strict` is
+  not set) drops the score silently. `"warn"` logs a
+  `console.warn`. `"throw"` rejects with an error. The legacy
+  `strict: true` option continues to work as an alias for
+  `"throw"`.
+
+- `truncateInputAt` caps the byte size of `caseInputSummary` and
+  `caseExpectedSummary` metadata keys. Truncation appends
+  `<truncated>` to the cut value.
+
+- `includeMessages` controls whether `output.messages` (if present)
+  is included in score metadata.
+
+### Trace resolution
+
+The reporter resolves a trace ID for each case in three tiers:
+
+1. `output.trace` (most direct, set by an agent run).
+2. `case.input.trace` (useful when the case input bundles trace
+   info).
+3. `case.metadata.traceId` (and optional `observationId`).
+
+### Metric annotations
+
+`EvalMetric` (in `@anvia/core`) accepts optional `dataType`,
+`configId` / `scoreConfigId`, and `metadata` fields. The reporter
+forwards them to Langfuse, so categorical or boolean metrics are
+sent with the right shape:
+
+```ts
+import { defineMetric, EvalOutcome } from "@anvia/core";
+
+const judge = defineMetric({
+  name: "quality",
+  dataType: "CATEGORICAL",
+  configId: "quality-config",
+  metadata: { source: "judge-llm" },
+  evaluate: () => EvalOutcome.pass("good"),
+});
+```
+
+`defineMetric` is a small identity helper that signals intent and
+preserves type inference; plain object literals continue to work.
+
 ### Typed scores and overrides
 
 `tracing.score()` accepts a `dataType` (`"NUMERIC" | "CATEGORICAL" | "BOOLEAN"`), a `configId` (or its `scoreConfigId` alias), a per-score `environment` override, and a `timestamp` (Date or ISO 8601 string). The adapter validates `value` against the dataType at the boundary.

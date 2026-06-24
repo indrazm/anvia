@@ -49,4 +49,7 @@ export type LangfuseTracing = AgentObserver & {
 export type LangfuseEvalReporterOptions = {
   publishInvalid?: boolean | undefined;
   strict?: boolean | undefined;
+  onMissingTrace?: "ignore" | "warn" | "throw" | undefined;
+  truncateInputAt?: number | undefined;
+  includeMessages?: boolean | undefined;
 };
