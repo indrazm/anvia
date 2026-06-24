@@ -381,6 +381,73 @@ describe("agent observability", () => {
         .send(),
     ).rejects.toThrow("observer failed");
   });
+
+  it("calls update on streaming observers once per delta", async () => {
+    const updates: Array<{ turn: number; delta: { type: string; delta?: string } }> = [];
+    const observer: AgentObserver = {
+      startRun(): AgentRunObserver {
+        return {
+          startGeneration: () => ({
+            update: (args) => {
+              updates.push(args);
+            },
+            end: () => {},
+          }),
+          end: () => {},
+        };
+      },
+    };
+    const model = new StreamingQueueModel([
+      [
+        { type: "text_delta", delta: "he" },
+        { type: "text_delta", delta: "llo" },
+      ],
+    ]);
+    const agent = new AgentBuilder("test-agent", model).observe(observer).build();
+    await collect(agent.prompt("hi").stream());
+
+    expect(updates).toEqual([
+      { turn: 1, delta: { type: "text_delta", delta: "he" } },
+      { turn: 1, delta: { type: "text_delta", delta: "llo" } },
+    ]);
+  });
+
+  it("does not call update for non-streaming completions", async () => {
+    const updates: unknown[] = [];
+    const observer: AgentObserver = {
+      startRun(): AgentRunObserver {
+        return {
+          startGeneration: () => ({
+            update: (args) => {
+              updates.push(args);
+            },
+            end: () => {},
+          }),
+          end: () => {},
+        };
+      },
+    };
+    const model = new QueueModel([response([AssistantContent.text("ok")])]);
+    const agent = new AgentBuilder("test-agent", model).observe(observer).build();
+    await agent.prompt("hi").send();
+    expect(updates).toEqual([]);
+  });
+
+  it("honors observers that omit the optional update method", async () => {
+    const observer: AgentObserver = {
+      startRun(): AgentRunObserver {
+        return {
+          startGeneration: () => ({
+            end: () => {},
+          }),
+          end: () => {},
+        };
+      },
+    };
+    const model = new StreamingQueueModel([[{ type: "text_delta", delta: "hi" }]]);
+    const agent = new AgentBuilder("test-agent", model).observe(observer).build();
+    await expect(collect(agent.prompt("hi").stream())).resolves.toBeDefined();
+  });
 });
 
 describe("active agent observer groups", () => {

@@ -4,6 +4,7 @@ import type {
   AgentGenerationErrorArgs,
   AgentGenerationObserver,
   AgentGenerationStartArgs,
+  AgentGenerationUpdateArgs,
   AgentRunEndArgs,
   AgentRunErrorArgs,
   AgentRunObserver,
@@ -403,6 +404,12 @@ class LangfuseRunObserver implements AgentRunObserver {
 
 class LangfuseGenerationObserver implements AgentGenerationObserver {
   constructor(private readonly generation: LangfuseGeneration) {}
+
+  update(args: AgentGenerationUpdateArgs): void {
+    this.generation.update({
+      output: { delta: args.delta },
+    });
+  }
 
   end(args: AgentGenerationEndArgs): void {
     this.generation

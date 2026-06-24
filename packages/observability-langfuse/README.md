@@ -80,6 +80,10 @@ shows everything the agent runtime emits:
   (with `provider`, `defaultModel`, and `capabilities`) on start, and
   `firstDeltaMs` on end. `usageDetails` always includes
   `cachedInputTokens` and `cacheCreationInputTokens`.
+- **Generation observations** receive a `generation.update({ output: { delta } })`
+  call for every streaming delta (`text_delta`, `reasoning_delta`,
+  `tool_call`), so the Langfuse UI reflects partial output as the
+  model produces it.
 - **Tool observations** carry `toolDefinition` and `toolMetadata` on
   start, and `structuredResult` on end.
 - **Root run observation** carries `serviceName` and the configured

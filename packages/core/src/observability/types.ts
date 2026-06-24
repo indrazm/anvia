@@ -1,3 +1,4 @@
+import type { AgentDeltaEvent } from "../agent/stream-accumulator";
 import type {
   CompletionModelCapabilities,
   CompletionRequest,
@@ -71,6 +72,11 @@ export type AgentGenerationErrorArgs = {
   error: unknown;
 };
 
+export type AgentGenerationUpdateArgs = {
+  turn: number;
+  delta: AgentDeltaEvent;
+};
+
 export type AgentToolStartArgs = {
   turn: number;
   toolCall: ToolCall;
@@ -99,6 +105,7 @@ export type AgentToolStreamEventArgs = AgentToolStartArgs & {
 export interface AgentGenerationObserver {
   end(args: AgentGenerationEndArgs): void | Promise<void>;
   error?(args: AgentGenerationErrorArgs): void | Promise<void>;
+  update?(args: AgentGenerationUpdateArgs): void | Promise<void>;
 }
 
 export interface AgentToolObserver {

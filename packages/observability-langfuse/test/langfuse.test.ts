@@ -1417,6 +1417,119 @@ describe("langfuse", () => {
   });
 });
 
+describe("LangfuseGenerationObserver.update", () => {
+  it("forwards text deltas to generation.update with output.delta", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const generation = fakeObservation("generation", "trace-1", "obs-generation");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+
+    const generationObserver = await run.startGeneration?.(generationStartArgs());
+    generationObserver?.update?.({ turn: 1, delta: { type: "text_delta", delta: "hi" } });
+    expect(generation.update).toHaveBeenCalledWith({
+      output: { delta: { type: "text_delta", delta: "hi" } },
+    });
+  });
+
+  it("forwards reasoning deltas with id and signature", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const generation = fakeObservation("generation", "trace-1", "obs-generation");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+
+    const generationObserver = await run.startGeneration?.(generationStartArgs());
+    generationObserver?.update?.({
+      turn: 1,
+      delta: { type: "reasoning_delta", delta: "thinking...", id: "r1", signature: "sig" },
+    });
+    expect(generation.update).toHaveBeenCalledWith({
+      output: {
+        delta: { type: "reasoning_delta", delta: "thinking...", id: "r1", signature: "sig" },
+      },
+    });
+  });
+
+  it("forwards tool_call deltas with the toolCall payload", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const generation = fakeObservation("generation", "trace-1", "obs-generation");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+
+    const generationObserver = await run.startGeneration?.(generationStartArgs());
+    const toolCall = AssistantContent.toolCall("call-1", "search", { q: "x" });
+    generationObserver?.update?.({ turn: 1, delta: { type: "tool_call", toolCall } });
+    expect(generation.update).toHaveBeenCalledWith({
+      output: { delta: { type: "tool_call", toolCall } },
+    });
+  });
+
+  it("preserves the final end output after streaming deltas", async () => {
+    const root = fakeObservation("root", "trace-1", "obs-root");
+    const turn = fakeObservation("turn", "trace-1", "obs-turn");
+    const generation = fakeObservation("generation", "trace-1", "obs-generation");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+
+    const generationObserver = await run.startGeneration?.(generationStartArgs());
+    generationObserver?.update?.({ turn: 1, delta: { type: "text_delta", delta: "he" } });
+    generationObserver?.update?.({ turn: 1, delta: { type: "text_delta", delta: "llo" } });
+    generationObserver?.end({
+      turn: 1,
+      response: {
+        messageId: "msg-1",
+        choice: [AssistantContent.text("hello")],
+        usage: usage(2, 3),
+        rawResponse: {},
+      },
+    });
+    expect(generation.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        output: expect.objectContaining({ text: "hello" }),
+      }),
+    );
+    expect(generation.end).toHaveBeenCalledOnce();
+  });
+});
+
 describe("ScoreQueue", () => {
   type QueueHandle = {
     queue: ScoreQueue;

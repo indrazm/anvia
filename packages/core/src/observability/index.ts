@@ -3,6 +3,7 @@ export type {
   AgentGenerationErrorArgs,
   AgentGenerationObserver,
   AgentGenerationStartArgs,
+  AgentGenerationUpdateArgs,
   AgentObserver,
   AgentObserverRegistration,
   AgentRunEndArgs,

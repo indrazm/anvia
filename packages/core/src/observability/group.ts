@@ -3,6 +3,7 @@ import type {
   AgentGenerationErrorArgs,
   AgentGenerationObserver,
   AgentGenerationStartArgs,
+  AgentGenerationUpdateArgs,
   AgentObserverRegistration,
   AgentRunEndArgs,
   AgentRunErrorArgs,
@@ -137,6 +138,19 @@ export class ActiveGenerationObservers {
       }
       try {
         await observer.error(args);
+      } catch (error) {
+        this.handleError(error);
+      }
+    }
+  }
+
+  async update(args: AgentGenerationUpdateArgs): Promise<void> {
+    for (const observer of this.generationObservers) {
+      if (observer.update === undefined) {
+        continue;
+      }
+      try {
+        await observer.update(args);
       } catch (error) {
         this.handleError(error);
       }
