@@ -41,8 +41,10 @@ import {
   usageDetails,
   usageDetailsFromRecord,
 } from "./helpers.js";
+import { createPiiRedactor, type PiiRedactor } from "./redaction.js";
 import { ScoreQueue } from "./scoring.js";
 import type {
+  LangfuseRedactionMode,
   LangfuseScoreArgs,
   LangfuseTraceHandle,
   LangfuseTracing,
@@ -65,6 +67,9 @@ class LangfuseAgentObserver implements LangfuseTracing {
   private readonly timeoutMs: number;
   private readonly queue: ScoreQueue | null;
   private currentHandle: LangfuseTraceHandle | undefined;
+  private readonly redactor: PiiRedactor | undefined;
+  private readonly redactInputs: LangfuseRedactionMode | undefined;
+  private readonly redactOutputs: LangfuseRedactionMode | undefined;
 
   constructor(options: LangfuseTracingOptions) {
     this.publicKey = resolveOption(options.publicKey, process.env.LANGFUSE_PUBLIC_KEY);
@@ -109,15 +114,22 @@ class LangfuseAgentObserver implements LangfuseTracing {
             maxRetries: options.scoreMaxRetries ?? 3,
           })
         : null;
+    this.redactInputs = options.redactInputs;
+    this.redactOutputs = options.redactOutputs;
+    this.redactor =
+      options.redactInputs !== undefined || options.redactOutputs !== undefined
+        ? createPiiRedactor(options.redaction)
+        : undefined;
   }
 
   async startRun(args: AgentRunStartArgs): Promise<AgentRunObserver> {
     const traceId = args.trace?.traceId;
+    const redactedInput = this.maybeRedactInput({
+      prompt: args.prompt,
+      history: args.history,
+    });
     const rootAttributes: Parameters<typeof startObservation>[1] = {
-      input: {
-        prompt: args.prompt,
-        history: args.history,
-      },
+      input: redactedInput,
       metadata: {
         ...(this.serviceName !== undefined ? { serviceName: this.serviceName } : {}),
         agentName: args.agentName,
@@ -154,6 +166,11 @@ class LangfuseAgentObserver implements LangfuseTracing {
         observationId: root.id,
       },
       promptRef,
+      {
+        redactor: this.redactor,
+        redactInputs: this.redactInputs,
+        redactOutputs: this.redactOutputs,
+      },
     );
     this.currentHandle = runObserver.getHandle();
     runObserver.setCurrentHandle = (handle) => {
@@ -187,6 +204,16 @@ class LangfuseAgentObserver implements LangfuseTracing {
 
   getCurrentTrace(): LangfuseTraceHandle | undefined {
     return this.currentHandle;
+  }
+
+  private maybeRedactInput<T>(value: T): T {
+    if (this.redactor === undefined || this.redactInputs === undefined) return value;
+    return applyRedaction(this.redactor, value, this.redactInputs);
+  }
+
+  private maybeRedactOutput<T>(value: T): T {
+    if (this.redactor === undefined || this.redactOutputs === undefined) return value;
+    return applyRedaction(this.redactor, value, this.redactOutputs);
   }
 
   async score(args: LangfuseScoreArgs): Promise<void> {
@@ -302,6 +329,22 @@ function applyTraceAttributes(root: LangfuseAgent, args: AgentRunStartArgs): voi
   }
 }
 
+function applyRedaction<T>(redactor: PiiRedactor, value: T, mode: LangfuseRedactionMode): T {
+  if (mode === "deep") {
+    return redactor.redactObject(value);
+  }
+  if (typeof value === "string") {
+    return redactor.redactString(value) as unknown as T;
+  }
+  if (Array.isArray(value)) {
+    return redactor.redactMessages(value as never) as unknown as T;
+  }
+  if (value !== null && typeof value === "object") {
+    return redactor.redactObject(value);
+  }
+  return value;
+}
+
 function resolvePromptRef(args: AgentRunStartArgs): AgentRunPromptRef | undefined {
   if (args.promptRef !== undefined) {
     return args.promptRef;
@@ -364,23 +407,45 @@ class LangfuseRunObserver implements AgentRunObserver {
   clearCurrentHandle: (() => void) | undefined;
   private handle: LangfuseTraceHandle;
   private readonly promptRef: AgentRunPromptRef | undefined;
+  private readonly redactor: PiiRedactor | undefined;
+  private readonly redactInputs: LangfuseRedactionMode | undefined;
+  private readonly redactOutputs: LangfuseRedactionMode | undefined;
 
   constructor(
     private readonly root: LangfuseAgent,
     readonly trace: AgentTraceInfo,
-    promptRef?: AgentRunPromptRef,
+    promptRef: AgentRunPromptRef | undefined,
+    redaction: {
+      redactor: PiiRedactor | undefined;
+      redactInputs: LangfuseRedactionMode | undefined;
+      redactOutputs: LangfuseRedactionMode | undefined;
+    },
   ) {
     this.handle = this.buildHandle();
     this.promptRef = promptRef;
+    this.redactor = redaction.redactor;
+    this.redactInputs = redaction.redactInputs;
+    this.redactOutputs = redaction.redactOutputs;
+  }
+
+  redactInputValue<T>(value: T): T {
+    if (this.redactor === undefined || this.redactInputs === undefined) return value;
+    return applyRedaction(this.redactor, value, this.redactInputs);
+  }
+
+  redactOutputValue<T>(value: T): T {
+    if (this.redactor === undefined || this.redactOutputs === undefined) return value;
+    return applyRedaction(this.redactor, value, this.redactOutputs);
   }
 
   startGeneration(args: AgentGenerationStartArgs): AgentGenerationObserver {
     this.closeEarlierTurns(args.turn);
     const turn = this.turnSpan(args.turn);
+    const redactedChatHistory = this.redactInputValue(args.request.chatHistory);
     const generation = turn.startObservation(
       `model.turn.${args.turn}`,
       {
-        input: args.request.chatHistory,
+        input: redactedChatHistory,
         model: args.request.model ?? "default",
         modelParameters: modelParameters(args.request),
         metadata: {
@@ -404,16 +469,17 @@ class LangfuseRunObserver implements AgentRunObserver {
       },
       { asType: "generation" },
     );
-    return new LangfuseGenerationObserver(generation);
+    return new LangfuseGenerationObserver(generation, this);
   }
 
   startTool(args: AgentToolStartArgs): AgentToolObserver {
     const turn = this.turnSpan(args.turn);
+    const redactedArgs = this.redactInputValue(args.args);
     const tool = turn.startObservation(
       `tool.${args.toolName}`,
       {
         input: {
-          args: args.args,
+          args: redactedArgs,
           toolCall: args.toolCall,
         },
         metadata: {
@@ -426,14 +492,15 @@ class LangfuseRunObserver implements AgentRunObserver {
       },
       { asType: "tool" },
     );
-    return new LangfuseToolObserver(tool);
+    return new LangfuseToolObserver(tool, this);
   }
 
   end(args: AgentRunEndArgs): void {
     this.closeAllTurns();
+    const redactedOutput = this.redactOutputValue(args.output);
     this.root
       .update({
-        output: args.output,
+        output: redactedOutput,
         metadata: {
           usage: args.usage,
           messages: args.messages,
@@ -521,7 +588,10 @@ class LangfuseRunObserver implements AgentRunObserver {
 }
 
 class LangfuseGenerationObserver implements AgentGenerationObserver {
-  constructor(private readonly generation: LangfuseGeneration) {}
+  constructor(
+    private readonly generation: LangfuseGeneration,
+    private readonly run: LangfuseRunObserver,
+  ) {}
 
   update(args: AgentGenerationUpdateArgs): void {
     this.generation.update({
@@ -530,12 +600,14 @@ class LangfuseGenerationObserver implements AgentGenerationObserver {
   }
 
   end(args: AgentGenerationEndArgs): void {
+    const redactedText = this.run.redactOutputValue(textFromAssistantContent(args.response.choice));
+    const redactedChoice = this.run.redactOutputValue(args.response.choice);
     this.generation
       .update({
         output: {
           messageId: args.response.messageId,
-          content: args.response.choice,
-          text: textFromAssistantContent(args.response.choice),
+          content: redactedChoice,
+          text: redactedText,
         },
         usageDetails: usageDetails(args.response.usage),
         metadata: {
@@ -569,7 +641,10 @@ class LangfuseToolObserver implements AgentToolObserver {
     ended: boolean;
   }> = [];
 
-  constructor(private readonly tool: LangfuseTool) {}
+  constructor(
+    private readonly tool: LangfuseTool,
+    private readonly run: LangfuseRunObserver,
+  ) {}
 
   streamEvent(args: AgentToolStreamEventArgs): void {
     const wrapper = args.event;
@@ -699,14 +774,16 @@ class LangfuseToolObserver implements AgentToolObserver {
 
   end(args: AgentToolEndArgs): void {
     this.endOpenChildren();
+    const redactedResult = this.run.redactOutputValue(args.result);
+    const redactedStructured = this.run.redactOutputValue(args.structuredResult);
     const attributes: Parameters<LangfuseTool["update"]>[0] = {
-      output: args.result,
+      output: redactedResult,
       metadata: {
         turn: args.turn,
         internalCallId: args.internalCallId,
         toolCallId: args.toolCallId,
         skipped: args.skipped,
-        ...(args.structuredResult !== undefined ? { structuredResult: args.structuredResult } : {}),
+        ...(redactedStructured !== undefined ? { structuredResult: redactedStructured } : {}),
       },
       level: args.skipped ? "WARNING" : "DEFAULT",
     };

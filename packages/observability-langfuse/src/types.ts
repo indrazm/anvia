@@ -1,6 +1,18 @@
 import type { JsonValue } from "@anvia/core/completion";
 import type { AgentObserver } from "@anvia/core/observability";
 
+export type LangfuseRedactionMode = boolean | "deep";
+
+export type LangfuseRedactionOptions = {
+  patterns?: RedactorPattern[];
+  replacement?: string;
+};
+
+export type RedactorPattern = {
+  name: string;
+  regex: RegExp;
+};
+
 export type LangfuseTracingOptions = {
   publicKey?: string | undefined;
   secretKey?: string | undefined;
@@ -12,6 +24,9 @@ export type LangfuseTracingOptions = {
   scoreBatchSize?: number | undefined;
   scoreFlushIntervalMs?: number | undefined;
   scoreMaxRetries?: number | undefined;
+  redactInputs?: LangfuseRedactionMode | undefined;
+  redactOutputs?: LangfuseRedactionMode | undefined;
+  redaction?: LangfuseRedactionOptions | undefined;
 };
 
 export type LangfuseScoreDataType = "NUMERIC" | "CATEGORICAL" | "BOOLEAN";

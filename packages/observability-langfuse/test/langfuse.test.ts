@@ -3184,3 +3184,363 @@ function createPromptClient(
 ): ReturnType<typeof createLangfusePromptClient> {
   return createLangfusePromptClient(tracing, options);
 }
+
+describe("PII redaction", () => {
+  it("redacts a single email address", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    expect(r.redactString("contact alice@example.com for details")).toBe(
+      "contact [REDACTED] for details",
+    );
+  });
+
+  it("redacts phone numbers in common shapes", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    expect(r.redactString("Call (415) 555-1212 or +1 415-555-1313 today")).toBe(
+      "Call [REDACTED] or [REDACTED] today",
+    );
+  });
+
+  it("redacts IPv4 addresses", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    expect(r.redactString("server 192.168.1.42 was down")).toBe("server [REDACTED] was down");
+  });
+
+  it("redacts JWT-shaped strings", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    const header = "eyJ".padEnd(36, "A");
+    const middle = "B".repeat(20);
+    const tail = "C".repeat(20);
+    const jwt = `${header}.${middle}.${tail}`;
+    expect(r.redactString(`token=${jwt}`)).toBe("token=[REDACTED]");
+  });
+
+  it("redacts common API-key shapes", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    expect(r.redactString("use sk-abcdefghijklmnopqrstuv to authenticate")).toBe(
+      "use [REDACTED] to authenticate",
+    );
+  });
+
+  it("redacts credit-card-shaped sequences that pass Luhn", async () => {
+    const { createPiiRedactor, passesLuhn } = await import("../src/redaction");
+    expect(passesLuhn("4111111111111111")).toBe(true);
+    const r = createPiiRedactor();
+    expect(r.redactString("card 4111-1111-1111-1111 today")).toBe("card [REDACTED] today");
+  });
+
+  it("does not redact credit-card-shaped sequences that fail Luhn", async () => {
+    const { createPiiRedactor, passesLuhn } = await import("../src/redaction");
+    expect(passesLuhn("4111111111111112")).toBe(false);
+    const r = createPiiRedactor();
+    expect(r.redactString("not a card: 4111111111111112")).toBe("not a card: 4111111111111112");
+  });
+
+  it("redacts multiple patterns in a single string", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    expect(r.redactString("from alice@example.com to 10.0.0.1 at 415-555-1212")).toBe(
+      "from [REDACTED] to [REDACTED] at [REDACTED]",
+    );
+  });
+
+  it("uses the configured replacement", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor({ replacement: "<HIDDEN>" });
+    expect(r.redactString("alice@example.com")).toBe("<HIDDEN>");
+  });
+
+  it("redactMessages redacts text inside message content", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    const out = r.redactMessages([
+      { role: "user", content: [{ type: "text", text: "hi alice@example.com" }] },
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "use 10.0.0.1" },
+          { type: "tool_call", id: "c", function: { name: "x", arguments: {} } },
+        ],
+      },
+    ]);
+    expect(out[0]?.content[0]).toMatchObject({ text: "hi [REDACTED]" });
+    expect(out[1]?.content[0]).toMatchObject({ text: "use [REDACTED]" });
+    expect(out[1]?.content[1]).toEqual({
+      type: "tool_call",
+      id: "c",
+      function: { name: "x", arguments: {} },
+    });
+  });
+
+  it("redactObject recurses into nested objects and arrays", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    const out = r.redactObject({
+      contact: "alice@example.com",
+      list: ["server 10.0.0.1", { nested: "call 415-555-1212" }],
+    });
+    expect(out).toEqual({
+      contact: "[REDACTED]",
+      list: ["server [REDACTED]", { nested: "call [REDACTED]" }],
+    });
+  });
+
+  it("redactObject returns primitives unchanged", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    expect(r.redactObject(42)).toBe(42);
+    expect(r.redactObject(null)).toBe(null);
+    expect(r.redactObject(true)).toBe(true);
+  });
+
+  it("patternNames returns the configured pattern names", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor();
+    expect(r.patternNames()).toEqual(["email", "creditCard", "ipv4", "phone", "jwt", "apiKey"]);
+  });
+
+  it("custom patterns replace the default set", async () => {
+    const { createPiiRedactor } = await import("../src/redaction");
+    const r = createPiiRedactor({
+      patterns: [{ name: "ssn", regex: /\b\d{3}-\d{2}-\d{4}\b/g }],
+    });
+    expect(r.patternNames()).toEqual(["ssn"]);
+    expect(r.redactString("ssn 123-45-6789 not alice@example.com")).toBe(
+      "ssn [REDACTED] not alice@example.com",
+    );
+  });
+});
+
+describe("Langfuse redaction integration", () => {
+  it("is off by default: an email in args.prompt flows through unchanged", async () => {
+    const root = fakeObservation("root", "trace-redact-1", "obs-root-redact-1");
+    root.startObservation.mockReturnValue(root);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("email alice@example.com please"),
+      history: [],
+      maxTurns: 1,
+    });
+
+    const inputArg = mocks.startObservation.mock.calls[0]?.[1] as {
+      input: { prompt: { content: Array<{ text?: string }> } };
+    };
+    const text = inputArg.input.prompt.content[0]?.text;
+    expect(text).toBe("email alice@example.com please");
+  });
+
+  it("with redactInputs: true the email is replaced with [REDACTED]", async () => {
+    const root = fakeObservation("root", "trace-redact-2", "obs-root-redact-2");
+    root.startObservation.mockReturnValue(root);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      redactInputs: true,
+    });
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("email alice@example.com please"),
+      history: [userMessage("also bob@example.com")],
+      maxTurns: 1,
+    });
+
+    const inputArg = mocks.startObservation.mock.calls[0]?.[1] as {
+      input: {
+        prompt: { content: Array<{ text?: string }> };
+        history: Array<{ content: Array<{ text?: string }> }>;
+      };
+    };
+    expect(inputArg.input.prompt.content[0]?.text).toBe("email [REDACTED] please");
+    expect(inputArg.input.history[0]?.content[0]?.text).toBe("also [REDACTED]");
+  });
+
+  it("with redactInputs: 'deep' the chat history text is also redacted", async () => {
+    const root = fakeObservation("root", "trace-redact-3", "obs-root-redact-3");
+    const turn = fakeObservation("turn", "trace-redact-3", "obs-turn-redact-3");
+    const generation = fakeObservation("generation", "trace-redact-3", "obs-gen-redact-3");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      redactInputs: "deep",
+    });
+    const run = await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    });
+    if (!run?.startGeneration) throw new Error("missing startGeneration");
+    await run.startGeneration({
+      ...generationStartArgs(),
+      request: {
+        ...generationStartArgs().request,
+        chatHistory: [userMessage("hello alice@example.com")],
+      },
+    });
+
+    const call = turn.startObservation.mock.calls[0];
+    const input = (call?.[1] as { input: Array<{ content: Array<{ text?: string }> }> }).input;
+    expect(input[0]?.content[0]?.text).toBe("hello [REDACTED]");
+  });
+
+  it("with redactOutputs: true the generation output text is redacted", async () => {
+    const root = fakeObservation("root", "trace-redact-4", "obs-root-redact-4");
+    const turn = fakeObservation("turn", "trace-redact-4", "obs-turn-redact-4");
+    const generation = fakeObservation("generation", "trace-redact-4", "obs-gen-redact-4");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      redactOutputs: true,
+    });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+
+    const generationObserver = await run.startGeneration?.(generationStartArgs());
+    await generationObserver?.end({
+      turn: 1,
+      response: {
+        messageId: "msg-1",
+        choice: [AssistantContent.text("reply to alice@example.com")],
+        usage: usage(1, 2),
+        rawResponse: {},
+      },
+    });
+
+    const updateCall = generation.update.mock.calls.at(-1)?.[0] as {
+      output: { text: string };
+    };
+    expect(updateCall.output.text).toBe("reply to [REDACTED]");
+  });
+
+  it("with redactOutputs: 'deep' the choice array is deeply redacted", async () => {
+    const root = fakeObservation("root", "trace-redact-5", "obs-root-redact-5");
+    const turn = fakeObservation("turn", "trace-redact-5", "obs-turn-redact-5");
+    const generation = fakeObservation("generation", "trace-redact-5", "obs-gen-redact-5");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(generation);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      redactOutputs: "deep",
+    });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+
+    const generationObserver = await run.startGeneration?.(generationStartArgs());
+    await generationObserver?.end({
+      turn: 1,
+      response: {
+        messageId: "msg-1",
+        choice: [AssistantContent.text("server 10.0.0.1")],
+        usage: usage(1, 2),
+        rawResponse: {},
+      },
+    });
+
+    const updateCall = generation.update.mock.calls.at(-1)?.[0] as {
+      output: { content: Array<{ text?: string }> };
+    };
+    const text = updateCall.output.content[0]?.text;
+    expect(text).toBe("server [REDACTED]");
+  });
+
+  it("redacts tool args and result when the corresponding mode is on", async () => {
+    const root = fakeObservation("root", "trace-redact-6", "obs-root-redact-6");
+    const turn = fakeObservation("turn", "trace-redact-6", "obs-turn-redact-6");
+    const tool = fakeObservation("tool", "trace-redact-6", "obs-tool-redact-6");
+    root.startObservation.mockReturnValueOnce(turn);
+    turn.startObservation.mockReturnValueOnce(tool);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      redactInputs: true,
+      redactOutputs: true,
+    });
+    const run = (await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("hi"),
+      history: [],
+      maxTurns: 1,
+    })) as AgentRunObserver;
+
+    const toolObserver = (await run.startTool?.({
+      turn: 1,
+      toolName: "lookup",
+      args: '{"email":"alice@example.com"}',
+      toolCall: AssistantContent.toolCall("c-1", "lookup", { email: "alice@example.com" }),
+      internalCallId: "i-1",
+      toolCallId: "c-1",
+    })) as AgentToolObserver;
+
+    const startCall = turn.startObservation.mock.calls[0];
+    const startInput = (startCall?.[1] as { input: { args: string } }).input;
+    expect(startInput.args).toBe('{"email":"[REDACTED]"}');
+
+    await toolObserver?.end({
+      turn: 1,
+      toolName: "lookup",
+      args: '{"email":"alice@example.com"}',
+      toolCall: AssistantContent.toolCall("c-1", "lookup", { email: "alice@example.com" }),
+      internalCallId: "i-1",
+      toolCallId: "c-1",
+      result: "wrote to alice@example.com",
+      skipped: false,
+    });
+
+    const endCall = tool.update.mock.calls.at(-1)?.[0] as { output: string };
+    expect(endCall.output).toBe("wrote to [REDACTED]");
+  });
+
+  it("redaction.replacement propagates to the redactor", async () => {
+    const root = fakeObservation("root", "trace-redact-7", "obs-root-redact-7");
+    root.startObservation.mockReturnValue(root);
+    mocks.startObservation.mockReturnValueOnce(root);
+
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      redactInputs: true,
+      redaction: { replacement: "<HIDDEN>" },
+    });
+    await tracing.startRun({
+      agentName: "support",
+      prompt: userMessage("alice@example.com"),
+      history: [],
+      maxTurns: 1,
+    });
+
+    const inputArg = mocks.startObservation.mock.calls[0]?.[1] as {
+      input: { prompt: { content: Array<{ text?: string }> } };
+    };
+    expect(inputArg.input.prompt.content[0]?.text).toBe("<HIDDEN>");
+  });
+});

@@ -412,6 +412,57 @@ already attach metadata to `withTrace(...)`.
   array; throws if the prompt is a text prompt.
 - `refresh()`: clears the cache.
 
+## PII redaction
+
+Mask personally identifiable information in observations before it
+leaves the process. The default pattern set catches emails,
+credit cards (with Luhn validation), phone numbers, IPv4
+addresses, JWTs, and common API key shapes.
+
+```ts
+import { langfuse } from "@anvia/langfuse";
+
+const tracing = langfuse.create({
+  publicKey: "pk",
+  secretKey: "sk",
+  redactInputs: true,
+  redactOutputs: "deep",
+});
+```
+
+- `redactInputs` redacts text on root inputs, chat history, and tool
+  arguments.
+- `redactOutputs` redacts generation output text and tool results.
+- `"deep"` recurses into nested objects and arrays (in addition to
+  top-level strings).
+
+### Customizing
+
+```ts
+const tracing = langfuse.create({
+  publicKey: "pk",
+  secretKey: "sk",
+  redactOutputs: true,
+  redaction: {
+    replacement: "[HIDDEN]",
+    patterns: [
+      { name: "ssn", regex: /\b\d{3}-\d{2}-\d{4}\b/g },
+    ],
+  },
+});
+```
+
+`createPiiRedactor(options)` is also exported for ad-hoc use:
+
+```ts
+import { createPiiRedactor } from "@anvia/langfuse";
+
+const redactor = createPiiRedactor();
+const safe = redactor.redactString("email alice@example.com today");
+const safeMessages = redactor.redactMessages(messages);
+const safeObject = redactor.redactObject(spanInput);
+```
+
 ## Exports
 
 - `langfuse`
@@ -441,6 +492,12 @@ already attach metadata to `withTrace(...)`.
 - `LangfuseChatMessage`
 - `RunEvalAsExperimentOptions`
 - `RunEvalAsExperimentResult`
+- `createPiiRedactor`
+- `DEFAULT_PATTERNS`
+- `PiiRedactor`
+- `RedactorPattern`
+- `LangfuseRedactionOptions`
+- `LangfuseRedactionMode`
 
 ## Development
 
