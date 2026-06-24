@@ -9,6 +9,9 @@ export type LangfuseTracingOptions = {
   release?: string | undefined;
   serviceName?: string | undefined;
   timeoutMs?: number | undefined;
+  scoreBatchSize?: number | undefined;
+  scoreFlushIntervalMs?: number | undefined;
+  scoreMaxRetries?: number | undefined;
 };
 
 export type LangfuseScoreDataType = "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
@@ -31,6 +34,8 @@ export type LangfuseTracing = AgentObserver & {
   flush(): Promise<void>;
   shutdown(): Promise<void>;
   score(args: LangfuseScoreArgs): Promise<void>;
+  flushScores(): Promise<void>;
+  scoreQueueDepth(): number;
 };
 
 export type LangfuseEvalReporterOptions = {

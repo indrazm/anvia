@@ -38,6 +38,7 @@ import {
   usageDetails,
   usageDetailsFromRecord,
 } from "./helpers.js";
+import { ScoreQueue } from "./scoring.js";
 import type { LangfuseScoreArgs, LangfuseTracing, LangfuseTracingOptions } from "./types.js";
 
 export const langfuse = {
@@ -54,6 +55,7 @@ class LangfuseAgentObserver implements LangfuseTracing {
   private readonly baseUrl: string;
   private readonly serviceName: string | undefined;
   private readonly timeoutMs: number;
+  private readonly queue: ScoreQueue | null;
 
   constructor(options: LangfuseTracingOptions) {
     this.publicKey = resolveOption(options.publicKey, process.env.LANGFUSE_PUBLIC_KEY);
@@ -85,6 +87,19 @@ class LangfuseAgentObserver implements LangfuseTracing {
     }
     this.sdk = new NodeSDK(sdkOptions);
     this.sdk.start();
+    const batchSize = options.scoreBatchSize ?? 0;
+    this.queue =
+      batchSize > 0 && this.publicKey !== undefined && this.secretKey !== undefined
+        ? new ScoreQueue({
+            baseUrl: this.baseUrl,
+            publicKey: this.publicKey,
+            secretKey: this.secretKey,
+            timeoutMs: this.timeoutMs,
+            batchSize,
+            flushIntervalMs: options.scoreFlushIntervalMs ?? 250,
+            maxRetries: options.scoreMaxRetries ?? 3,
+          })
+        : null;
   }
 
   async startRun(args: AgentRunStartArgs): Promise<AgentRunObserver> {
@@ -129,11 +144,21 @@ class LangfuseAgentObserver implements LangfuseTracing {
   }
 
   async flush(): Promise<void> {
+    await this.queue?.flush();
     await this.processor.forceFlush();
   }
 
   async shutdown(): Promise<void> {
+    await this.queue?.shutdown();
     await this.sdk.shutdown();
+  }
+
+  async flushScores(): Promise<void> {
+    await this.queue?.flush();
+  }
+
+  scoreQueueDepth(): number {
+    return this.queue?.depth() ?? 0;
   }
 
   async score(args: LangfuseScoreArgs): Promise<void> {
@@ -145,23 +170,16 @@ class LangfuseAgentObserver implements LangfuseTracing {
     }
     assertScoreValue(args.value, args.dataType);
 
-    const body: Record<string, unknown> = {
-      traceId: args.traceId,
-      name: args.name,
-      value: args.value,
-    };
-    if (args.observationId !== undefined) body.observationId = args.observationId;
-    if (args.dataType !== undefined) body.dataType = args.dataType;
-    if (args.comment !== undefined) body.comment = args.comment;
-    if (args.metadata !== undefined) body.metadata = args.metadata;
-    const configId = args.configId ?? args.scoreConfigId;
-    if (configId !== undefined) body.configId = configId;
-    if (args.environment !== undefined) body.environment = args.environment;
-    if (args.timestamp !== undefined) {
-      body.timestamp =
-        args.timestamp instanceof Date ? args.timestamp.toISOString() : args.timestamp;
+    if (this.queue !== null) {
+      this.queue.enqueue(args);
+      return;
     }
 
+    await this.sendScore(args);
+  }
+
+  private async sendScore(args: LangfuseScoreArgs): Promise<void> {
+    const body = buildScoreBody(args);
     const response = await fetch(`${this.baseUrl}/api/public/scores`, {
       method: "POST",
       headers: {
@@ -198,6 +216,26 @@ function assertScoreValue(value: number | string, dataType: LangfuseScoreArgs["d
     }
     return;
   }
+}
+
+function buildScoreBody(score: LangfuseScoreArgs): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    traceId: score.traceId,
+    name: score.name,
+    value: score.value,
+  };
+  if (score.observationId !== undefined) body.observationId = score.observationId;
+  if (score.dataType !== undefined) body.dataType = score.dataType;
+  if (score.comment !== undefined) body.comment = score.comment;
+  if (score.metadata !== undefined) body.metadata = score.metadata;
+  const configId = score.configId ?? score.scoreConfigId;
+  if (configId !== undefined) body.configId = configId;
+  if (score.environment !== undefined) body.environment = score.environment;
+  if (score.timestamp !== undefined) {
+    body.timestamp =
+      score.timestamp instanceof Date ? score.timestamp.toISOString() : score.timestamp;
+  }
+  return body;
 }
 
 function applyTraceAttributes(root: LangfuseAgent, args: AgentRunStartArgs): void {

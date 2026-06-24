@@ -7,6 +7,7 @@ import type {
 } from "@anvia/core/observability";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createLangfuseEvalReporter as createReporter, langfuse } from "../src/index";
+import { ScoreQueue } from "../src/scoring";
 
 const mocks = vi.hoisted(() => ({
   forceFlush: vi.fn(),
@@ -1413,6 +1414,284 @@ describe("langfuse", () => {
       expect.objectContaining({ traceId: "trace-fallback", value: 1 }),
     );
     expect(score).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("ScoreQueue", () => {
+  type QueueHandle = {
+    queue: ScoreQueue;
+    fetchMock: ReturnType<typeof vi.fn>;
+    sleepMock: ReturnType<typeof vi.fn>;
+  };
+
+  function makeQueue(
+    overrides: Partial<{
+      fetchImpl: typeof fetch;
+      sleep: (ms: number) => Promise<void>;
+      setTimer: (handler: () => void, ms: number) => unknown;
+      clearTimer: (handle: unknown) => void;
+      flushIntervalMs: number;
+      batchSize: number;
+      maxRetries: number;
+    }> = {},
+  ): QueueHandle {
+    const fetchMock = (overrides.fetchImpl ??
+      vi.fn(async () => new Response(null, { status: 204 }))) as
+      | typeof fetch
+      | ReturnType<typeof vi.fn>;
+    const sleepMock = (overrides.sleep ?? vi.fn(async () => {})) as
+      | ((ms: number) => Promise<void>)
+      | ReturnType<typeof vi.fn>;
+    const queue = new ScoreQueue({
+      baseUrl: "https://langfuse.test",
+      publicKey: "pk",
+      secretKey: "sk",
+      timeoutMs: 5_000,
+      batchSize: overrides.batchSize ?? 3,
+      flushIntervalMs: overrides.flushIntervalMs ?? 100,
+      maxRetries: overrides.maxRetries ?? 3,
+      fetchImpl: fetchMock as typeof fetch,
+      sleep: sleepMock as (ms: number) => Promise<void>,
+      ...(overrides.setTimer ? { setTimer: overrides.setTimer } : {}),
+      ...(overrides.clearTimer ? { clearTimer: overrides.clearTimer } : {}),
+    });
+    return {
+      queue,
+      fetchMock: fetchMock as ReturnType<typeof vi.fn>,
+      sleepMock: sleepMock as ReturnType<typeof vi.fn>,
+    };
+  }
+
+  function scoreArgs(overrides: Partial<{ traceId: string; name: string; value: number }> = {}) {
+    return {
+      traceId: "trace-1",
+      name: "quality",
+      value: 1,
+      ...overrides,
+    };
+  }
+
+  it("enqueue keeps depth accurate", () => {
+    const { queue } = makeQueue();
+    expect(queue.depth()).toBe(0);
+    queue.enqueue(scoreArgs());
+    queue.enqueue(scoreArgs({ name: "latency" }));
+    expect(queue.depth()).toBe(2);
+  });
+
+  it("flush posts a JSON array with all pending scores", async () => {
+    const { queue, fetchMock } = makeQueue();
+    queue.enqueue(scoreArgs());
+    queue.enqueue(scoreArgs({ name: "latency", value: 0.5 }));
+
+    await queue.flush();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(Array.isArray(body)).toBe(true);
+    expect(body).toHaveLength(2);
+    expect(body[0]).toMatchObject({ traceId: "trace-1", name: "quality", value: 1 });
+    expect(body[1]).toMatchObject({ name: "latency", value: 0.5 });
+    expect(queue.depth()).toBe(0);
+  });
+
+  it("flush returns when the response is 2xx and clears the queue", async () => {
+    const { queue, fetchMock } = makeQueue();
+    queue.enqueue(scoreArgs());
+    await expect(queue.flush()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(queue.depth()).toBe(0);
+  });
+
+  it("retries on 429 with exponential backoff", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const sleepMock = vi.fn(async () => {});
+    const { queue } = makeQueue({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleep: sleepMock,
+    });
+
+    queue.enqueue(scoreArgs());
+    await queue.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(sleepMock).toHaveBeenCalledTimes(2);
+    const sleepCalls = sleepMock.mock.calls as unknown as Array<[number]>;
+    const first = sleepCalls[0]?.[0] ?? 0;
+    const second = sleepCalls[1]?.[0] ?? 0;
+    expect(first).toBeGreaterThan(0);
+    expect(second).toBeGreaterThanOrEqual(first);
+  });
+
+  it("retries on 500 with exponential backoff", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const sleepMock = vi.fn(async () => {});
+    const { queue } = makeQueue({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleep: sleepMock,
+    });
+
+    queue.enqueue(scoreArgs());
+    await queue.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sleepMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not retry on 400 and throws LangfuseScoreError with scores", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("bad", { status: 400 }));
+    const { queue } = makeQueue({ fetchImpl: fetchMock as unknown as typeof fetch });
+    const scores = [scoreArgs(), scoreArgs({ name: "latency" })];
+
+    for (const s of scores) queue.enqueue(s);
+
+    await expect(queue.flush()).rejects.toMatchObject({
+      name: "LangfuseScoreError",
+      message: expect.stringMatching(/HTTP 400/),
+      scores: expect.arrayContaining([
+        expect.objectContaining({ name: "quality" }),
+        expect.objectContaining({ name: "latency" }),
+      ]),
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("gives up after maxRetries and throws LangfuseScoreError", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
+    const sleepMock = vi.fn(async () => {});
+    const { queue } = makeQueue({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+      sleep: sleepMock,
+      maxRetries: 3,
+    });
+
+    queue.enqueue(scoreArgs());
+    await expect(queue.flush()).rejects.toMatchObject({
+      name: "LangfuseScoreError",
+      message: expect.stringMatching(/after 3 attempts/),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(sleepMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("size threshold triggers an immediate flush without waiting for the timer", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const { queue } = makeQueue({ fetchImpl: fetchMock as unknown as typeof fetch, batchSize: 2 });
+
+    queue.enqueue(scoreArgs());
+    queue.enqueue(scoreArgs({ name: "latency" }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(queue.depth()).toBe(0);
+  });
+
+  it("shutdown flushes pending scores and clears the timer", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const { queue } = makeQueue({ fetchImpl: fetchMock as unknown as typeof fetch });
+
+    queue.enqueue(scoreArgs());
+    await queue.shutdown();
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(queue.depth()).toBe(0);
+  });
+});
+
+describe("score queue integration", () => {
+  it("score() direct-sends when scoreBatchSize is not set", async () => {
+    const tracing = langfuse.create({ publicKey: "pk", secretKey: "sk" });
+    expect(tracing.scoreQueueDepth()).toBe(0);
+
+    await tracing.score({ traceId: "t", name: "n", value: 1 });
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+    expect(tracing.scoreQueueDepth()).toBe(0);
+  });
+
+  it("score() enqueues when scoreBatchSize is set and exposes depth", async () => {
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      scoreBatchSize: 10,
+    });
+    expect(tracing.scoreQueueDepth()).toBe(0);
+
+    await tracing.score({ traceId: "t", name: "n", value: 1 });
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    expect(tracing.scoreQueueDepth()).toBe(1);
+  });
+
+  it("flushScores() drains the queue and posts one batched request", async () => {
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      scoreBatchSize: 10,
+    });
+    await tracing.score({ traceId: "t1", name: "quality", value: 1 });
+    await tracing.score({ traceId: "t2", name: "latency", value: 0.4 });
+    expect(tracing.scoreQueueDepth()).toBe(2);
+
+    await tracing.flushScores();
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));
+    expect(body).toHaveLength(2);
+    expect(tracing.scoreQueueDepth()).toBe(0);
+  });
+
+  it("flush() also drains the score queue in addition to processor.forceFlush()", async () => {
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      scoreBatchSize: 10,
+    });
+    await tracing.score({ traceId: "t1", name: "quality", value: 1 });
+    expect(tracing.scoreQueueDepth()).toBe(1);
+
+    await tracing.flush();
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+    expect(tracing.scoreQueueDepth()).toBe(0);
+    expect(mocks.forceFlush).toHaveBeenCalledOnce();
+  });
+
+  it("shutdown() drains the score queue and stops the SDK", async () => {
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      scoreBatchSize: 10,
+    });
+    await tracing.score({ traceId: "t1", name: "quality", value: 1 });
+
+    await tracing.shutdown();
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+    expect(tracing.scoreQueueDepth()).toBe(0);
+    expect(mocks.shutdown).toHaveBeenCalledOnce();
+  });
+
+  it("LangfuseScoreError carries the failed scores when a batch fails non-retryably", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(Promise.resolve(new Response("bad", { status: 400 })));
+
+    const tracing = langfuse.create({
+      publicKey: "pk",
+      secretKey: "sk",
+      scoreBatchSize: 10,
+    });
+    await tracing.score({ traceId: "t1", name: "quality", value: 1 });
+    await tracing.score({ traceId: "t2", name: "latency", value: 0.4 });
+
+    await expect(tracing.flushScores()).rejects.toMatchObject({
+      name: "LangfuseScoreError",
+      scores: expect.arrayContaining([
+        expect.objectContaining({ traceId: "t1" }),
+        expect.objectContaining({ traceId: "t2" }),
+      ]),
+    });
   });
 });
 

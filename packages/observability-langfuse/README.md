@@ -117,13 +117,43 @@ await tracing.score({
 The score fetch has a default timeout of 30 s, overrideable via
 `langfuse.create({ timeoutMs: ... })`.
 
+### Batching and retry (high-volume evals)
+
+Enable the in-memory score queue by setting `scoreBatchSize` on
+`langfuse.create()`. When enabled, `tracing.score()` enqueues the
+score and returns immediately. The queue flushes when it reaches
+`scoreBatchSize`, on a debounce timer (`scoreFlushIntervalMs`,
+default 250 ms), and on `flushScores()`, `flush()`, or `shutdown()`.
+
+```ts
+const tracing = langfuse.create({
+  publicKey,
+  secretKey,
+  scoreBatchSize: 20,             // enable queue; flushes at 20 items
+  scoreFlushIntervalMs: 500,      // or after 500ms
+  scoreMaxRetries: 3,             // retry 429 / 5xx with backoff
+});
+
+await tracing.score({ traceId, name: "quality", value: 1 });
+await tracing.score({ traceId, name: "latency", value: 0.4 });
+await tracing.flushScores();       // drain the queue
+console.log(tracing.scoreQueueDepth()); // 0
+```
+
+`flush()` and `shutdown()` also drain the score queue. After all
+retries are exhausted, the queue throws a `LangfuseScoreError` whose
+`scores` property contains the failed payloads so you can inspect
+what was lost.
+
 ## Exports
 
 - `langfuse`
 - `createLangfuseEvalReporter`
+- `LangfuseScoreError`
 - `LangfuseTracing`
 - `LangfuseTracingOptions`
 - `LangfuseScoreArgs`
+- `LangfuseScoreDataType`
 - `LangfuseEvalReporterOptions`
 
 ## Development
