@@ -1,0 +1,60 @@
+---
+import { getCollection } from "astro:content";
+import DocsPreview from "../components/docs/DocsPreview.astro";
+import DocsShell from "../components/docs/DocsShell.astro";
+import { docHref, isPublishedDoc, sectionLabel, sortDocs } from "../lib/docs";
+
+const docs = sortDocs((await getCollection("docs")).filter(isPublishedDoc));
+const homeCards = docs
+  .filter((entry) => entry.data.home?.card)
+  .sort((a, b) => (a.data.home?.order ?? 999) - (b.data.home?.order ?? 999));
+
+const previewVariants = ["diagram", "terminal", "retrieval", "tracing"] as const;
+---
+
+<DocsShell
+  title="Anvia Docs"
+  description="Learn how to build, deploy, observe, and extend TypeScript agents with the Anvia package stack."
+  entries={docs}
+  activeSection="runtime"
+>
+  <section class="max-w-5xl">
+    <p class="font-mono text-[#E9FF4E]/70 text-[0.75rem] uppercase tracking-[0.18em]">
+      Documentation
+    </p>
+    <h1 class="mt-4 max-w-4xl font-semibold text-4xl text-zinc-50 leading-[1.02] tracking-[-0.02em] sm:text-5xl">
+      Anvia runtime documentation
+    </h1>
+    <p class="mt-4 max-w-3xl text-lg text-zinc-300 leading-8">
+      Learn how to build, deploy, observe, and extend TypeScript agents with the Anvia package stack.
+    </p>
+  </section>
+
+  <section class="mt-14 grid gap-x-7 gap-y-12 xl:grid-cols-2" aria-label="Documentation topics">
+    {
+      homeCards.map((entry, index) => (
+        <article class="min-w-0">
+          <DocsPreview variant={previewVariants[index % previewVariants.length]} />
+
+          <p class="mt-6 font-mono text-[#E9FF4E]/65 text-[0.68rem] uppercase tracking-[0.16em]">
+            {sectionLabel(entry.data.section)}
+          </p>
+          <h2 class="mt-2 font-semibold text-xl text-zinc-100 tracking-[-0.01em]">
+            {entry.data.title}
+          </h2>
+          <p class="mt-3 max-w-xl text-base text-zinc-300 leading-7">
+            {entry.data.description}
+          </p>
+          <div class="mt-5 flex gap-7">
+            <a href={docHref(entry)} class="font-semibold text-[#E9FF4E] text-sm transition hover:text-[#ddf447]">
+              Overview -&gt;
+            </a>
+            <a href={docHref(entry)} class="font-semibold text-[#E9FF4E] text-sm transition hover:text-[#ddf447]">
+              Quickstart -&gt;
+            </a>
+          </div>
+        </article>
+      ))
+    }
+  </section>
+</DocsShell>
