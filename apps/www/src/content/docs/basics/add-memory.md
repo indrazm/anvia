@@ -7,11 +7,15 @@ sidebar:
   order: 3
 ---
 
-Memory lets an agent load and save messages for a durable session.
+Memory lets an agent load and save conversation history for a durable session.
 
 ## When to use this
 
-Use memory when you want the agent to remember previous messages by `sessionId`. If your app already passes the full transcript into every request, use chat history instead.
+Use memory when you want the agent to remember previous messages by `sessionId`. The stored messages are the conversation history the agent uses on future requests.
+
+## Prerequisites
+
+Add memory after you have an agent that can answer prompts. Use a real database-backed `MemoryStore` in production; the example below keeps the history local for clarity.
 
 ## Create a memory store
 
@@ -57,7 +61,11 @@ console.log(response.output);
 
 ## What happens
 
-The session loads prior messages before the run and appends new messages as the run completes. Memory defaults to `savePolicy: "message"`.
+The session loads prior history before the run and appends new messages as the run completes. Memory defaults to `savePolicy: "message"`.
+
+## Check yourself
+
+Run both prompts with the same session id and confirm the second response can use information from the first prompt.
 
 ## Next
 

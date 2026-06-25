@@ -9,6 +9,14 @@ sidebar:
 
 Use `agent.prompt(...).send()` when you want the final result from an agent run.
 
+## When to use this
+
+Use `send()` for request/response flows where your app only needs the completed answer, usage, and run metadata.
+
+## Prerequisites
+
+Build an agent first. The examples on this page assume an `agent` variable from the previous step.
+
 ## Send a request
 
 ```ts
@@ -39,8 +47,12 @@ const response = await agent
 
 Use request-level configuration when one call needs tighter limits than the agent default.
 
+## Check yourself
+
+Run the request and confirm `response.output` contains the final assistant answer.
+
 ## Next
 
-Stream an agent response.
+Stream the same kind of run when a UI or CLI should update while the agent is working.
 
 [Stream an agent response](/docs/basics/stream-an-agent-response)

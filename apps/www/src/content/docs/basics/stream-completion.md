@@ -13,6 +13,10 @@ Use `createCompletionStream` when you want direct model streaming before adding 
 
 Stream direct completions when your UI or CLI should show text while the model is still generating, but you do not need tools, memory, or multi-turn agent behavior.
 
+## Prerequisites
+
+Complete the direct completion step first so you know your provider model works.
+
 ## Stream text
 
 ```ts
@@ -40,8 +44,14 @@ The stream yields normalized completion events from the provider model. The most
 
 This is lower level than agent streaming. Agent streams include runtime events such as tool calls, tool results, turns, and final run metadata.
 
+## Check yourself
+
+Run the example and confirm text appears incrementally instead of only after the model finishes.
+
 ## Next
 
-Ask the model for schema-validated data.
+Return to the main path and build your first agent.
 
-[Structured output](/docs/basics/structured-output)
+[Build your first agent](/docs/basics/build-your-first-agent)
+
+Need validated data from a direct model call? Continue to [Structured output](/docs/basics/structured-output).

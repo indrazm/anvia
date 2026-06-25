@@ -20,6 +20,10 @@ Use static context for small, stable facts:
 
 Do not use static context for large or frequently changing knowledge bases. Use retrieval later for that.
 
+## Prerequisites
+
+Use static context after the agent, tools, and memory path is clear. Keep context short enough to include with every request.
+
 ## Add context
 
 ```ts
@@ -50,6 +54,10 @@ console.log(response.output);
 Context documents are sent with the model request. They are available to the model without requiring a tool call.
 
 Static context is the simplest grounding mechanism. Retrieval adds a search step before the model call and belongs outside the first Basics path.
+
+## Check yourself
+
+Ask about a fact that only appears in the context and confirm the answer uses that fact.
 
 ## Next
 

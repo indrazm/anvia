@@ -9,6 +9,10 @@ sidebar:
 
 Install `@anvia/core` plus one provider package. The core package is provider-neutral; a provider package turns a vendor API into a model that the core runtime can call.
 
+## Prerequisites
+
+Start from a TypeScript project that can import ESM packages. The examples use `pnpm`, but the package list is the important part.
+
 ## Minimal install
 
 For the OpenAI examples in Basics:
@@ -63,8 +67,12 @@ pnpm add zod
 
 Use Zod when your app needs validated inputs or schema-validated model output.
 
+## Check yourself
+
+You are ready for the next page when your project has `@anvia/core`, one provider package, and a provider API key available in the environment.
+
 ## Next
 
-Call the model directly before adding agents.
+Call the model once before adding agents.
 
 [Direct completion](/docs/basics/direct-completion)
