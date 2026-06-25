@@ -18,6 +18,10 @@ Studio is useful while developing agents:
 - Review tool calls and tool approvals.
 - Explore memory, status, knowledge, pipelines, and MCP configuration when those features are enabled.
 
+## Prerequisites
+
+Install `@anvia/studio` and keep a local agent definition available for development.
+
 ## Start Studio
 
 ```ts
@@ -65,6 +69,10 @@ new Studio([agent], {
 ```
 
 SQLite storage uses dedicated `anvia_studio_*` tables.
+
+## Check yourself
+
+Open the playground URL and confirm your agent appears in the UI. Send one prompt and verify the run is visible in Studio.
 
 ## Next
 

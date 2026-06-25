@@ -15,6 +15,10 @@ Use server streams when a browser client should receive agent events over HTTP.
 
 The server owns credentials and agent execution. The client receives normalized events.
 
+## Prerequisites
+
+Install `@anvia/server` and keep provider credentials on the server. The examples assume an `agent` created by the previous steps.
+
 ## Return a stream response
 
 ```ts
@@ -44,6 +48,10 @@ return createEventStream(agent.prompt(input).stream(), {
 ## What happens
 
 `createEventStream` converts an async iterable of runtime events into a streaming `Response`.
+
+## Check yourself
+
+Call the route and confirm the response streams JSONL events. The browser client should not need direct access to provider credentials.
 
 ## Next
 

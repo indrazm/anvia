@@ -10,11 +10,15 @@ home:
   order: 2
 ---
 
-Agents build on top of model calls. Use an agent when you want repeatable runtime behavior around a model: instructions, turn limits, tools, memory, context, streaming, and observers.
+Agents build on top of model calls. After verifying one direct completion, create an agent when you want repeatable runtime behavior around the model.
 
 ## When to use this
 
 Use an agent when the same model behavior is reused across product requests. For a one-off model call, use direct completion first.
+
+## Prerequisites
+
+Complete a direct completion first. Keep the same provider `model`; the agent depends on the model interface, not a provider-specific API.
 
 ## Build an agent
 
@@ -39,6 +43,10 @@ const agent = new AgentBuilder("support", model)
 `AgentBuilder` stores runtime behavior around the model. The agent is still provider-neutral because it depends on the model interface, not directly on OpenAI-specific APIs.
 
 `defaultMaxTurns(4)` limits how many model/tool turns a request can take. This matters later when tools are attached.
+
+## Check yourself
+
+You are ready for the next page when the `agent` object builds without provider-specific code inside the agent setup.
 
 ## Next
 

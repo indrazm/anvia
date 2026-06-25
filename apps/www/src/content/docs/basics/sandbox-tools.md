@@ -20,6 +20,10 @@ Sandbox tools are useful for local development workflows:
 
 `DockerSandbox` uses Docker, so Docker must be installed and available on the machine running the agent.
 
+## Prerequisites
+
+Install `@anvia/sandbox`, install Docker, and decide which commands the agent is allowed to run.
+
 ## Create sandbox tools
 
 ```ts
@@ -78,8 +82,12 @@ await session.destroy();
 
 For request-scoped sessions, use `try` and `finally` so the sandbox is cleaned up even when the run fails.
 
+## Check yourself
+
+Ask for a task that requires a listed command and confirm the agent cannot run commands outside `allowedCommands`.
+
 ## Next
 
-Run the agent in a local browser UI.
+Return to the main path and add durable session memory.
 
-[Studio runtime](/docs/basics/studio-runtime)
+[Add memory](/docs/basics/add-memory)

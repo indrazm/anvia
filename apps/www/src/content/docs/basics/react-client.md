@@ -15,6 +15,10 @@ Use the React client after your server route returns runtime events with `@anvia
 
 The client sends user input to an endpoint and updates state as events arrive.
 
+## Prerequisites
+
+Install `@anvia/react` and expose a server route that returns Anvia runtime events.
+
 ## Use chat state
 
 ```tsx
@@ -48,6 +52,10 @@ export function Chat() {
 `useChat` creates a fetch-backed transport when you pass `endpoint`. It sends chat input, reads JSONL by default, and updates message state from runtime events.
 
 Use custom transports when your app has a different request shape or event mapping.
+
+## Check yourself
+
+Submit the form and confirm messages update while the request is active. The submit button should be disabled during streaming.
 
 ## Next
 

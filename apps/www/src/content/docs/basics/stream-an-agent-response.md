@@ -9,6 +9,14 @@ sidebar:
 
 Use `agent.prompt(...).stream()` when the UI should update while the agent is still working.
 
+## When to use this
+
+Use agent streaming when you need progressive text, tool-call visibility, final usage, or error events from one agent run.
+
+## Prerequisites
+
+Send a prompt with `send()` first so you know the agent works without streaming.
+
 ## Stream an agent run
 
 ```ts
@@ -38,8 +46,12 @@ Agent streams include runtime events, not only model text:
 
 `createCompletionStream` streams one model call. `agent.prompt(...).stream()` streams the whole agent run, including tools and final runtime metadata.
 
+## Check yourself
+
+Run the loop and confirm you receive `text_delta` events before the final event.
+
 ## Next
 
-Pass existing chat history into an agent request.
+Add tools so the agent can call product actions.
 
-[Use chat history](/docs/basics/use-chat-history)
+[Add tools](/docs/basics/add-tools)

@@ -10,7 +10,7 @@ home:
   order: 1
 ---
 
-Use `createCompletion` when you want one direct model call without agent turns, tools, memory, or sessions.
+Use `createCompletion` first to prove your provider setup works before you introduce agent behavior.
 
 ## When to use this
 
@@ -20,6 +20,10 @@ Use direct completion for simple requests where your app already owns the contro
 - Rewrite content.
 - Classify one input.
 - Test a provider model before adding agent behavior.
+
+## Prerequisites
+
+Install `@anvia/core`, install a provider package, and create a `model` as shown in the install step.
 
 ## Create a completion
 
@@ -52,8 +56,14 @@ console.log(result.text);
 
 It does not run tools, save memory, or loop through multiple agent turns.
 
+## Check yourself
+
+Run the example and confirm `result.text` prints one assistant response. If credentials or provider setup are wrong, fix that before continuing.
+
 ## Next
 
-Stream a direct model call.
+Build an agent so the same model behavior can be reused across requests.
 
-[Stream completion](/docs/basics/stream-completion)
+[Build your first agent](/docs/basics/build-your-first-agent)
+
+Need lower-level token streaming before agents? Take the optional [Stream completion](/docs/basics/stream-completion) detour.

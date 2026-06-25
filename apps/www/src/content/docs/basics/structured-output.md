@@ -17,6 +17,14 @@ Structured output is useful for extraction and classification:
 - Classify a message by priority.
 - Convert free text into an object your app can store.
 
+## Prerequisites
+
+Install Zod in addition to the core and provider packages:
+
+```bash
+pnpm add zod
+```
+
 ## Define a schema
 
 ```ts
@@ -50,8 +58,12 @@ console.log(ticket.data);
 
 Use `ticket.data` for validated application data. If the response is not valid JSON or does not match the schema, the call throws.
 
+## Check yourself
+
+Run the example and confirm `ticket.data` is a typed object with `customer`, `priority`, and `summary`.
+
 ## Next
 
-Wrap model behavior in an agent.
+Return to the main path and wrap model behavior in an agent.
 
 [Build your first agent](/docs/basics/build-your-first-agent)

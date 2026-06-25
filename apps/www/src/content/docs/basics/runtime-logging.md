@@ -18,6 +18,10 @@ Use runtime logging for local debugging and production operations:
 - Track failures.
 - Correlate runtime behavior with application logs.
 
+## Prerequisites
+
+Install `@anvia/logger` and choose the logger surface your app already uses. The examples show Pino-style logging and a local console logger.
+
 ## Add a logger observer
 
 ```ts
@@ -55,8 +59,12 @@ const agent = new AgentBuilder("support", model)
 
 The logger observer omits final outputs, full model requests, model responses, and tool results by default. Opt in only when your data policy allows those payloads in logs.
 
+## Check yourself
+
+Run an agent request and confirm the logger records lifecycle events without leaking final outputs or tool results by default.
+
 ## Next
 
-Move to Advanced when you need deeper runtime controls.
+Run and inspect the agent in a local browser UI.
 
-[Advanced configuration](/docs/advanced/configuration)
+[Studio runtime](/docs/basics/studio-runtime)
