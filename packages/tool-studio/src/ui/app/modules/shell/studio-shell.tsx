@@ -179,7 +179,6 @@ export function StudioSidebar(props: {
       <div className="mt-auto px-3 py-3">
         <nav className="grid gap-1" aria-label="Anvia links">
           <SidebarLink href="https://anvia.dev/docs" label="Anvia Docs" />
-          <SidebarLink href="https://anvia.dev" label="Anvia Web" />
         </nav>
         <span className="sr-only" aria-live="polite">
           {props.status}
@@ -211,10 +210,10 @@ export function StudioHeader(props: {
         <div className="flex items-center gap-1">
           <Button
             aria-label={props.theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            className="h-8 min-h-8 w-8 border-transparent bg-transparent p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="h-8 min-h-8 w-8 border-0 bg-transparent p-0 text-muted-foreground shadow-none hover:bg-muted/45 hover:text-foreground"
             title={props.theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
             type="button"
-            variant="secondary"
+            variant="ghost"
             size="icon"
             onClick={props.onToggleTheme}
           >
@@ -225,17 +224,9 @@ export function StudioHeader(props: {
             )}
           </Button>
           <Button
-            className="h-8 min-h-8 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="h-8 min-h-8 gap-1.5 rounded-lg border-white bg-white px-3 font-mono text-xs text-black hover:bg-white/90 disabled:bg-muted disabled:text-muted-foreground"
             type="button"
-            variant="secondary"
             disabled={!props.sessionsEnabled}
-            onClick={() => props.onNavigate("sessions")}
-          >
-            Sessions
-          </Button>
-          <Button
-            className="h-8 min-h-8 gap-1.5 rounded-lg border-0 bg-primary px-3 font-mono text-xs text-primary-foreground hover:bg-primary/90"
-            type="button"
             onClick={props.onNewSession}
           >
             <StudioIcon icon={PlusSignCircleIcon} aria-hidden="true" />

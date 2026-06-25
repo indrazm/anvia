@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { StudioSessionLogEntry } from "../../../../types";
 import { cn } from "../../lib/utils";
+import { formatLogMetadataText, LogMetadata } from "../shared/log-metadata";
 
 export function SessionLogsPanel(props: {
   logs: StudioSessionLogEntry[];
@@ -70,40 +71,32 @@ export function SessionLogsPanel(props: {
 }
 
 function LogRow(props: { log: StudioSessionLogEntry }) {
-  const metadata = Object.entries(props.log.metadata ?? {}).slice(0, 6);
-  const metadataText = metadata.map(([key, value]) => `${key}=${formatMetadata(value)}`).join(" ");
+  const metadataText = formatLogMetadataText(props.log.metadata);
   const line = [
     formatLogTime(props.log.timestamp),
     props.log.level.toUpperCase().padEnd(5, " "),
-    `${props.log.category}/${props.log.event}`,
     props.log.message,
+    `${props.log.category}/${props.log.event}`,
     metadataText,
   ]
     .filter((item) => item.trim().length > 0)
     .join("  ");
   return (
     <article
-      className="grid min-w-0 gap-1 rounded-lg py-2 pl-0 pr-3 text-[11px] leading-5 transition duration-200 hover:bg-accent/45"
+      className="grid min-w-0 gap-1 rounded-lg px-3 py-2 text-[11px] leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
       title={line}
     >
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
         <time className="shrink-0 text-muted-foreground">{formatLogTime(props.log.timestamp)}</time>
         <span className={cn("shrink-0 font-semibold", levelTextClass(props.log.level))}>
           {props.log.level.toUpperCase()}
         </span>
+        <span className="min-w-0 break-words font-medium text-foreground">{props.log.message}</span>
       </div>
-      <div className="min-w-0 whitespace-normal break-words text-muted-foreground">
-        <span>
-          {props.log.category}/{props.log.event}
-        </span>{" "}
-        <span className="font-medium text-foreground">{props.log.message}</span>
-        {metadataText.length === 0 ? null : (
-          <>
-            {" "}
-            <span className="text-muted-foreground/85">{metadataText}</span>
-          </>
-        )}
+      <div className="min-w-0 break-words text-muted-foreground/80">
+        {props.log.category}/{props.log.event}
       </div>
+      <LogMetadata metadata={props.log.metadata} />
       <span className="sr-only">{line}</span>
     </article>
   );
@@ -119,22 +112,6 @@ function formatLogTime(value: string): string {
     minute: "2-digit",
     second: "2-digit",
   });
-}
-
-function formatMetadata(value: unknown): string {
-  if (value === null) {
-    return "null";
-  }
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.length}]`;
-  }
-  if (typeof value === "object" && value !== null) {
-    return "{...}";
-  }
-  return "";
 }
 
 function levelTextClass(level: StudioSessionLogEntry["level"]): string {

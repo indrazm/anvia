@@ -225,7 +225,7 @@ export function PlaygroundPage(props: {
                   ) : null}
                   <Button
                     aria-label={props.runState === "running" ? "Running" : "Send message"}
-                    className="h-9 min-h-9 w-9 rounded-lg border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="h-9 min-h-9 w-9 rounded-full border-white bg-white text-black hover:bg-white/90"
                     size="icon"
                     type="submit"
                     disabled={props.runState === "running" || props.selectedAgentId.length === 0}

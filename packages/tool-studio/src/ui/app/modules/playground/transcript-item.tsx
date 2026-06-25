@@ -58,7 +58,7 @@ export function TranscriptItem(props: {
         data-entry-id={String(props.entry.entryId)}
       >
         {props.entry.text.trim().length === 0 ? null : (
-          <div className="rounded-2xl bg-primary/10 px-4 py-2.5 shadow-sm shadow-primary/10">
+          <div className="rounded-2xl bg-muted/55 px-4 py-2.5 shadow-sm shadow-black/[0.04] dark:bg-white/[0.08] dark:shadow-black/20">
             <MarkdownText text={props.entry.text} />
           </div>
         )}
@@ -83,19 +83,19 @@ export function TranscriptItem(props: {
       {props.entry.text.trim().length === 0 ? null : <MarkdownText text={props.entry.text} />}
       {traceId !== undefined ? (
         <Button
-          className="group mt-3 h-7 min-h-7 max-w-full gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1 font-mono text-xs font-semibold text-muted-foreground shadow-none transition duration-200 hover:border-primary/45 hover:bg-primary/15 hover:text-primary"
+          className="group mt-3 h-7 min-h-7 max-w-full gap-1.5 rounded-lg border border-border/80 bg-muted/35 px-2 py-1 font-mono text-xs font-semibold text-muted-foreground shadow-none transition duration-200 hover:border-border hover:bg-muted/55 hover:text-foreground"
           type="button"
           variant="ghost"
           onClick={() => props.onOpenTrace(traceId)}
         >
-          <span className="grid h-4 w-4 shrink-0 place-items-center text-primary [&_svg]:h-3 [&_svg]:w-3">
+          <span className="grid h-4 w-4 shrink-0 place-items-center text-muted-foreground transition-colors group-hover:text-foreground [&_svg]:h-3 [&_svg]:w-3">
             <StudioIcon icon={PathIcon} aria-hidden="true" />
           </span>
-          <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+          <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/90">
             Trace
           </span>
-          <span className="h-4 w-px shrink-0 bg-primary/25" aria-hidden="true" />
-          <span className="min-w-0 truncate text-muted-foreground transition-colors group-hover:text-primary">
+          <span className="h-4 w-px shrink-0 bg-border" aria-hidden="true" />
+          <span className="min-w-0 truncate text-muted-foreground transition-colors group-hover:text-foreground">
             {traceId}
           </span>
         </Button>

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "../../components/ui/select";
 import { Textarea } from "../../components/ui/textarea";
+import { formatLogMetadataText, LogMetadata } from "../shared/log-metadata";
 import { JsonSyntax } from "../shared/renderers";
 import {
   flowMutedForegroundColor,
@@ -658,26 +659,36 @@ function PipelineLogsSection(props: {
 }
 
 function PipelineLogRow(props: { log: StudioPipelineLogEntry }) {
-  const metadata = Object.entries(props.log.metadata ?? {}).slice(0, 4);
-  const metadataText = metadata
-    .map(([key, value]) => `${key}=${formatMetadataValue(value)}`)
-    .join(" ");
+  const metadataText = formatLogMetadataText(props.log.metadata, 4);
+  const line = [
+    formatLogTime(props.log.timestamp),
+    props.log.level.toUpperCase().padEnd(5, " "),
+    props.log.message,
+    `${props.log.category}/${props.log.event}`,
+    metadataText,
+  ]
+    .filter((item) => item.trim().length > 0)
+    .join("  ");
   return (
     <article
       className={[
-        "w-max min-w-full whitespace-nowrap rounded-lg border-l-2 px-3 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
+        "min-w-full rounded-lg border-l-2 px-3 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]",
         logLevelBorderClass(props.log.level),
       ].join(" ")}
+      title={line}
     >
-      <time className="text-muted-foreground">{formatLogTime(props.log.timestamp)}</time>
-      <span className={["ml-3 font-semibold", logLevelTextClass(props.log.level)].join(" ")}>
-        {props.log.level.toUpperCase().padEnd(5, " ")}
-      </span>
-      <span className="ml-3 text-muted-foreground">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <time className="shrink-0 text-muted-foreground">{formatLogTime(props.log.timestamp)}</time>
+        <span className={["shrink-0 font-semibold", logLevelTextClass(props.log.level)].join(" ")}>
+          {props.log.level.toUpperCase().padEnd(5, " ")}
+        </span>
+        <span className="min-w-0 break-words font-medium text-foreground">{props.log.message}</span>
+      </div>
+      <div className="mt-1 min-w-0 break-words text-muted-foreground/80">
         {props.log.category}/{props.log.event}
-      </span>
-      <span className="ml-3 font-medium text-foreground">{props.log.message}</span>
-      <span className="ml-3 text-muted-foreground/85">{metadataText}</span>
+      </div>
+      <LogMetadata metadata={props.log.metadata} limit={4} />
+      <span className="sr-only">{line}</span>
     </article>
   );
 }

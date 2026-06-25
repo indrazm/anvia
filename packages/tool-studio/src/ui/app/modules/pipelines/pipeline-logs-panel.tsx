@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { StudioPipelineLogEntry } from "../../../../types";
 import { cn } from "../../lib/utils";
+import { formatLogMetadataText, LogMetadata } from "../shared/log-metadata";
 
 export function PipelineLogsPanel(props: {
   logs: StudioPipelineLogEntry[];
@@ -77,13 +78,12 @@ export function PipelineLogsPanel(props: {
 }
 
 function LogRow(props: { log: StudioPipelineLogEntry }) {
-  const metadata = Object.entries(props.log.metadata ?? {}).slice(0, 6);
-  const metadataText = metadata.map(([key, value]) => `${key}=${formatMetadata(value)}`).join(" ");
+  const metadataText = formatLogMetadataText(props.log.metadata);
   const line = [
     formatLogTime(props.log.timestamp),
     props.log.level.toUpperCase().padEnd(5, " "),
-    `${props.log.category}/${props.log.event}`,
     props.log.message,
+    `${props.log.category}/${props.log.event}`,
     metadataText,
   ]
     .filter((item) => item.trim().length > 0)
@@ -91,20 +91,22 @@ function LogRow(props: { log: StudioPipelineLogEntry }) {
   return (
     <article
       className={cn(
-        "w-max min-w-full whitespace-nowrap rounded-lg border-l-2 px-4 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-accent/45",
+        "min-w-full rounded-lg border-l-2 px-4 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]",
         levelBorderClass(props.log.level),
       )}
       title={line}
     >
-      <time className="text-muted-foreground">{formatLogTime(props.log.timestamp)}</time>
-      <span className={cn("ml-3 font-semibold", levelTextClass(props.log.level))}>
-        {props.log.level.toUpperCase().padEnd(5, " ")}
-      </span>
-      <span className="ml-3 text-muted-foreground">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <time className="shrink-0 text-muted-foreground">{formatLogTime(props.log.timestamp)}</time>
+        <span className={cn("shrink-0 font-semibold", levelTextClass(props.log.level))}>
+          {props.log.level.toUpperCase().padEnd(5, " ")}
+        </span>
+        <span className="min-w-0 break-words font-medium text-foreground">{props.log.message}</span>
+      </div>
+      <div className="mt-1 min-w-0 break-words text-muted-foreground/80">
         {props.log.category}/{props.log.event}
-      </span>
-      <span className="ml-3 font-medium text-foreground">{props.log.message}</span>
-      <span className="ml-3 text-muted-foreground/85">{metadataText}</span>
+      </div>
+      <LogMetadata metadata={props.log.metadata} />
       <span className="sr-only">{line}</span>
     </article>
   );
@@ -120,22 +122,6 @@ function formatLogTime(value: string): string {
     minute: "2-digit",
     second: "2-digit",
   });
-}
-
-function formatMetadata(value: unknown): string {
-  if (value === null) {
-    return "null";
-  }
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.length}]`;
-  }
-  if (typeof value === "object" && value !== null) {
-    return "{...}";
-  }
-  return "";
 }
 
 function levelBorderClass(level: StudioPipelineLogEntry["level"]): string {

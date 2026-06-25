@@ -6,22 +6,22 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: hsl(82 20% 94%);
+  --background: hsl(220 8% 96%);
   --foreground: hsl(208 22% 12%);
-  --card: hsl(80 24% 99%);
+  --card: hsl(0 0% 100%);
   --card-foreground: hsl(208 22% 12%);
-  --popover: hsl(80 24% 99%);
+  --popover: hsl(0 0% 100%);
   --popover-foreground: hsl(208 22% 12%);
   --primary: hsl(68 76% 34%);
-  --primary-foreground: hsl(84 28% 97%);
-  --secondary: hsl(88 18% 91%);
+  --primary-foreground: hsl(0 0% 98%);
+  --secondary: hsl(220 8% 92%);
   --secondary-foreground: hsl(206 20% 16%);
-  --muted: hsl(88 16% 89%);
+  --muted: hsl(220 8% 91%);
   --muted-foreground: hsl(205 10% 43%);
-  --accent: hsl(68 76% 34% / 10%);
-  --accent-foreground: hsl(68 82% 24%);
+  --accent: hsl(220 8% 91%);
+  --accent-foreground: hsl(208 22% 12%);
   --destructive: hsl(2 58% 48%);
-  --destructive-foreground: hsl(84 28% 97%);
+  --destructive-foreground: hsl(0 0% 98%);
   --border: hsl(205 18% 20% / 12%);
   --input: hsl(205 18% 20% / 16%);
   --ring: hsl(68 76% 34%);
@@ -30,7 +30,7 @@
   --chart-3: hsl(205 10% 43%);
   --chart-4: hsl(208 22% 18%);
   --chart-5: hsl(2 58% 48%);
-  --sidebar: hsl(82 20% 94%);
+  --sidebar: hsl(220 8% 96%);
   --sidebar-foreground: hsl(208 22% 12%);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
