@@ -8,7 +8,10 @@ type InlineMetadataItem = {
   tone: "default" | "error";
 };
 
-export function LogMetadata(props: { metadata?: Record<string, MetadataValue>; limit?: number }) {
+export function LogMetadata(props: {
+  metadata?: Record<string, MetadataValue> | undefined;
+  limit?: number;
+}) {
   const items = inlineMetadataItems(props.metadata, props.limit);
   const hasStructuredDetails = hasStructuredMetadata(props.metadata);
   if (items.length === 0 && !hasStructuredDetails) {
@@ -61,11 +64,14 @@ function inlineMetadataItems(
 ): InlineMetadataItem[] {
   return Object.entries(metadata ?? {})
     .slice(0, limit)
-    .map(([key, value]) => ({
-      key,
-      value: formatInlineMetadataValue(key, value),
-      tone: key === "error" ? "error" : "default",
-    }))
+    .map(([key, value]): InlineMetadataItem => {
+      const tone: InlineMetadataItem["tone"] = key === "error" ? "error" : "default";
+      return {
+        key,
+        value: formatInlineMetadataValue(key, value),
+        tone,
+      };
+    })
     .filter((item) => item.value.length > 0);
 }
 
