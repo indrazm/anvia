@@ -1,6 +1,6 @@
 import { Background, BackgroundVariant, Controls, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { PlayIcon, ReplayIcon } from "@hugeicons/core-free-icons";
+import { PlayIcon, RefreshIcon } from "@hugeicons/core-free-icons";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type {
   StudioConfig,
@@ -342,12 +342,12 @@ function PipelineInputPanel(props: {
           </p>
         </div>
         <Button
-          className="h-8 shrink-0 rounded-lg border border-white bg-white px-3 text-xs font-semibold text-black shadow-none hover:border-white hover:bg-white/90 hover:text-black disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
+          className="h-8 shrink-0 gap-1.5 rounded-lg border border-white bg-white px-3 text-xs font-semibold text-black shadow-none hover:border-white hover:bg-white/90 hover:text-black disabled:border-border disabled:bg-muted disabled:text-muted-foreground [&_svg]:!size-3"
           disabled={props.runState === "running" || props.disabled}
           onClick={props.onRun}
           variant="ghost"
         >
-          <StudioIcon icon={PlayIcon} className="mr-1.5 h-3.5 w-3.5" />
+          <StudioIcon icon={PlayIcon} aria-hidden="true" />
           {props.runState === "running" ? "Running" : "Run"}
         </Button>
       </div>
@@ -451,36 +451,38 @@ function PipelineRunRow(props: {
 }) {
   const output = pipelineRunOutputText(props.run);
   return (
-    <article className="grid gap-3 rounded-lg border border-border/80 bg-card/25 p-3">
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <span className="truncate font-mono text-[11px] font-semibold text-foreground">
-          {props.run.runId}
-        </span>
-        <span
-          className={[
-            "shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]",
-            pipelineRunStatusClass(props.run.status),
-          ].join(" ")}
-        >
-          {props.run.status}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-        <span className="truncate">{formatLogTime(props.run.startedAt)}</span>
-        <span className="truncate text-right tabular-nums">
-          {props.run.durationMs === undefined ? "" : `${props.run.durationMs}ms`}
-        </span>
-      </div>
-      <div className="flex min-w-0 items-center justify-end">
+    <article className="rounded-xl border border-border/70 bg-background/35 px-4 py-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span
+              className={[
+                "rounded-md border border-border/70 bg-card/60 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]",
+                pipelineRunStatusClass(props.run.status),
+              ].join(" ")}
+            >
+              {props.run.status}
+            </span>
+            <span className="min-w-0 truncate font-mono text-xs font-semibold text-foreground">
+              {props.run.runId}
+            </span>
+          </div>
+          <div className="mt-2 flex min-w-0 flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
+            <time>{formatLogTime(props.run.startedAt)}</time>
+            {props.run.durationMs === undefined ? null : (
+              <span className="tabular-nums">{props.run.durationMs}ms</span>
+            )}
+          </div>
+        </div>
         <Button
-          className="h-7 rounded-lg px-2.5 text-[11px] font-semibold"
+          className="h-8 gap-1.5 rounded-lg border border-border/80 bg-muted/45 px-2.5 text-xs font-semibold text-foreground shadow-none hover:border-border hover:bg-muted/70 hover:text-foreground [&_svg]:!size-3"
           disabled={props.disabled || props.run.status === "running"}
           onClick={() => props.onReplayRun(props.run.runId)}
-          title="Replay this run with its saved input"
-          variant="secondary"
+          title="Rerun this pipeline with its saved input"
+          variant="ghost"
         >
-          <StudioIcon icon={ReplayIcon} className="mr-1.5 h-3.5 w-3.5" />
-          Replay
+          <StudioIcon icon={RefreshIcon} aria-hidden="true" />
+          Rerun
         </Button>
       </div>
       <PipelineRunOutputBlock title="Output" output={output} />
@@ -490,7 +492,7 @@ function PipelineRunRow(props: {
 
 function PipelineRunOutputBlock(props: { title: string; output: string }) {
   return (
-    <div className="grid gap-2">
+    <div className="mt-4 border-t border-border/70 pt-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {props.title}
@@ -499,8 +501,8 @@ function PipelineRunOutputBlock(props: { title: string; output: string }) {
           {props.output.length} bytes
         </span>
       </div>
-      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/80 bg-background/55 p-3 font-mono text-xs leading-5 text-foreground">
-        {props.output.length > 0 ? <JsonSyntax text={props.output} /> : "No output saved."}
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-card/45 p-3 text-sm leading-6 text-foreground">
+        {props.output.length > 0 ? <PipelineOutputText text={props.output} /> : "No output saved."}
       </pre>
     </div>
   );
@@ -508,12 +510,24 @@ function PipelineRunOutputBlock(props: { title: string; output: string }) {
 
 function pipelineRunOutputText(run: StudioPipelineRunRecord): string {
   if (run.output !== undefined) {
-    return JSON.stringify(run.output, null, 2);
+    return typeof run.output === "string" ? run.output : JSON.stringify(run.output, null, 2);
   }
   if (run.error !== undefined) {
     return JSON.stringify(run.error, null, 2);
   }
   return "";
+}
+
+function PipelineOutputText(props: { text: string }) {
+  return isStructuredOutput(props.text) ? <JsonSyntax text={props.text} /> : props.text;
+}
+
+function isStructuredOutput(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  );
 }
 
 function pipelineRunStatusClass(status: StudioPipelineRunRecord["status"]): string {
