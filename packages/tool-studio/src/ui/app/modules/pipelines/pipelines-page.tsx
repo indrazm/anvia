@@ -235,36 +235,52 @@ function PipelineInspectorSidebar(props: {
         ].join(" ")}
       >
         {props.activeTab === "input" ? (
-          <PipelineInputPanel
-            runInput={props.runInput}
-            runState={props.runState}
-            disabled={props.detail === undefined}
-            onRunInputChange={props.onRunInputChange}
-            onRun={props.onRun}
-          />
+          <div
+            aria-labelledby={pipelineTabId("input")}
+            id={pipelinePanelId("input")}
+            role="tabpanel"
+          >
+            <PipelineInputPanel
+              runInput={props.runInput}
+              runState={props.runState}
+              disabled={props.detail === undefined}
+              onRunInputChange={props.onRunInputChange}
+              onRun={props.onRun}
+            />
+          </div>
         ) : null}
         {props.activeTab === "metadata" ? (
-          <PipelineMetadataPanel
-            graphStats={graphStats}
-            selectedNode={props.selectedNode}
-            selectedNodeStatus={props.selectedNodeStatus}
-          />
+          <div
+            aria-labelledby={pipelineTabId("metadata")}
+            id={pipelinePanelId("metadata")}
+            role="tabpanel"
+          >
+            <PipelineMetadataPanel
+              graphStats={graphStats}
+              selectedNode={props.selectedNode}
+              selectedNodeStatus={props.selectedNodeStatus}
+            />
+          </div>
         ) : null}
         {props.activeTab === "runs" ? (
-          <PipelineRunsPanel
-            runs={props.runs}
-            runOutput={props.runOutput}
-            runState={props.runState}
-            loading={props.runsLoading}
-            onReplayRun={props.onReplayRun}
-          />
+          <div aria-labelledby={pipelineTabId("runs")} id={pipelinePanelId("runs")} role="tabpanel">
+            <PipelineRunsPanel
+              runs={props.runs}
+              runOutput={props.runOutput}
+              runState={props.runState}
+              loading={props.runsLoading}
+              onReplayRun={props.onReplayRun}
+            />
+          </div>
         ) : null}
         {props.activeTab === "logs" ? (
-          <PipelineLogsSection
-            logs={props.logs}
-            selectedPipelineId={props.selectedPipelineId}
-            loading={props.logsLoading}
-          />
+          <div aria-labelledby={pipelineTabId("logs")} id={pipelinePanelId("logs")} role="tabpanel">
+            <PipelineLogsSection
+              logs={props.logs}
+              selectedPipelineId={props.selectedPipelineId}
+              loading={props.logsLoading}
+            />
+          </div>
         ) : null}
       </div>
     </aside>
@@ -288,6 +304,7 @@ function PipelineSidebarTabs(props: {
     <StudioTabs className="grid-cols-4" role="tablist" aria-label="Pipeline sidebar">
       {pipelineSidebarTabs.map((tab) => (
         <button
+          aria-controls={pipelinePanelId(tab.id)}
           aria-selected={props.activeTab === tab.id}
           className={[
             "h-8 rounded-lg px-2 text-xs font-semibold uppercase tracking-[0.1em] transition duration-200",
@@ -296,6 +313,7 @@ function PipelineSidebarTabs(props: {
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
           ].join(" ")}
           key={tab.id}
+          id={pipelineTabId(tab.id)}
           onClick={() => props.onChange(tab.id)}
           role="tab"
           type="button"
@@ -305,6 +323,14 @@ function PipelineSidebarTabs(props: {
       ))}
     </StudioTabs>
   );
+}
+
+function pipelineTabId(tab: PipelineSidebarTab): string {
+  return `pipeline-tab-${tab}`;
+}
+
+function pipelinePanelId(tab: PipelineSidebarTab): string {
+  return `pipeline-panel-${tab}`;
 }
 
 function Metric(props: { label: string; value: string }) {
@@ -339,7 +365,7 @@ function PipelineInputPanel(props: {
           </p>
         </div>
         <Button
-          className="h-8 shrink-0 gap-1.5 rounded-lg border border-white bg-white px-3 text-xs font-semibold text-black shadow-none hover:border-white hover:bg-white/90 hover:text-black disabled:border-border disabled:bg-muted disabled:text-muted-foreground [&_svg]:!size-3"
+          className="h-8 shrink-0 gap-1.5 rounded-lg border border-foreground bg-foreground px-3 text-xs font-semibold text-background shadow-none hover:border-foreground hover:bg-foreground/90 hover:text-background disabled:border-border disabled:bg-muted disabled:text-muted-foreground [&_svg]:!size-3"
           disabled={props.runState === "running" || props.disabled}
           onClick={props.onRun}
           variant="ghost"
@@ -495,7 +521,7 @@ function PipelineRunOutputBlock(props: { title: string; output: string }) {
           {props.title}
         </span>
         <span className=" text-xs font-medium tabular-nums text-muted-foreground">
-          {props.output.length} bytes
+          {props.output.length} chars
         </span>
       </div>
       <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-card/45 p-3 text-sm leading-6 text-foreground">
@@ -699,7 +725,6 @@ function PipelineLogRow(props: { log: StudioPipelineLogEntry }) {
         {props.log.category}/{props.log.event}
       </div>
       <LogMetadata metadata={props.log.metadata} limit={4} />
-      <span className="sr-only">{line}</span>
     </article>
   );
 }

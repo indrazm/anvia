@@ -63,7 +63,6 @@ function inlineMetadataItems(
   limit = 6,
 ): InlineMetadataItem[] {
   return Object.entries(metadata ?? {})
-    .slice(0, limit)
     .map(([key, value]): InlineMetadataItem => {
       const tone: InlineMetadataItem["tone"] = key === "error" ? "error" : "default";
       return {
@@ -72,7 +71,8 @@ function inlineMetadataItems(
         tone,
       };
     })
-    .filter((item) => item.value.length > 0);
+    .filter((item) => item.value.length > 0)
+    .slice(0, limit);
 }
 
 function formatInlineMetadataValue(key: string, value: MetadataValue): string {

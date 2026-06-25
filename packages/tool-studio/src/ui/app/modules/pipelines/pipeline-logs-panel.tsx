@@ -78,7 +78,8 @@ export function PipelineLogsPanel(props: {
 }
 
 function LogRow(props: { log: StudioPipelineLogEntry }) {
-  const metadataText = formatLogMetadataText(props.log.metadata);
+  const metadataLimit = 4;
+  const metadataText = formatLogMetadataText(props.log.metadata, metadataLimit);
   const line = [
     formatLogTime(props.log.timestamp),
     props.log.level.toUpperCase().padEnd(5, " "),
@@ -105,8 +106,7 @@ function LogRow(props: { log: StudioPipelineLogEntry }) {
       <div className="mt-1 min-w-0 break-words text-muted-foreground/80">
         {props.log.category}/{props.log.event}
       </div>
-      <LogMetadata metadata={props.log.metadata} />
-      <span className="sr-only">{line}</span>
+      <LogMetadata metadata={props.log.metadata} limit={metadataLimit} />
     </article>
   );
 }

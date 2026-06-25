@@ -7,7 +7,7 @@ export const nodeTypes = {
 
 export type PipelineFlow = { nodes: Node[]; edges: Edge[] };
 
-const flowPrimaryColor = "var(--muted-foreground)";
+const flowEdgeColor = "var(--muted-foreground)";
 const flowSelectedColor = "var(--foreground)";
 const flowBackgroundColor = "var(--background)";
 export const flowMutedForegroundColor = "var(--muted-foreground)";
@@ -155,10 +155,10 @@ export function toFlow(
       type: MarkerType.ArrowClosed,
       width: 10,
       height: 10,
-      color: flowPrimaryColor,
+      color: flowEdgeColor,
     },
     style: {
-      stroke: flowPrimaryColor,
+      stroke: flowEdgeColor,
       strokeWidth: 1.6,
       opacity: 0.78,
     },
@@ -210,7 +210,7 @@ function statusColor(status: NodeStatus | undefined): string {
     case "running":
       return flowRunningColor;
     case "completed":
-      return flowPrimaryColor;
+      return flowEdgeColor;
     case "failed":
       return flowDestructiveColor;
     default:

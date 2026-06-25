@@ -15,7 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
-import { StudioPageShell, StudioSurface } from "../../components/ui/studio";
+import {
+  StudioEmptyState,
+  StudioMetric,
+  StudioPageShell,
+  StudioStatusBadge,
+  StudioSurface,
+} from "../../components/ui/studio";
 
 export function EvalsPage(props: {
   evals: StudioEvalSuiteConfig[];
@@ -82,7 +88,11 @@ export function EvalsPage(props: {
 
             <main className="min-w-0">
               {selected === undefined ? (
-                <EmptyEvals />
+                <StudioEmptyState
+                  className="min-h-0"
+                  title="No eval suites"
+                  text="0 eval suite records are available in this Studio runtime."
+                />
               ) : props.result === undefined ? (
                 <BeforeRun suite={selected} enabled={props.enabled} runState={props.runState} />
               ) : (
@@ -117,10 +127,10 @@ function SuiteOverview(props: { suite: StudioEvalSuiteConfig; enabled: boolean }
   return (
     <div className="grid gap-4">
       <div className="grid grid-cols-2 gap-2">
-        <Metric label="Cases" value={String(props.suite.caseCount)} />
-        <Metric label="Metrics" value={String(props.suite.metricNames.length)} />
-        <Metric label="Concurrency" value={String(props.suite.concurrency ?? 1)} />
-        <Metric label="Previewed" value={`${previewCount}/${props.suite.caseCount}`} />
+        <StudioMetric label="Cases" value={String(props.suite.caseCount)} />
+        <StudioMetric label="Metrics" value={String(props.suite.metricNames.length)} />
+        <StudioMetric label="Concurrency" value={String(props.suite.concurrency ?? 1)} />
+        <StudioMetric label="Previewed" value={`${previewCount}/${props.suite.caseCount}`} />
       </div>
 
       <section className="grid gap-3 rounded-xl border border-border/70 bg-background/45 p-4">
@@ -323,10 +333,13 @@ function EvalResult(props: { result: StudioEvalRunResponse; suite: StudioEvalSui
           </span>
         </div>
         <div className="grid gap-2 sm:grid-cols-4">
-          <Metric label="Passed" value={String(result.passed ?? 0)} />
-          <Metric label="Failed" value={String(result.failed ?? 0)} />
-          <Metric label="Invalid" value={String(result.invalid ?? 0)} />
-          <Metric label="Duration" value={`${result.durationMs ?? props.result.durationMs}ms`} />
+          <StudioMetric label="Passed" value={String(result.passed ?? 0)} />
+          <StudioMetric label="Failed" value={String(result.failed ?? 0)} />
+          <StudioMetric label="Invalid" value={String(result.invalid ?? 0)} />
+          <StudioMetric
+            label="Duration"
+            value={`${result.durationMs ?? props.result.durationMs}ms`}
+          />
         </div>
       </section>
 
@@ -384,7 +397,7 @@ function CaseResultCard(props: { index: number; result: EvalCaseRunResult }) {
             </p>
           </div>
         </div>
-        <StatusBadge status={primaryStatus} />
+        <StatusBadge>{primaryStatus}</StatusBadge>
       </div>
 
       <div className="grid gap-4 p-4">
@@ -465,28 +478,17 @@ function MetricOutcomeRow(props: { index: number; metric: EvalMetricRunResult })
         {"score" in outcome ? formatValue(outcome.score) : "n/a"}
       </div>
       <div className="flex justify-end">
-        <StatusBadge status={status} />
+        <StatusBadge>{status}</StatusBadge>
       </div>
     </div>
   );
 }
 
-function StatusBadge(props: { status: string }) {
+function StatusBadge(props: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-7 items-center rounded-md border border-border/80 bg-card/70 px-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-foreground">
-      {props.status}
-    </span>
-  );
-}
-
-function EmptyEvals() {
-  return (
-    <section className="rounded-xl border border-border/80 bg-background/45 p-5">
-      <SectionLabel>No eval suites</SectionLabel>
-      <p className="m-0 mt-2 text-sm leading-6 text-muted-foreground">
-        0 eval suite records are available in this Studio runtime.
-      </p>
-    </section>
+    <StudioStatusBadge className="h-7 rounded-md bg-card/70 text-foreground">
+      {props.children}
+    </StudioStatusBadge>
   );
 }
 
@@ -504,17 +506,6 @@ function MetadataBlock(props: { metadata: unknown }) {
           <KeyValue key={key} label={key} value={formatValue(value)} />
         ))}
       </div>
-    </div>
-  );
-}
-
-function Metric(props: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border/70 bg-card/35 px-3 py-3">
-      <div className=" text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {props.label}
-      </div>
-      <div className="mt-1 text-base font-semibold tabular-nums text-foreground">{props.value}</div>
     </div>
   );
 }

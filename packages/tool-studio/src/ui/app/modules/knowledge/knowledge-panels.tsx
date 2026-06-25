@@ -8,6 +8,7 @@ import {
   itemKindLabel,
   type KnowledgeSourceRef,
   sourceId,
+  sourceLabel,
 } from "./knowledge-model";
 
 export function ItemBrowser(props: {
@@ -139,8 +140,8 @@ function DynamicToolCard(props: {
   const definition = dynamicToolDefinition(props.item);
   const parameters = dynamicToolParameters(props.item);
   const description = definition.description ?? props.item.description;
-  const hasStructuredDefinition =
-    definition.name !== undefined || description !== undefined || parameters.length > 0;
+  const hasDescription = description !== undefined && description.length > 0;
+  const hasStructuredBody = hasDescription || parameters.length > 0;
 
   return (
     <article className="grid gap-5 rounded-2xl border border-border/80 bg-background/55 p-5">
@@ -156,13 +157,13 @@ function DynamicToolCard(props: {
         <Badge>{parameters.length} params</Badge>
       </div>
 
-      {description === undefined || description.length === 0 ? null : (
+      {!hasDescription ? null : (
         <p className="m-0 max-w-4xl text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
           {description}
         </p>
       )}
 
-      {hasStructuredDefinition || props.item.text === undefined ? null : (
+      {hasStructuredBody || props.item.text === undefined ? null : (
         <p className="m-0 whitespace-pre-wrap text-sm leading-6 text-foreground [overflow-wrap:anywhere]">
           {props.item.text}
         </p>
@@ -255,7 +256,9 @@ function DynamicToolSourceDetails(props: {
       value:
         props.source === undefined
           ? undefined
-          : `${props.source.source.label} / ${sourceId(props.source.source)}`,
+          : `${props.source.source.label ?? sourceLabel(props.source.source.kind)} / ${sourceId(
+              props.source.source,
+            )}`,
     },
     { label: "Item ID", value: props.item.id },
   ].filter((item): item is { label: string; value: string } => item.value !== undefined);

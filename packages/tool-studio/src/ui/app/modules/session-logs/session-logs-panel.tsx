@@ -97,7 +97,6 @@ function LogRow(props: { log: StudioSessionLogEntry }) {
         {props.log.category}/{props.log.event}
       </div>
       <LogMetadata metadata={props.log.metadata} />
-      <span className="sr-only">{line}</span>
     </article>
   );
 }
