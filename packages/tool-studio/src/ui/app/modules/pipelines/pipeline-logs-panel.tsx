@@ -32,11 +32,11 @@ export function PipelineLogsPanel(props: {
       <header className="grid min-h-12 min-w-0 gap-1 border-b border-border/80 bg-card/35 px-5 py-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="m-0 text-sm font-semibold leading-tight text-foreground">Pipeline logs</h2>
-          <span className="font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+          <span className=" text-xs font-semibold tabular-nums text-muted-foreground">
             {props.logs.length}
           </span>
         </div>
-        <p className="m-0 truncate font-mono text-[11px] font-medium text-muted-foreground">
+        <p className="m-0 truncate text-xs font-medium text-muted-foreground">
           {props.selectedPipelineId.length === 0 ? "No active pipeline" : props.selectedPipelineId}
         </p>
       </header>
@@ -67,7 +67,7 @@ export function PipelineLogsPanel(props: {
             No logs yet. Run the pipeline to populate this console.
           </div>
         ) : null}
-        <div className="grid min-w-full gap-1 p-2 font-mono">
+        <div className="grid min-w-full gap-1 p-2 ">
           {props.logs.map((log) => (
             <LogRow log={log} key={log.id} />
           ))}
@@ -91,7 +91,7 @@ function LogRow(props: { log: StudioPipelineLogEntry }) {
   return (
     <article
       className={cn(
-        "min-w-full rounded-lg px-4 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]",
+        "min-w-full rounded-lg px-4 py-1.5 text-xs leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]",
       )}
       title={line}
     >

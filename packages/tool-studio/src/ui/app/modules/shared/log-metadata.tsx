@@ -15,7 +15,7 @@ export function LogMetadata(props: { metadata?: Record<string, MetadataValue>; l
     return null;
   }
   return (
-    <div className="grid min-w-0 gap-1 font-mono text-[11px] leading-5 text-muted-foreground">
+    <div className="grid min-w-0 gap-1 text-xs leading-5 text-muted-foreground">
       {items.length === 0 ? null : (
         <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
           {items.map((item) => (
@@ -34,10 +34,10 @@ export function LogMetadata(props: { metadata?: Record<string, MetadataValue>; l
       )}
       {hasStructuredDetails ? (
         <details className="group min-w-0 rounded-lg border border-black/[0.06] bg-black/[0.03] px-2 py-1 dark:border-white/[0.06] dark:bg-white/[0.03]">
-          <summary className="cursor-pointer select-none text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground transition group-open:text-foreground">
+          <summary className="cursor-pointer select-none text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition group-open:text-foreground">
             Details
           </summary>
-          <pre className="m-0 mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-4 text-muted-foreground">
+          <pre className="m-0 mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-4 text-muted-foreground">
             {formatStructuredDetails(props.metadata)}
           </pre>
         </details>

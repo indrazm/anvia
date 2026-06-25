@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { StudioPageShell, StudioSurface } from "../../components/ui/studio";
 
 export function EvalsPage(props: {
   evals: StudioEvalSuiteConfig[];
@@ -28,12 +29,12 @@ export function EvalsPage(props: {
   const selected = props.evals.find((suite) => suite.id === props.selectedEvalId) ?? props.evals[0];
 
   return (
-    <section className="grid h-full min-h-0 min-w-0 max-h-full max-w-full overflow-hidden bg-background/45">
+    <StudioPageShell>
       <div className="grid min-h-0 min-w-0 pb-6 pr-6">
-        <div className="grid min-h-0 min-w-0 content-start gap-5 overflow-auto rounded-2xl border border-border/80 bg-card/70 p-6 shadow-sm">
+        <StudioSurface className="grid content-start gap-5 overflow-auto p-6">
           <header className="flex min-w-0 items-start justify-between gap-4 border-b border-border/80 pb-5">
             <div className="min-w-0">
-              <p className="m-0 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 Evals
               </p>
               <h1 className="m-0 mt-2 text-2xl font-semibold tracking-tight text-foreground">
@@ -54,13 +55,13 @@ export function EvalsPage(props: {
           <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
             <aside className="grid content-start gap-4 border-r border-border/80 pr-5 max-lg:border-b max-lg:border-r-0 max-lg:pb-5 max-lg:pr-0">
               <label className="grid gap-2" htmlFor="eval-suite-select">
-                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                <span className=" text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                   Suite
                 </span>
                 <Select value={selected?.id ?? ""} onValueChange={props.onSelectEval}>
                   <SelectTrigger
                     id="eval-suite-select"
-                    className="h-9 w-full rounded-lg border-border/80 bg-background font-mono text-[11px] hover:border-muted-foreground/60 focus:border-muted-foreground/70 focus:ring-muted-foreground/20"
+                    className="h-9 w-full rounded-lg border-border/80 bg-background text-xs hover:border-muted-foreground/60 focus:border-muted-foreground/70 focus:ring-muted-foreground/20"
                   >
                     <SelectValue placeholder="Select eval" />
                   </SelectTrigger>
@@ -89,9 +90,9 @@ export function EvalsPage(props: {
               )}
             </main>
           </div>
-        </div>
+        </StudioSurface>
       </div>
-    </section>
+    </StudioPageShell>
   );
 }
 
@@ -187,7 +188,7 @@ function DatasetPreview(props: { suite: StudioEvalSuiteConfig }) {
             Showing {previews.length} of {props.suite.caseCount} cases.
           </p>
         </div>
-        <span className="rounded-lg border border-border/80 bg-card/60 px-2.5 py-1 font-mono text-[11px] font-semibold text-muted-foreground">
+        <span className="rounded-lg border border-border/80 bg-card/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
           {props.suite.caseCount} cases
         </span>
       </div>
@@ -209,11 +210,9 @@ function CasePreviewCard(props: { testCase: StudioEvalCasePreview }) {
   return (
     <article className="grid gap-3 rounded-xl border border-border/70 bg-card/35 p-4">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <h3 className="m-0 truncate font-mono text-sm font-semibold text-foreground">
-          {props.testCase.id}
-        </h3>
+        <h3 className="m-0 truncate text-sm font-semibold text-foreground">{props.testCase.id}</h3>
         {props.testCase.metadataKeys === undefined ? null : (
-          <span className="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {props.testCase.metadataKeys.length} metadata
           </span>
         )}
@@ -275,7 +274,7 @@ function MetricSummaryRow(props: { metric: StudioEvalMetricSummary }) {
 
   return (
     <div className="rounded-lg border border-border/70 bg-card/35 px-3 py-3">
-      <div className="font-mono text-sm font-semibold text-foreground">{props.metric.name}</div>
+      <div className=" text-sm font-semibold text-foreground">{props.metric.name}</div>
       <div className="mt-1 text-xs leading-5 text-muted-foreground">
         {details.length > 0 ? details.join(" / ") : "No metric metadata"}
       </div>
@@ -319,7 +318,7 @@ function EvalResult(props: { result: StudioEvalRunResponse; suite: StudioEvalSui
               {props.result.runId} / {new Date(props.result.startedAt).toLocaleTimeString()}
             </p>
           </div>
-          <span className="rounded-lg border border-border/80 bg-card/60 px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <span className="rounded-lg border border-border/80 bg-card/60 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {props.suite.name}
           </span>
         </div>
@@ -339,7 +338,7 @@ function EvalResult(props: { result: StudioEvalRunResponse; suite: StudioEvalSui
               Each case shows the prompt, expected answer, model output, then metric judgments.
             </p>
           </div>
-          <span className="rounded-lg border border-border/80 bg-card/60 px-2.5 py-1 font-mono text-[11px] font-semibold text-muted-foreground">
+          <span className="rounded-lg border border-border/80 bg-card/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground">
             {cases.length} cases
           </span>
         </div>
@@ -374,7 +373,7 @@ function CaseResultCard(props: { index: number; result: EvalCaseRunResult }) {
     <article className="overflow-hidden rounded-xl border border-border/70 bg-card/35">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-4 border-b border-border/70 bg-background/35 px-4 py-4">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-7 min-w-7 items-center justify-center rounded-lg border border-border/80 bg-card/70 font-mono text-[11px] font-semibold text-muted-foreground">
+          <span className="flex h-7 min-w-7 items-center justify-center rounded-lg border border-border/80 bg-card/70 text-xs font-semibold text-muted-foreground">
             {props.index + 1}
           </span>
           <div className="min-w-0">
@@ -418,7 +417,7 @@ function CaseResultCard(props: { index: number; result: EvalCaseRunResult }) {
             <MutedPanel>No metric results were returned for this case.</MutedPanel>
           ) : (
             <div className="overflow-hidden rounded-lg border border-border/70 bg-background/45">
-              <div className="grid grid-cols-[minmax(0,1fr)_96px_96px] gap-3 border-b border-border/70 px-3 py-2 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <div className="grid grid-cols-[minmax(0,1fr)_96px_96px] gap-3 border-b border-border/70 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 <span>Metric</span>
                 <span>Score</span>
                 <span className="text-right">Status</span>
@@ -446,7 +445,7 @@ function MetricOutcomeRow(props: { index: number; metric: EvalMetricRunResult })
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_96px_96px] gap-3 border-b border-border/60 px-3 py-3 last:border-b-0">
       <div className="min-w-0">
-        <div className="truncate font-mono text-sm font-semibold text-foreground">
+        <div className="truncate text-sm font-semibold text-foreground">
           {props.metric.metricName ?? `metric-${props.index + 1}`}
         </div>
         <div className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -457,12 +456,12 @@ function MetricOutcomeRow(props: { index: number; metric: EvalMetricRunResult })
               : "No comment"}
         </div>
         {reporterErrors.length > 0 ? (
-          <pre className="m-0 mt-2 whitespace-pre-wrap break-words rounded-md border border-border/70 bg-card/45 p-2 font-mono text-[11px] leading-5 text-muted-foreground">
+          <pre className="m-0 mt-2 whitespace-pre-wrap break-words rounded-md border border-border/70 bg-card/45 p-2 text-xs leading-5 text-muted-foreground">
             {formatValue(reporterErrors)}
           </pre>
         ) : null}
       </div>
-      <div className="font-mono text-xs leading-6 text-foreground">
+      <div className=" text-xs leading-6 text-foreground">
         {"score" in outcome ? formatValue(outcome.score) : "n/a"}
       </div>
       <div className="flex justify-end">
@@ -474,7 +473,7 @@ function MetricOutcomeRow(props: { index: number; metric: EvalMetricRunResult })
 
 function StatusBadge(props: { status: string }) {
   return (
-    <span className="inline-flex h-7 items-center rounded-md border border-border/80 bg-card/70 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground">
+    <span className="inline-flex h-7 items-center rounded-md border border-border/80 bg-card/70 px-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-foreground">
       {props.status}
     </span>
   );
@@ -512,12 +511,10 @@ function MetadataBlock(props: { metadata: unknown }) {
 function Metric(props: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-border/70 bg-card/35 px-3 py-3">
-      <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      <div className=" text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {props.label}
       </div>
-      <div className="mt-1 font-mono text-base font-semibold tabular-nums text-foreground">
-        {props.value}
-      </div>
+      <div className="mt-1 text-base font-semibold tabular-nums text-foreground">{props.value}</div>
     </div>
   );
 }
@@ -527,10 +524,10 @@ function ValuePanel(props: { label: string; value: unknown; emptyText: string })
 
   return (
     <div className="min-w-0 rounded-lg border border-border/70 bg-background/45 p-3">
-      <div className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      <div className=" text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {props.label}
       </div>
-      <pre className="m-0 mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-foreground">
+      <pre className="m-0 mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-foreground">
         {hasValue ? formatValue(props.value) : props.emptyText}
       </pre>
     </div>
@@ -540,12 +537,10 @@ function ValuePanel(props: { label: string; value: unknown; emptyText: string })
 function KeyValue(props: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 items-start justify-between gap-3">
-      <span className="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {props.label}
       </span>
-      <span className="min-w-0 break-words text-right font-mono text-xs text-foreground">
-        {props.value}
-      </span>
+      <span className="min-w-0 break-words text-right text-xs text-foreground">{props.value}</span>
     </div>
   );
 }
@@ -560,7 +555,7 @@ function MutedPanel(props: { children: React.ReactNode }) {
 
 function SectionLabel(props: { children: React.ReactNode }) {
   return (
-    <h2 className="m-0 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+    <h2 className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
       {props.children}
     </h2>
   );
@@ -569,10 +564,10 @@ function SectionLabel(props: { children: React.ReactNode }) {
 function RawDetails(props: { title: string; value: unknown }) {
   return (
     <details className="rounded-xl border border-border/80 bg-background/45 p-5">
-      <summary className="cursor-pointer font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {props.title}
       </summary>
-      <pre className="mt-3 max-h-[45vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/70 bg-card/35 p-3 font-mono text-xs leading-5 text-foreground">
+      <pre className="mt-3 max-h-[45vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/70 bg-card/35 p-3 text-xs leading-5 text-foreground">
         {formatValue(props.value)}
       </pre>
     </details>

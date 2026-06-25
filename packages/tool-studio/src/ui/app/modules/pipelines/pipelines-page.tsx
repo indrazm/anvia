@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { StudioPageShell, StudioSurface, StudioTabs } from "../../components/ui/studio";
 import { Textarea } from "../../components/ui/textarea";
 import { formatLogMetadataText, LogMetadata } from "../shared/log-metadata";
 import { JsonSyntax } from "../shared/renderers";
@@ -67,9 +68,9 @@ export function PipelinesPage(props: {
   }, [graph, nodeStatuses]);
 
   return (
-    <section className="grid h-full min-h-0 min-w-0 max-h-full max-w-full overflow-hidden bg-background/45">
+    <StudioPageShell>
       <div className="grid min-h-0 min-w-0 pb-6 pr-6">
-        <div className="grid min-h-0 min-w-0 grid-cols-[minmax(0,2fr)_minmax(0,1fr)] overflow-hidden rounded-2xl border border-border/80 bg-card/70 shadow-sm max-lg:grid-cols-1">
+        <StudioSurface className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] max-lg:grid-cols-1">
           <div className="relative min-h-0 min-w-0 overflow-hidden border-r border-border/80 bg-card/25 max-lg:border-b max-lg:border-r-0">
             {props.detailLoading && graph === undefined ? (
               <div className="grid h-full min-h-96 place-items-center p-6">
@@ -155,9 +156,9 @@ export function PipelinesPage(props: {
             onTabChange={props.onTabChange}
             onReplayRun={props.onReplayRun}
           />
-        </div>
+        </StudioSurface>
       </div>
-    </section>
+    </StudioPageShell>
   );
 }
 
@@ -208,12 +209,12 @@ function PipelineInspectorSidebar(props: {
                 </p>
               )}
             </div>
-            <span className="shrink-0 font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+            <span className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">
               {props.logs.length}
             </span>
           </div>
           <Select value={props.selectedPipelineId} onValueChange={props.onSelectPipeline}>
-            <SelectTrigger className="h-8 w-full rounded-lg border-border/80 bg-background font-mono text-[11px] hover:border-muted-foreground/60 focus:border-muted-foreground/70 focus:ring-muted-foreground/20">
+            <SelectTrigger className="h-8 w-full rounded-lg border-border/80 bg-background text-xs hover:border-muted-foreground/60 focus:border-muted-foreground/70 focus:ring-muted-foreground/20">
               <SelectValue placeholder="Select pipeline" />
             </SelectTrigger>
             <SelectContent>
@@ -284,16 +285,12 @@ function PipelineSidebarTabs(props: {
   onChange: (tab: PipelineSidebarTab) => void;
 }) {
   return (
-    <div
-      className="grid grid-cols-4 gap-1 rounded-xl border border-border/80 bg-background p-1"
-      role="tablist"
-      aria-label="Pipeline sidebar"
-    >
+    <StudioTabs className="grid-cols-4" role="tablist" aria-label="Pipeline sidebar">
       {pipelineSidebarTabs.map((tab) => (
         <button
           aria-selected={props.activeTab === tab.id}
           className={[
-            "h-8 rounded-lg px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] transition duration-200",
+            "h-8 rounded-lg px-2 text-xs font-semibold uppercase tracking-[0.1em] transition duration-200",
             props.activeTab === tab.id
               ? "bg-foreground text-background"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -306,17 +303,17 @@ function PipelineSidebarTabs(props: {
           {tab.label}
         </button>
       ))}
-    </div>
+    </StudioTabs>
   );
 }
 
 function Metric(props: { label: string; value: string }) {
   return (
     <div className="min-w-0 rounded-lg bg-background/55 px-2.5 py-2.5">
-      <div className="truncate font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+      <div className="truncate text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {props.label}
       </div>
-      <div className="mt-1 truncate font-mono text-base font-semibold tabular-nums text-foreground">
+      <div className="mt-1 truncate text-base font-semibold tabular-nums text-foreground">
         {props.value}
       </div>
     </div>
@@ -334,7 +331,7 @@ function PipelineInputPanel(props: {
     <section className="grid gap-4">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className=" text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Pipeline input
           </div>
           <p className="m-0 mt-1 text-xs leading-5 text-muted-foreground">
@@ -352,14 +349,14 @@ function PipelineInputPanel(props: {
         </Button>
       </div>
       <label className="grid gap-2" htmlFor="pipeline-run-input">
-        <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <span className=" text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           JSON
         </span>
         <Textarea
           id="pipeline-run-input"
           value={props.runInput}
           onChange={(event) => props.onRunInputChange(event.target.value)}
-          className="min-h-44 resize-y rounded-lg border-border bg-card/30 font-mono text-xs leading-5 text-foreground"
+          className="min-h-44 resize-y rounded-lg border-border bg-card/30 text-xs leading-5 text-foreground"
           spellCheck={false}
         />
       </label>
@@ -407,7 +404,7 @@ function PipelineRunsPanel(props: {
     <section className="grid gap-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className=" text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Runs
           </div>
           <p className="m-0 mt-1 text-xs leading-5 text-muted-foreground">
@@ -457,17 +454,17 @@ function PipelineRunRow(props: {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span
               className={[
-                "rounded-md border border-border/70 bg-card/60 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em]",
+                "rounded-md border border-border/70 bg-card/60 px-2 py-1 text-xs font-semibold uppercase tracking-[0.08em]",
                 pipelineRunStatusClass(props.run.status),
               ].join(" ")}
             >
               {props.run.status}
             </span>
-            <span className="min-w-0 truncate font-mono text-xs font-semibold text-foreground">
+            <span className="min-w-0 truncate text-xs font-semibold text-foreground">
               {props.run.runId}
             </span>
           </div>
-          <div className="mt-2 flex min-w-0 flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
+          <div className="mt-2 flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <time>{formatLogTime(props.run.startedAt)}</time>
             {props.run.durationMs === undefined ? null : (
               <span className="tabular-nums">{props.run.durationMs}ms</span>
@@ -494,10 +491,10 @@ function PipelineRunOutputBlock(props: { title: string; output: string }) {
   return (
     <div className="mt-4 border-t border-border/70 pt-3">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <span className=" text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {props.title}
         </span>
-        <span className="font-mono text-[9px] font-medium tabular-nums text-muted-foreground">
+        <span className=" text-xs font-medium tabular-nums text-muted-foreground">
           {props.output.length} bytes
         </span>
       </div>
@@ -557,7 +554,7 @@ function NodeInspector(props: {
   return (
     <section className="grid content-start gap-5">
       <div>
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className=" text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           Selected node
         </div>
         <h2 className="m-0 mt-2 text-lg font-semibold tracking-tight text-foreground">
@@ -583,13 +580,13 @@ function NodeInspector(props: {
       />
       {metadata.length > 0 ? (
         <div className="grid gap-2">
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className=" text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Metadata
           </div>
           <div className="grid gap-1">
             {metadata.map(([key, value]) => (
               <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-2 text-xs" key={key}>
-                <span className="truncate font-mono text-muted-foreground">{key}</span>
+                <span className="truncate  text-muted-foreground">{key}</span>
                 <span className="truncate font-medium text-foreground">
                   {formatMetadataValue(value)}
                 </span>
@@ -630,21 +627,21 @@ function PipelineLogsSection(props: {
     <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className=" text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Pipeline logs
           </div>
-          <div className="mt-1 truncate font-mono text-[11px] font-medium text-muted-foreground">
+          <div className="mt-1 truncate text-xs font-medium text-muted-foreground">
             {props.selectedPipelineId.length === 0
               ? "No active pipeline"
               : props.selectedPipelineId}
           </div>
         </div>
-        <span className="font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+        <span className=" text-xs font-semibold tabular-nums text-muted-foreground">
           {props.logs.length}
         </span>
       </div>
       <div
-        className="min-h-0 overflow-auto rounded-xl border border-border/65 bg-background/45 p-2 font-mono"
+        className="min-h-0 overflow-auto rounded-xl border border-border/65 bg-background/45 p-2 "
         ref={scrollerRef}
         onScroll={updateStickiness}
       >
@@ -687,7 +684,7 @@ function PipelineLogRow(props: { log: StudioPipelineLogEntry }) {
   return (
     <article
       className={[
-        "min-w-full rounded-lg px-3 py-1.5 text-[11px] leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]",
+        "min-w-full rounded-lg px-3 py-1.5 text-xs leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]",
       ].join(" ")}
       title={line}
     >
@@ -716,7 +713,7 @@ function DetailList(props: { items: Array<[string, string | undefined]> }) {
     <div className="grid gap-2 rounded-xl bg-background/45 p-3">
       {items.map(([label, value]) => (
         <div className="grid grid-cols-[82px_minmax(0,1fr)] gap-2 text-xs" key={label}>
-          <span className="truncate font-mono text-muted-foreground">{label}</span>
+          <span className="truncate  text-muted-foreground">{label}</span>
           <span className="truncate font-medium text-foreground">{value}</span>
         </div>
       ))}
@@ -726,7 +723,7 @@ function DetailList(props: { items: Array<[string, string | undefined]> }) {
 
 function Badge(props: { children: string }) {
   return (
-    <span className="rounded-lg border border-border/70 bg-background/70 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+    <span className="rounded-lg border border-border/70 bg-background/70 px-2 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
       {props.children}
     </span>
   );

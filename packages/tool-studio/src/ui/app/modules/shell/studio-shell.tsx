@@ -34,14 +34,14 @@ export function StudioSidebar(props: {
         <div className="flex min-w-0 items-center gap-2.5">
           <img className="h-7 w-7 shrink-0 object-contain" src={logoSrc} alt="" />
           <span className="min-w-0 truncate">
-            <span className="anvia-wordmark text-[1.08rem] font-semibold tracking-normal text-sidebar-foreground">
+            <span className="anvia-wordmark text-lg font-semibold tracking-normal text-sidebar-foreground">
               Anvia Studio
             </span>
           </span>
         </div>
       </div>
       <nav className="grid gap-0.5 px-3 py-3" aria-label="Main">
-        <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="px-2.5 pb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Workspace
         </div>
         <NavButton
@@ -76,7 +76,7 @@ export function StudioSidebar(props: {
         />
       </nav>
       <nav className="grid gap-0.5 px-3 py-3" aria-label="Studio">
-        <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="px-2.5 pb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Inspect
         </div>
         <NavButton
@@ -117,7 +117,7 @@ export function StudioSidebar(props: {
         />
       </nav>
       <nav className="grid min-h-0 gap-0.5 overflow-auto px-3 py-3" aria-label="Recent sessions">
-        <div className="px-2.5 pb-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="px-2.5 pb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Recent
         </div>
         {props.allSessions.slice(0, 8).map((session) => (
@@ -142,7 +142,7 @@ export function StudioSidebar(props: {
               </span>
             </Button>
             <div className="relative grid h-7 min-w-0 place-items-end">
-              <time className="grid h-6 min-w-6 place-items-center self-center justify-self-end rounded-lg px-1.5 font-mono text-sm font-medium tabular-nums text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
+              <time className="grid h-6 min-w-6 place-items-center self-center justify-self-end rounded-lg px-1.5 text-sm font-medium tabular-nums text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
                 {formatRelativeTime(session.updatedAt)}
               </time>
               <Button
@@ -185,7 +185,7 @@ export function StudioHeader(props: {
     <header className="grid min-h-13 bg-background/88 backdrop-blur">
       <div className="grid min-h-13 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-0 pl-0 pr-6">
         <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
-          <span className="text-primary">
+          <span className="text-foreground">
             {props.activePage === "playground" ? "Agents" : "Studio"}
           </span>
           <span className="text-muted-foreground">/</span>
@@ -208,7 +208,7 @@ export function StudioHeader(props: {
             )}
           </Button>
           <Button
-            className="h-8 min-h-8 rounded-lg border border-white bg-white px-3 font-mono text-xs text-black shadow-none [box-shadow:none] hover:border-white hover:bg-white/90 hover:text-black focus-visible:ring-0 active:bg-white/85 disabled:bg-muted disabled:text-muted-foreground"
+            className="h-8 min-h-8 rounded-lg border border-white bg-white px-3 text-xs text-black shadow-none [box-shadow:none] hover:border-white hover:bg-white/90 hover:text-black focus-visible:ring-0 active:bg-white/85 disabled:bg-muted disabled:text-muted-foreground"
             type="button"
             variant="ghost"
             disabled={!props.sessionsEnabled}
@@ -225,7 +225,7 @@ export function StudioHeader(props: {
 function SidebarLink(props: { href: string; label: string }) {
   return (
     <a
-      className="flex h-8 min-h-8 items-center justify-between rounded-lg px-2 font-mono text-[11px] font-semibold text-sidebar-foreground/62 transition duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+      className="flex h-8 min-h-8 items-center justify-between rounded-lg px-2 text-xs font-semibold text-sidebar-foreground/62 transition duration-200 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       href={props.href}
       target="_blank"
       rel="noreferrer"

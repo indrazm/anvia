@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "../../components/ui/dialog";
 import { StudioIcon } from "../../components/ui/icon";
+import { StudioPageShell, StudioSurface } from "../../components/ui/studio";
 import { cn } from "../../lib/utils";
 import { agentLabel, formatRelativeTime } from "../shared/format";
 import type { SessionLoadState } from "../shared/types";
@@ -33,9 +34,9 @@ export function SessionsPage(props: {
   }
 
   return (
-    <section className="grid min-h-0 w-full overflow-auto pb-6 pl-0 pr-6" aria-label="Sessions">
-      <div className="min-w-225 overflow-hidden rounded-xl border border-border/80 bg-card/70 p-2 shadow-sm">
-        <div className="sticky top-0 z-10 grid min-h-11 grid-cols-[minmax(220px,1.3fr)_180px_120px_120px_72px] items-center gap-4 rounded-lg border border-border/60 bg-card/95 px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+    <StudioPageShell className="overflow-auto pb-6 pr-6" aria-label="Sessions">
+      <StudioSurface className="min-w-225 rounded-xl p-2">
+        <div className="sticky top-0 z-10 grid min-h-11 grid-cols-[minmax(220px,1.3fr)_180px_120px_120px_72px] items-center gap-4 rounded-lg border border-border/60 bg-card/95 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
           <span>Session</span>
           <span>Agent</span>
           <span>Messages</span>
@@ -53,9 +54,9 @@ export function SessionsPage(props: {
         {props.sessions.map((session) => (
           <div
             className={cn(
-              "mt-1 grid min-h-14 w-full min-w-0 grid-cols-[minmax(220px,1.3fr)_180px_120px_120px_72px] items-center gap-4 rounded-lg border border-transparent px-4 text-left text-muted-foreground transition duration-200 hover:border-primary/20 hover:bg-accent/80 hover:text-accent-foreground",
+              "mt-1 grid min-h-14 w-full min-w-0 grid-cols-[minmax(220px,1.3fr)_180px_120px_120px_72px] items-center gap-4 rounded-lg border border-transparent px-4 text-left text-muted-foreground transition duration-200 hover:border-border/70 hover:bg-accent/80 hover:text-accent-foreground",
               session.id === props.selectedSessionId &&
-                "border-primary/35 bg-primary/10 text-primary",
+                "border-border/80 bg-muted/45 text-foreground",
             )}
             key={session.id}
           >
@@ -69,7 +70,7 @@ export function SessionsPage(props: {
                 <strong className="min-w-0 truncate text-sm font-medium text-foreground">
                   {session.title ?? "Untitled chat"}
                 </strong>
-                <span className="min-w-0 truncate font-mono text-xs font-medium text-muted-foreground">
+                <span className="min-w-0 truncate text-xs font-medium text-muted-foreground">
                   {session.id}
                 </span>
               </span>
@@ -86,7 +87,7 @@ export function SessionsPage(props: {
             <span className="flex items-center justify-end gap-1">
               <Button
                 aria-label={`View tracing for ${session.title ?? "Untitled chat"}`}
-                className="h-7 min-h-7 w-7 border-0 bg-transparent p-0 text-muted-foreground opacity-80 hover:bg-transparent hover:text-primary hover:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
+                className="h-7 min-h-7 w-7 border-0 bg-transparent p-0 text-muted-foreground opacity-80 hover:bg-transparent hover:text-foreground hover:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
                 size="icon"
                 type="button"
                 variant="ghost"
@@ -113,8 +114,8 @@ export function SessionsPage(props: {
             </span>
           </div>
         ))}
-      </div>
-    </section>
+      </StudioSurface>
+    </StudioPageShell>
   );
 }
 

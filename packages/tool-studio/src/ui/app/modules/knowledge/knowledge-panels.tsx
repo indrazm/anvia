@@ -23,7 +23,7 @@ export function ItemBrowser(props: {
             <h2 className="m-0 truncate text-sm font-semibold text-foreground">
               {props.source?.source.label ?? "Knowledge items"}
             </h2>
-            <p className="m-0 mt-1 truncate font-mono text-xs text-muted-foreground">
+            <p className="m-0 mt-1 truncate text-xs text-muted-foreground">
               {props.source === undefined
                 ? "No source selected"
                 : `${props.source.agentId} / ${sourceId(props.source.source)}`}
@@ -53,7 +53,7 @@ export function ItemBrowser(props: {
         </div>
       </div>
       <div className="flex min-h-12 items-center justify-between gap-3 bg-muted/10 px-4 py-2">
-        <span className="font-mono text-[11px] text-muted-foreground">
+        <span className=" text-xs text-muted-foreground">
           {state === undefined ? "0 loaded" : `${state.items.length} loaded`}
         </span>
         <Button
@@ -75,10 +75,10 @@ function KnowledgeItemCard(props: { item: StudioKnowledgeItem }) {
     <article className="grid gap-3 rounded-xl border border-border/80 bg-background/55 p-4">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate font-mono text-xs font-semibold text-primary">
+          <div className="truncate text-xs font-semibold text-foreground">
             {props.item.toolName ?? props.item.id}
           </div>
-          <div className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             {itemKindLabel(props.item.kind)}
           </div>
         </div>
@@ -123,7 +123,7 @@ export function RetrievalLogPanel(props: {
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="m-0 truncate text-sm font-semibold text-foreground">Retrieval log</h2>
-            <p className="m-0 mt-1 truncate font-mono text-xs text-muted-foreground">
+            <p className="m-0 mt-1 truncate text-xs text-muted-foreground">
               traces / retrieval-evidence
             </p>
           </div>
@@ -145,12 +145,10 @@ export function RetrievalLogPanel(props: {
                   <div className="truncate text-sm font-semibold text-foreground">
                     {item.observationName}
                   </div>
-                  <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-                    Turn {item.turn}
-                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">Turn {item.turn}</div>
                 </div>
                 <Button
-                  className="h-auto min-h-0 rounded-lg border border-border bg-muted px-2 py-1 font-mono text-[10px] text-muted-foreground"
+                  className="h-auto min-h-0 rounded-lg border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
                   type="button"
                   variant="ghost"
                   onClick={() => props.onOpenTrace(item.traceId)}
@@ -164,7 +162,7 @@ export function RetrievalLogPanel(props: {
               </div>
               {item.query === undefined ? null : (
                 <p className="m-0 text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
-                  <span className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-foreground">
+                  <span className=" text-xs font-semibold uppercase tracking-[0.14em] text-foreground">
                     Query
                   </span>{" "}
                   {item.query}
@@ -175,7 +173,7 @@ export function RetrievalLogPanel(props: {
                   className="m-0 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]"
                   key={`${document.id ?? "doc"}:${document.text ?? ""}`}
                 >
-                  <span className="font-mono text-foreground">{document.id ?? "document"}</span>{" "}
+                  <span className=" text-foreground">{document.id ?? "document"}</span>{" "}
                   {document.text ?? ""}
                 </p>
               ))}
@@ -195,7 +193,7 @@ export function RetrievalLogPanel(props: {
 function JsonBlock(props: { title: string; value: unknown }) {
   return (
     <div className="grid gap-2 border-t border-border/70 pt-3">
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      <div className=" text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {props.title}
       </div>
       <JsonValueView value={props.value} />

@@ -32,11 +32,11 @@ export function SessionLogsPanel(props: {
       <header className="grid min-h-12 min-w-0 gap-1 py-3 pl-0 pr-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="m-0 text-sm font-semibold leading-tight text-foreground">Session logs</h2>
-          <span className="font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+          <span className=" text-xs font-semibold tabular-nums text-muted-foreground">
             {props.logs.length}
           </span>
         </div>
-        <p className="m-0 truncate font-mono text-[11px] font-medium text-muted-foreground">
+        <p className="m-0 truncate text-xs font-medium text-muted-foreground">
           {props.selectedSessionId.length === 0 ? "No active session" : props.selectedSessionId}
         </p>
       </header>
@@ -60,7 +60,7 @@ export function SessionLogsPanel(props: {
             No logs yet
           </div>
         ) : null}
-        <div className="grid min-w-0 gap-1 py-2 pl-0 pr-2 font-mono">
+        <div className="grid min-w-0 gap-1 py-2 pl-0 pr-2 ">
           {props.logs.map((log) => (
             <LogRow log={log} key={log.id} />
           ))}
@@ -83,7 +83,7 @@ function LogRow(props: { log: StudioSessionLogEntry }) {
     .join("  ");
   return (
     <article
-      className="grid min-w-0 gap-1 rounded-lg px-3 py-2 text-[11px] leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
+      className="grid min-w-0 gap-1 rounded-lg px-3 py-2 text-xs leading-5 transition duration-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.04]"
       title={line}
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -123,6 +123,6 @@ function levelTextClass(level: StudioSessionLogEntry["level"]): string {
     case "debug":
       return "text-muted-foreground";
     case "info":
-      return "text-primary";
+      return "text-foreground";
   }
 }

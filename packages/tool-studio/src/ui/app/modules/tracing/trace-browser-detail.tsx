@@ -28,7 +28,7 @@ export function rawTraceJson(value: unknown): string {
 
 export function TraceJsonTree(props: { value: unknown }) {
   return (
-    <div className="overflow-x-auto rounded-lg bg-card/85 px-4 py-4 font-mono text-[13px] leading-6 text-foreground">
+    <div className="overflow-x-auto rounded-lg bg-card/85 px-4 py-4 text-sm leading-6 text-foreground">
       <JsonNode depth={0} path="$" value={props.value} />
     </div>
   );
@@ -167,7 +167,7 @@ function JsonNodeLabel(props: {
   if (props.propertyKey !== undefined) {
     return (
       <>
-        <span className="text-chart-2">{JSON.stringify(props.propertyKey)}</span>
+        <span className="text-muted-foreground">{JSON.stringify(props.propertyKey)}</span>
         <span className="text-foreground">: </span>
       </>
     );
@@ -185,10 +185,10 @@ function JsonNodeLabel(props: {
 
 function JsonPrimitive(props: { value: unknown }) {
   if (typeof props.value === "string") {
-    return <span className="text-primary">{JSON.stringify(props.value)}</span>;
+    return <span className="text-foreground">{JSON.stringify(props.value)}</span>;
   }
   if (typeof props.value === "number") {
-    return <span className="text-chart-1">{String(props.value)}</span>;
+    return <span className="text-foreground">{String(props.value)}</span>;
   }
   if (typeof props.value === "boolean") {
     return <span className="text-chart-4">{String(props.value)}</span>;
@@ -790,11 +790,11 @@ function firstDeltaMsFromMetadata(metadata: unknown): number | undefined {
 export function statusDotClass(status: StudioTrace["status"]): string {
   switch (status) {
     case "success":
-      return "bg-primary";
+      return "bg-foreground";
     case "error":
       return "bg-destructive";
     case "running":
-      return "bg-chart-2";
+      return "bg-muted-foreground";
   }
 }
 
@@ -820,15 +820,15 @@ export function traceToneIconClass(
 ): string {
   switch (tone) {
     case "trace":
-      return "bg-primary text-background";
+      return "bg-foreground text-background";
     case "agent":
-      return "bg-chart-2 text-background";
+      return "bg-muted-foreground text-background";
     case "turn":
       return "bg-chart-4 text-background";
     case "generation":
-      return "bg-chart-1 text-background";
+      return "bg-foreground text-background";
     case "tool":
-      return "bg-chart-5 text-background";
+      return "bg-destructive text-background";
   }
 }
 

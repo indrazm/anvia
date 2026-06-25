@@ -41,7 +41,7 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
       />
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-semibold leading-5 tracking-tight text-foreground">
+          <div className="truncate text-sm font-semibold leading-5 tracking-tight text-foreground">
             {props.data.label}
           </div>
           <div className="mt-1 flex items-center gap-1.5">
@@ -49,14 +49,14 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
               className="h-1.5 w-1.5 rounded-lg"
               style={{ backgroundColor: props.data.statusColor }}
             />
-            <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <span className=" text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {props.data.kind}
             </span>
           </div>
         </div>
         {status === undefined ? null : (
           <span
-            className="rounded-lg border border-border/70 bg-background/70 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
+            className="rounded-lg border border-border/70 bg-background/70 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-[0.08em]"
             style={{ color: props.data.statusColor }}
           >
             {status}
@@ -64,7 +64,7 @@ function PipelineStageNode(props: NodeProps<Node<PipelineNodeData>>) {
         )}
       </div>
       {props.data.branchKey === undefined ? null : (
-        <div className="mt-2 truncate font-mono text-[10px] text-muted-foreground">
+        <div className="mt-2 truncate text-xs text-muted-foreground">
           branch: {props.data.branchKey}
         </div>
       )}

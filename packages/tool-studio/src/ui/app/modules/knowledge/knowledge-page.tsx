@@ -137,7 +137,7 @@ export function KnowledgePage(props: {
       <header className="bg-background/70 pb-5 pl-0 pr-6 pt-0 backdrop-blur">
         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-end gap-4 max-md:grid-cols-1">
           <div className="grid min-w-0 gap-2">
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
+            <div className=" text-xs font-semibold uppercase tracking-[0.24em] text-foreground">
               Agent context
             </div>
             <h1 className="m-0 text-2xl font-semibold leading-none tracking-tight text-foreground">
@@ -216,7 +216,7 @@ function KnowledgeTabs(props: {
             className={[
               "flex min-h-10 shrink-0 items-center gap-2 border-b px-0 pb-2 pt-1 text-left transition duration-200 hover:text-foreground focus-visible:outline-none",
               active
-                ? "border-primary text-foreground"
+                ? "border-foreground/45 text-foreground"
                 : "border-transparent text-muted-foreground hover:border-border",
             ].join(" ")}
             key={tab.id}
@@ -225,7 +225,7 @@ function KnowledgeTabs(props: {
             onClick={() => props.onSelectTab(tab.id)}
           >
             <span className="text-sm font-semibold">{tab.label}</span>
-            <span className="font-mono text-[10px] text-muted-foreground">
+            <span className=" text-xs text-muted-foreground">
               {tabCountLabel(tab.id, props.sources, props.evidenceCount)}
             </span>
           </button>
@@ -254,23 +254,21 @@ function SourceWorkspace(props: {
       {showSources ? (
         <div className="min-w-0 overflow-x-auto rounded-xl border border-border/80 bg-card/55">
           <div className="flex min-h-11 min-w-max items-center gap-2 px-3">
-            <span className="mr-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <span className="mr-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {tabLabel(props.activeTab)}
             </span>
             {props.loading && props.sources.length === 0 ? (
-              <span className="font-mono text-[11px] text-muted-foreground">Loading sources</span>
+              <span className=" text-xs text-muted-foreground">Loading sources</span>
             ) : null}
             {!props.loading && props.sources.length === 0 ? (
-              <span className="font-mono text-[11px] text-muted-foreground">
-                No knowledge sources
-              </span>
+              <span className=" text-xs text-muted-foreground">No knowledge sources</span>
             ) : null}
             {props.sources.map((source) => (
               <button
                 className={[
-                  "flex h-7 items-center gap-2 rounded-lg border border-border/80 bg-background/45 px-2.5 font-mono text-[11px] font-semibold text-muted-foreground transition duration-200 hover:border-primary/45 hover:bg-primary/10 hover:text-foreground focus-visible:border-ring focus-visible:outline-none",
+                  "flex h-7 items-center gap-2 rounded-lg border border-border/80 bg-background/45 px-2.5 text-xs font-semibold text-muted-foreground transition duration-200 hover:border-border/80 hover:bg-muted/45 hover:text-foreground focus-visible:border-ring focus-visible:outline-none",
                   props.selectedKey === source.key
-                    ? "border-primary/45 bg-primary/10 text-primary"
+                    ? "border-border/80 bg-muted/45 text-foreground"
                     : "",
                 ].join(" ")}
                 key={source.key}
