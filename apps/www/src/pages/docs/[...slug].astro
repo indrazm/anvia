@@ -1,0 +1,121 @@
+---
+import { getCollection, render, type CollectionEntry } from "astro:content";
+import DocsShell from "../../components/docs/DocsShell.astro";
+import { docHref, isPublishedDoc, sectionLabel, sortDocs } from "../../lib/docs";
+
+export async function getStaticPaths() {
+  const docs = sortDocs((await getCollection("docs")).filter(isPublishedDoc));
+
+  return docs.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry, docs },
+  }));
+}
+
+interface Props {
+  entry: CollectionEntry<"docs">;
+  docs: CollectionEntry<"docs">[];
+}
+
+const { entry, docs } = Astro.props;
+const { Content } = await render(entry);
+---
+
+<DocsShell
+  title={`${entry.data.title} | Anvia Docs`}
+  description={entry.data.description}
+  entries={docs}
+  activeSection={entry.data.section}
+  currentId={entry.id}
+>
+  <article
+    class="docs-content max-w-3xl"
+    data-pagefind-body
+    data-pagefind-meta={`section:${entry.data.section}`}
+  >
+    <p class="font-mono text-[#E9FF4E]/70 text-[0.75rem] uppercase tracking-[0.18em]">
+      {sectionLabel(entry.data.section)}
+    </p>
+    <h1
+      class="mt-4 max-w-3xl font-semibold text-4xl text-zinc-50 leading-[1.04] tracking-[-0.02em] sm:text-5xl"
+      data-pagefind-meta="title"
+    >
+      {entry.data.title}
+    </h1>
+    <p class="mt-4 max-w-2xl text-lg text-zinc-300 leading-8" data-pagefind-meta="description">
+      {entry.data.description}
+    </p>
+
+    <div class="mt-10">
+      <Content />
+    </div>
+
+    <footer class="mt-14 border-white/[0.08] border-t pt-6" data-pagefind-ignore>
+      <a href="/docs" class="font-semibold text-[#E9FF4E] text-sm transition hover:text-[#ddf447]">
+        Back to docs -&gt;
+      </a>
+    </footer>
+  </article>
+</DocsShell>
+
+<style>
+  .docs-content :global(h2) {
+    margin-top: 2.25rem;
+    color: rgb(244 244 245);
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .docs-content :global(h3) {
+    margin-top: 1.75rem;
+    color: rgb(244 244 245);
+    font-size: 1.125rem;
+    font-weight: 650;
+  }
+
+  .docs-content :global(p) {
+    margin-top: 1rem;
+    color: rgb(212 212 216);
+    line-height: 1.8;
+  }
+
+  .docs-content :global(ul) {
+    margin-top: 1rem;
+    display: grid;
+    gap: 0.55rem;
+    padding-left: 1.2rem;
+    color: rgb(212 212 216);
+    line-height: 1.7;
+    list-style: disc;
+  }
+
+  .docs-content :global(pre) {
+    margin-top: 1rem;
+    overflow-x: auto;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #101011;
+    padding: 1rem;
+    color: rgb(228 228 231);
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+
+  .docs-content :global(code) {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  }
+
+  .docs-content :global(:not(pre) > code) {
+    border-radius: 0.35rem;
+    background: rgba(255, 255, 255, 0.055);
+    padding: 0.15rem 0.35rem;
+    color: #e9ff4e;
+    font-size: 0.9em;
+  }
+
+  .docs-content :global(a) {
+    color: #e9ff4e;
+    font-weight: 600;
+  }
+</style>
