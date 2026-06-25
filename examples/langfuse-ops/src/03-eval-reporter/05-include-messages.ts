@@ -1,18 +1,13 @@
 // Demonstrates: includeMessages controls whether output.messages is
 // included in score metadata. The case output bundles a messages array.
 
-import { AgentBuilder } from "@anvia/core/agent";
 import { contains, runEvalSuite } from "@anvia/core/evals";
 import { createLangfuseEvalReporter } from "@anvia/langfuse";
-import { getStaticModel } from "../_support/model.js";
 import { createTracing } from "../_support/tracing.js";
 
 async function main(): Promise<void> {
   const tracing = createTracing({ name: "langfuse-ops-eval-reporter-05" });
   try {
-    const model = getStaticModel("ok");
-    const _agent = new AgentBuilder("msgs-agent", model).instructions("ok").build();
-
     const result = await runEvalSuite({
       name: "msgs-suite",
       cases: [

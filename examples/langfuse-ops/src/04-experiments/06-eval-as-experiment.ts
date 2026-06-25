@@ -16,6 +16,9 @@ async function main(): Promise<void> {
       .build();
 
     const datasetName = `langfuse-ops-eval-as-experiment-${Date.now()}`;
+    const datasetClient = createLangfuseDatasetClient(tracing);
+    await datasetClient.createDataset({ name: datasetName });
+
     const result = await runEvalAsExperiment(
       {
         name: "eval-as-experiment-suite",
@@ -32,7 +35,7 @@ async function main(): Promise<void> {
       },
       {
         tracing,
-        client: createLangfuseDatasetClient(tracing),
+        client: datasetClient,
         datasetName,
         runName: `run-${Date.now()}`,
       },

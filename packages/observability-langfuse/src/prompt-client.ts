@@ -10,7 +10,6 @@ import type {
 } from "./types.js";
 
 const DEFAULT_CACHE_TTL_MS = 60_000;
-const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function createLangfusePromptClient(
   tracing: Pick<LangfuseTracing, "score">,
@@ -21,7 +20,7 @@ export function createLangfusePromptClient(
   const publicKey = resolvedConfig.publicKey;
   const secretKey = resolvedConfig.secretKey;
   const defaultTtl = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
-  const timeoutMs = options.timeoutMs ?? resolvedConfig.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = resolvedConfig.timeoutMs;
 
   const cache = new Map<string, { prompt: LangfusePrompt; expiresAt: number }>();
   const authHeader = buildAuthHeader(publicKey, secretKey);

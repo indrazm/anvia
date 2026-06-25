@@ -9,7 +9,8 @@ phases.
 
 ## Prerequisites
 
-Create a `.env` at the repo root:
+Create a `.env` at the repo root. The package-local `.env.example` is a
+template only; scripts load `../../.env`.
 
 ```sh
 LANGFUSE_PUBLIC_KEY=pk-...

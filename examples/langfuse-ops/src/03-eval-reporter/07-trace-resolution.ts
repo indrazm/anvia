@@ -1,27 +1,34 @@
 // Demonstrates: the three trace resolution tiers. Each case uses a
 // different tier so we can verify all three at once.
 
-import { AgentBuilder } from "@anvia/core/agent";
 import { contains, runEvalSuite } from "@anvia/core/evals";
 import { createLangfuseEvalReporter } from "@anvia/langfuse";
-import { getStaticModel } from "../_support/model.js";
 import { createTracing } from "../_support/tracing.js";
 
 async function main(): Promise<void> {
   const tracing = createTracing({ name: "langfuse-ops-eval-reporter-07" });
   try {
-    const model = getStaticModel("ok");
-    const _agent = new AgentBuilder("resolve-agent", model).instructions("ok").build();
-
-    // Tier 1: output.trace (most direct, set by agent run)
-    // Tier 2: case.input.trace (bundled in case input)
-    // Tier 3: case.metadata.traceId / observationId
-    const tier3TraceId = "00000000-0000-0000-0000-000000000017";
+    const tier1TraceId = "00000000-0000-0000-0000-000000000171";
+    const tier2TraceId = "00000000-0000-0000-0000-000000000172";
+    const tier3TraceId = "00000000-0000-0000-0000-000000000173";
     const result = await runEvalSuite({
       name: "resolution-suite",
       cases: [
         {
-          id: "tier-3",
+          id: "tier-1-output-trace",
+          input: { answer: "ok", traceSource: "output" },
+          expected: "ok",
+        },
+        {
+          id: "tier-2-input-trace",
+          input: {
+            answer: "ok",
+            trace: { traceId: tier2TraceId, observationId: "obs-tier-2" },
+          },
+          expected: "ok",
+        },
+        {
+          id: "tier-3-metadata-trace",
           input: "ok",
           expected: "ok",
           metadata: {
@@ -30,14 +37,25 @@ async function main(): Promise<void> {
           },
         },
       ],
-      target: async (input) => ({
-        output: String(input),
-        trace: { traceId: "00000000-0000-0000-0000-000000000017a" },
-      }),
+      target: async (input) => {
+        if (typeof input === "object" && input !== null && "traceSource" in input) {
+          return {
+            output: "ok",
+            trace: { traceId: tier1TraceId, observationId: "obs-tier-1" },
+          };
+        }
+        if (typeof input === "object" && input !== null && "answer" in input) {
+          return { output: String(input.answer) };
+        }
+        return { output: String(input) };
+      },
       metrics: [contains()],
       reporters: [createLangfuseEvalReporter(tracing)],
     });
-    console.log("[eval-reporter:07] outcome:", result.results[0]?.metrics[0]?.outcome);
+    console.log(
+      "[eval-reporter:07] outcomes:",
+      result.results.map((caseResult) => caseResult.metrics[0]?.outcome),
+    );
   } finally {
     await tracing.shutdown();
   }

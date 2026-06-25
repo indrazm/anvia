@@ -49,6 +49,7 @@ async function main(): Promise<void> {
         target: agentEvalTarget(agent),
         metrics: [contains()],
         reporters: [createLangfuseEvalReporter(tracing, { onMissingTrace: "throw" })],
+        failOnReporterError: true,
       });
       console.log("[eval-reporter:03] throw: did NOT throw (unexpected)");
     } catch (error: unknown) {

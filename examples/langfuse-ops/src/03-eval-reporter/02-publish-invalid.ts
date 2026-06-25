@@ -1,7 +1,7 @@
 // Demonstrates: publishInvalid: true surfaces invalid outcomes as zero
 // scores. By default (publishInvalid: false) invalid outcomes are
-// dropped silently. We capture the scores that the reporter would have
-// sent by using a fake tracing.score.
+// dropped silently. This script uses a real tracing instance and live
+// Langfuse eval reporter.
 
 import { agentEvalTarget, EvalOutcome, runEvalSuite } from "@anvia/core/evals";
 import { createLangfuseEvalReporter } from "@anvia/langfuse";

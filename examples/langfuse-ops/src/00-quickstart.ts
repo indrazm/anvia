@@ -6,6 +6,7 @@ import { AgentBuilder } from "@anvia/core/agent";
 import { agentEvalTarget, contains, runEvalSuite } from "@anvia/core/evals";
 import { createLangfuseDatasetClient, createLangfuseEvalReporter } from "@anvia/langfuse";
 import { buildSupportAgent, getTicket } from "./_support/agent.js";
+import { optionalEnv } from "./_support/env.js";
 import { buildOpenAIClient, defaultModel } from "./_support/model.js";
 import { createTracing } from "./_support/tracing.js";
 
@@ -14,7 +15,7 @@ const datasetName = `quickstart-dataset-${Date.now()}`;
 async function main(): Promise<void> {
   const tracing = createTracing({ name: "langfuse-ops-quickstart" });
   try {
-    const langfuseBaseUrl = process.env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com";
+    const langfuseBaseUrl = optionalEnv("LANGFUSE_BASE_URL") ?? "https://cloud.langfuse.com";
     const client = buildOpenAIClient();
     const agent = buildSupportAgent(client.completionModel(defaultModel()), {
       tracing,

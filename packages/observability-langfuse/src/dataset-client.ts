@@ -13,7 +13,6 @@ import type {
 } from "./types.js";
 
 const DEFAULT_PAGE_SIZE = 50;
-const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_PAGINATION_PAGES = 100;
 
 export function createLangfuseDatasetClient(
@@ -25,7 +24,7 @@ export function createLangfuseDatasetClient(
   const publicKey = resolvedConfig.publicKey;
   const secretKey = resolvedConfig.secretKey;
   const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
-  const timeoutMs = options.timeoutMs ?? resolvedConfig.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = resolvedConfig.timeoutMs;
 
   const fetchImpl: typeof fetch = (...args) =>
     fetch(args[0], { ...(args[1] ?? {}), signal: AbortSignal.timeout(timeoutMs) });

@@ -20,7 +20,7 @@ export function createTracing(options: CreateTracingOptions = {}): LangfuseTraci
     baseUrl: env.baseUrl,
     environment: env.environment,
     release: env.release,
-    serviceName: options.name ?? "langfuse-ops",
+    serviceName: options.name ?? env.serviceName ?? "langfuse-ops",
     ...(options.redactInputs !== undefined ? { redactInputs: options.redactInputs } : {}),
     ...(options.redactOutputs !== undefined ? { redactOutputs: options.redactOutputs } : {}),
     ...(options.redaction !== undefined ? { redaction: options.redaction } : {}),

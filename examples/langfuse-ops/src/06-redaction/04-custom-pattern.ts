@@ -1,10 +1,10 @@
-// Demonstrates: adding a custom regex pattern (e.g. SSN).
+// Demonstrates: adding a custom regex pattern (e.g. SSN) while keeping defaults.
 
-import { createPiiRedactor } from "@anvia/langfuse";
+import { createPiiRedactor, DEFAULT_PATTERNS } from "@anvia/langfuse";
 
 function main(): void {
   const redactor = createPiiRedactor({
-    patterns: [{ name: "ssn", regex: /\b\d{3}-\d{2}-\d{4}\b/g }],
+    patterns: [...DEFAULT_PATTERNS, { name: "ssn", regex: /\b\d{3}-\d{2}-\d{4}\b/g }],
   });
   console.log("[redaction:04] pattern names:", redactor.patternNames());
   console.log(
