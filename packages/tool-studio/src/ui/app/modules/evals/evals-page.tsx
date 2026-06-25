@@ -23,77 +23,80 @@ export function EvalsPage(props: {
   const selected = props.evals.find((suite) => suite.id === props.selectedEvalId) ?? props.evals[0];
 
   return (
-    <section className="grid min-h-0 overflow-auto bg-background/45">
-      <div className="mx-auto grid w-full max-w-6xl content-start gap-5 p-6">
-        <header className="flex min-w-0 items-start justify-between gap-4 border-b border-border/80 pb-5">
-          <div className="min-w-0">
-            <p className="m-0 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              Evals
-            </p>
-            <h1 className="m-0 mt-2 text-2xl font-semibold tracking-tight text-foreground">
-              {selected?.name ?? "Eval suite"}
-            </h1>
-            {selected?.description === undefined ? null : (
-              <p className="m-0 mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                {selected.description}
+    <section className="grid h-full min-h-0 min-w-0 max-h-full max-w-full overflow-hidden bg-background/45">
+      <div className="grid min-h-0 min-w-0 pb-6 pr-6">
+        <div className="grid min-h-0 min-w-0 content-start gap-5 overflow-auto rounded-2xl border border-border/80 bg-card/70 p-6 shadow-sm">
+          <header className="flex min-w-0 items-start justify-between gap-4 border-b border-border/80 pb-5">
+            <div className="min-w-0">
+              <p className="m-0 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                Evals
               </p>
-            )}
+              <h1 className="m-0 mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                {selected?.name ?? "Eval suite"}
+              </h1>
+              {selected?.description === undefined ? null : (
+                <p className="m-0 mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  {selected.description}
+                </p>
+              )}
+            </div>
+            <Button
+              className="h-9 shrink-0 gap-1.5 rounded-lg border border-white bg-white px-3 text-sm font-semibold text-black shadow-none hover:border-white hover:bg-white/90 hover:text-black disabled:border-border disabled:bg-muted disabled:text-muted-foreground [&_svg]:!size-3"
+              disabled={!props.enabled || selected === undefined || props.runState === "running"}
+              onClick={props.onRun}
+              variant="ghost"
+            >
+              <StudioIcon icon={PlayIcon} aria-hidden="true" />
+              {props.runState === "running" ? "Running" : "Run"}
+            </Button>
+          </header>
+
+          <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="grid content-start gap-4 border-r border-border/80 pr-5 max-lg:border-b max-lg:border-r-0 max-lg:pb-5 max-lg:pr-0">
+              <label className="grid gap-2" htmlFor="eval-suite-select">
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Suite
+                </span>
+                <Select value={selected?.id ?? ""} onValueChange={props.onSelectEval}>
+                  <SelectTrigger
+                    id="eval-suite-select"
+                    className="h-9 w-full rounded-lg border-border/80 bg-background font-mono text-[11px] hover:border-muted-foreground/60 focus:border-muted-foreground/70 focus:ring-muted-foreground/20"
+                  >
+                    <SelectValue placeholder="Select eval" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {props.evals.map((suite) => (
+                      <SelectItem key={suite.id} value={suite.id}>
+                        {suite.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+
+              {selected === undefined ? null : (
+                <div className="grid gap-2">
+                  <Metric label="Cases" value={String(selected.caseCount)} />
+                  <Metric label="Metrics" value={String(selected.metricNames.length)} />
+                  <Metric label="Concurrency" value={String(selected.concurrency ?? 1)} />
+                </div>
+              )}
+            </aside>
+
+            <main className="min-w-0">
+              {selected === undefined ? (
+                <div className="rounded-lg border border-border/80 bg-card/25 p-5 text-sm font-medium text-muted-foreground">
+                  0 eval suite records are available in this Studio runtime.
+                </div>
+              ) : props.result === undefined ? (
+                <div className="rounded-lg border border-border/80 bg-card/25 p-5 text-sm font-medium text-muted-foreground">
+                  Run a suite to inspect pass, fail, invalid, and per-case metric results.
+                </div>
+              ) : (
+                <EvalResult result={props.result} />
+              )}
+            </main>
           </div>
-          <Button
-            className="h-9 shrink-0 rounded-lg px-3 text-sm font-semibold"
-            disabled={!props.enabled || selected === undefined || props.runState === "running"}
-            onClick={props.onRun}
-          >
-            <StudioIcon icon={PlayIcon} className="mr-1.5 h-3.5 w-3.5" />
-            {props.runState === "running" ? "Running" : "Run"}
-          </Button>
-        </header>
-
-        <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="grid content-start gap-4 border-r border-border/80 pr-5 max-lg:border-b max-lg:border-r-0 max-lg:pb-5 max-lg:pr-0">
-            <label className="grid gap-2" htmlFor="eval-suite-select">
-              <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Suite
-              </span>
-              <Select value={selected?.id ?? ""} onValueChange={props.onSelectEval}>
-                <SelectTrigger
-                  id="eval-suite-select"
-                  className="h-9 w-full rounded-lg border-primary/55 bg-background font-mono text-[11px]"
-                >
-                  <SelectValue placeholder="Select eval" />
-                </SelectTrigger>
-                <SelectContent>
-                  {props.evals.map((suite) => (
-                    <SelectItem key={suite.id} value={suite.id}>
-                      {suite.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-
-            {selected === undefined ? null : (
-              <div className="grid gap-2">
-                <Metric label="Cases" value={String(selected.caseCount)} />
-                <Metric label="Metrics" value={String(selected.metricNames.length)} />
-                <Metric label="Concurrency" value={String(selected.concurrency ?? 1)} />
-              </div>
-            )}
-          </aside>
-
-          <main className="min-w-0">
-            {selected === undefined ? (
-              <div className="rounded-lg border border-border/80 bg-card/25 p-5 text-sm font-medium text-muted-foreground">
-                0 eval suite records are available in this Studio runtime.
-              </div>
-            ) : props.result === undefined ? (
-              <div className="rounded-lg border border-border/80 bg-card/25 p-5 text-sm font-medium text-muted-foreground">
-                Run a suite to inspect pass, fail, invalid, and per-case metric results.
-              </div>
-            ) : (
-              <EvalResult result={props.result} />
-            )}
-          </main>
         </div>
       </div>
     </section>
