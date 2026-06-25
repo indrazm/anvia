@@ -1,7 +1,8 @@
-import { Path, Wrench } from "@phosphor-icons/react";
+import { PathIcon, Wrench01Icon } from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { StudioIcon } from "../../components/ui/icon";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../lib/utils";
 import { approvalLabel } from "../shared/format";
@@ -88,7 +89,7 @@ export function TranscriptItem(props: {
           onClick={() => props.onOpenTrace(traceId)}
         >
           <span className="grid h-4 w-4 shrink-0 place-items-center text-primary [&_svg]:h-3 [&_svg]:w-3">
-            <Path aria-hidden="true" />
+            <StudioIcon icon={PathIcon} aria-hidden="true" />
           </span>
           <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
             Trace
@@ -228,7 +229,7 @@ function ToolEntry(props: {
         >
           <span className="flex min-w-0 items-center gap-2">
             <span className="grid h-6 w-4 shrink-0 place-items-center text-primary">
-              <Wrench className="h-3.5 w-3.5" aria-hidden="true" />
+              <StudioIcon icon={Wrench01Icon} className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
             <strong className="min-w-0 truncate text-sm font-semibold text-foreground">
               {props.entry.toolName}

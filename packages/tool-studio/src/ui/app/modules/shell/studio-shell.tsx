@@ -1,6 +1,13 @@
-import { Archive, ArrowSquareOut, Moon, Plus, Sun } from "@phosphor-icons/react";
+import {
+  ArchiveIcon,
+  ExternalLinkIcon,
+  Moon02Icon,
+  PlusSignCircleIcon,
+  Sun02Icon,
+} from "@hugeicons/core-free-icons";
 import type { StudioSessionSummary } from "../../../../types";
 import { Button } from "../../components/ui/button";
+import { StudioIcon } from "../../components/ui/icon";
 import { cn } from "../../lib/utils";
 import { formatRelativeTime } from "../shared/format";
 import { logoSrc } from "../shared/path";
@@ -146,12 +153,12 @@ export function StudioSidebar(props: {
               variant="ghost"
               onClick={() => props.onLoadSession(session.id)}
             >
-              <span className="min-w-0 truncate text-xs font-medium">
+              <span className="min-w-0 truncate text-sm font-medium">
                 {session.title ?? "Untitled chat"}
               </span>
             </Button>
             <div className="relative grid h-7 min-w-0 place-items-end">
-              <time className="grid h-6 min-w-6 place-items-center self-center justify-self-end rounded-lg px-1.5 font-mono text-[10px] font-medium tabular-nums text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
+              <time className="grid h-6 min-w-6 place-items-center self-center justify-self-end rounded-lg px-1.5 font-mono text-sm font-medium tabular-nums text-muted-foreground group-hover:opacity-0 group-focus-within:opacity-0">
                 {formatRelativeTime(session.updatedAt)}
               </time>
               <Button
@@ -163,7 +170,7 @@ export function StudioSidebar(props: {
                 disabled={props.runState === "running"}
                 onClick={() => props.onDeleteSession(session)}
               >
-                <Archive aria-hidden="true" />
+                <StudioIcon icon={ArchiveIcon} aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -211,7 +218,11 @@ export function StudioHeader(props: {
             size="icon"
             onClick={props.onToggleTheme}
           >
-            {props.theme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            {props.theme === "dark" ? (
+              <StudioIcon icon={Sun02Icon} aria-hidden="true" />
+            ) : (
+              <StudioIcon icon={Moon02Icon} aria-hidden="true" />
+            )}
           </Button>
           <Button
             className="h-8 min-h-8 border-transparent bg-transparent px-3 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -227,7 +238,7 @@ export function StudioHeader(props: {
             type="button"
             onClick={props.onNewSession}
           >
-            <Plus aria-hidden="true" />
+            <StudioIcon icon={PlusSignCircleIcon} aria-hidden="true" />
             New session
           </Button>
         </div>
@@ -245,7 +256,11 @@ function SidebarLink(props: { href: string; label: string }) {
       rel="noreferrer"
     >
       <span>{props.label}</span>
-      <ArrowSquareOut aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
+      <StudioIcon
+        icon={ExternalLinkIcon}
+        aria-hidden="true"
+        className="h-3 w-3 text-muted-foreground"
+      />
     </a>
   );
 }

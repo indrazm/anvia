@@ -1,4 +1,4 @@
-import { ArrowLeft } from "@phosphor-icons/react";
+import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { useEffect, useMemo, useState } from "react";
 import {
   firstDeltaMsFromObservations,
@@ -38,6 +38,7 @@ import type { StudioConfig, StudioTrace } from "../../../../types";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { StudioIcon } from "../../components/ui/icon";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { cn } from "../../lib/utils";
 import { emptyFallback, formatDuration, formatTraceDate, traceAgentLabel } from "../shared/format";
@@ -192,7 +193,7 @@ function TraceDetailRoute(props: {
           variant="ghost"
           onClick={props.onBack}
         >
-          <ArrowLeft aria-hidden="true" />
+          <StudioIcon icon={ArrowLeft02Icon} aria-hidden="true" />
         </Button>
         <div className="grid min-w-0 gap-1">
           <strong className="min-w-0 truncate text-sm font-semibold text-foreground">

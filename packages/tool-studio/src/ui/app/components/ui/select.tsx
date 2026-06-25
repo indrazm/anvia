@@ -1,7 +1,8 @@
-import { CaretDown, Check } from "@phosphor-icons/react";
+import { ArrowDown01Icon, CheckIcon } from "@hugeicons/core-free-icons";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
+import { StudioIcon } from "./icon";
 
 export const Select = SelectPrimitive.Root;
 export const SelectValue = SelectPrimitive.Value;
@@ -21,7 +22,7 @@ export function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <CaretDown className="h-4 w-4 opacity-60" />
+        <StudioIcon icon={ArrowDown01Icon} className="h-4 w-4 opacity-60" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -64,7 +65,7 @@ export function SelectItem({
     >
       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <Check className="h-4 w-4" />
+          <StudioIcon icon={CheckIcon} className="h-4 w-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

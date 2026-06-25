@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Krona+One&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Krona+One&display=swap");
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 @source "./**/*.{ts,tsx}";
@@ -34,11 +34,13 @@
   --sidebar-foreground: hsl(208 22% 12%);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: hsl(68 76% 34% / 10%);
-  --sidebar-accent-foreground: hsl(68 82% 24%);
+  --sidebar-accent: hsl(205 18% 20% / 9%);
+  --sidebar-accent-foreground: hsl(208 22% 12%);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif, system-ui;
+  --font-heading:
+    Figtree, Inter, -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif, system-ui;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
   --radius: 0.5rem;
@@ -61,11 +63,11 @@
 }
 
 .dark {
-  --background: hsl(210 8% 8%);
+  --background: #131314;
   --foreground: hsl(88 18% 91%);
-  --card: hsl(210 8% 9.5%);
+  --card: #121212;
   --card-foreground: hsl(88 18% 91%);
-  --popover: hsl(210 8% 10%);
+  --popover: #121212;
   --popover-foreground: hsl(88 18% 91%);
   --primary: hsl(68 100% 56%);
   --primary-foreground: hsl(0 0% 4%);
@@ -85,15 +87,17 @@
   --chart-3: hsl(88 8% 62%);
   --chart-4: hsl(88 18% 86%);
   --chart-5: hsl(2 64% 61%);
-  --sidebar: hsl(210 8% 8%);
+  --sidebar: #131314;
   --sidebar-foreground: hsl(88 18% 91%);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: hsl(68 100% 56% / 10%);
-  --sidebar-accent-foreground: hsl(68 100% 62%);
+  --sidebar-accent: hsl(0 0% 100% / 8%);
+  --sidebar-accent-foreground: hsl(88 18% 91%);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --font-sans: Inter, -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif, system-ui;
+  --font-heading:
+    Figtree, Inter, -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif, system-ui;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: Geist Mono, ui-monospace, monospace;
   --radius: 0.5rem;
@@ -200,6 +204,15 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: 0;
     text-rendering: geometricPrecision;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
   }
 
   body::before {

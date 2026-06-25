@@ -1,6 +1,7 @@
-import { Play } from "@phosphor-icons/react";
+import { PlayIcon } from "@hugeicons/core-free-icons";
 import type { StudioEvalRunResponse, StudioEvalSuiteConfig } from "../../../../types";
 import { Button } from "../../components/ui/button";
+import { StudioIcon } from "../../components/ui/icon";
 import {
   Select,
   SelectContent,
@@ -56,7 +57,7 @@ export function EvalsPage(props: {
             disabled={selected === undefined || props.runState === "running"}
             onClick={props.onRun}
           >
-            <Play className="mr-1.5 h-3.5 w-3.5" />
+            <StudioIcon icon={PlayIcon} className="mr-1.5 h-3.5 w-3.5" />
             {props.runState === "running" ? "Running" : "Run"}
           </Button>
         </header>

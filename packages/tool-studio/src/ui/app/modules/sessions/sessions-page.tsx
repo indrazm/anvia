@@ -1,4 +1,4 @@
-import { ActivityIcon as Activity, Trash } from "@phosphor-icons/react";
+import { Activity01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
 import type { StudioConfig, StudioSessionSummary } from "../../../../types";
 import { Button } from "../../components/ui/button";
 import {
@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import { StudioIcon } from "../../components/ui/icon";
 import { cn } from "../../lib/utils";
 import { agentLabel, formatRelativeTime } from "../shared/format";
 import type { SessionLoadState } from "../shared/types";
@@ -94,7 +95,7 @@ export function SessionsPage(props: {
                   props.onViewSessionTracing(session.id);
                 }}
               >
-                <Activity aria-hidden="true" />
+                <StudioIcon icon={Activity01Icon} aria-hidden="true" />
               </Button>
               <Button
                 aria-label={`Delete ${session.title ?? "Untitled chat"}`}
@@ -107,7 +108,7 @@ export function SessionsPage(props: {
                   props.onDeleteSession(session);
                 }}
               >
-                <Trash aria-hidden="true" />
+                <StudioIcon icon={Delete02Icon} aria-hidden="true" />
               </Button>
             </span>
           </div>

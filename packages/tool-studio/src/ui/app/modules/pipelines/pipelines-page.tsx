@@ -1,6 +1,6 @@
 import { Background, BackgroundVariant, Controls, ReactFlow } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { ArrowClockwise, Play } from "@phosphor-icons/react";
+import { PlayIcon, ReplayIcon } from "@hugeicons/core-free-icons";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type {
   StudioConfig,
@@ -9,6 +9,7 @@ import type {
   StudioPipelineRunRecord,
 } from "../../../../types";
 import { Button } from "../../components/ui/button";
+import { StudioIcon } from "../../components/ui/icon";
 import {
   Select,
   SelectContent,
@@ -344,7 +345,7 @@ function PipelineInputPanel(props: {
           disabled={props.runState === "running" || props.disabled}
           onClick={props.onRun}
         >
-          <Play className="mr-1.5 h-3.5 w-3.5" />
+          <StudioIcon icon={PlayIcon} className="mr-1.5 h-3.5 w-3.5" />
           {props.runState === "running" ? "Running" : "Run"}
         </Button>
       </div>
@@ -476,7 +477,7 @@ function PipelineRunRow(props: {
           title="Replay this run with its saved input"
           variant="secondary"
         >
-          <ArrowClockwise className="mr-1.5 h-3.5 w-3.5" />
+          <StudioIcon icon={ReplayIcon} className="mr-1.5 h-3.5 w-3.5" />
           Replay
         </Button>
       </div>

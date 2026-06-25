@@ -1,17 +1,18 @@
 import {
-  ArrowBendUpLeft,
-  CaretDown,
-  CaretRight,
-  ChatText,
-  Cpu,
-  GearSix,
-  GitBranch,
-  Path,
-  Robot,
-  Wrench,
-} from "@phosphor-icons/react";
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  ArrowTurnBackwardIcon,
+  ChatIcon,
+  CpuIcon,
+  GitBranchIcon,
+  PathIcon,
+  Robot01Icon,
+  Settings02Icon,
+  Wrench01Icon,
+} from "@hugeicons/core-free-icons";
 import { useState } from "react";
 import type { StudioTrace } from "../../../../types";
+import { StudioIcon } from "../../components/ui/icon";
 import { formatToolValue, formatTraceTime, formatUsage } from "../shared/format";
 import { isRecord } from "../shared/object";
 import { messageText } from "../shared/transcript";
@@ -113,7 +114,11 @@ function JsonBranch(props: {
         type="button"
       >
         <span className="grid h-4 w-4 place-items-center text-muted-foreground [&_svg]:h-3 [&_svg]:w-3">
-          {open ? <CaretDown aria-hidden="true" /> : <CaretRight aria-hidden="true" />}
+          {open ? (
+            <StudioIcon icon={ArrowDown01Icon} aria-hidden="true" />
+          ) : (
+            <StudioIcon icon={ArrowRight01Icon} aria-hidden="true" />
+          )}
         </span>
         <span className="whitespace-pre">
           <JsonNodeLabel arrayIndex={props.arrayIndex} propertyKey={props.propertyKey} />
@@ -250,12 +255,12 @@ export function TraceRowIcon(props: { label: string }) {
   const className = "h-3.5 w-3.5 shrink-0";
   switch (props.label) {
     case "System prompt":
-      return <GearSix aria-hidden="true" className={className} />;
+      return <StudioIcon icon={Settings02Icon} aria-hidden="true" className={className} />;
     case "Prompt":
-      return <ChatText aria-hidden="true" className={className} />;
+      return <StudioIcon icon={ChatIcon} aria-hidden="true" className={className} />;
     case "Output":
     case "Assistant output":
-      return <ArrowBendUpLeft aria-hidden="true" className={className} />;
+      return <StudioIcon icon={ArrowTurnBackwardIcon} aria-hidden="true" className={className} />;
     default:
       return null;
   }
@@ -798,15 +803,15 @@ export function TraceToneIcon(props: {
 }) {
   switch (props.tone) {
     case "trace":
-      return <Path aria-hidden="true" />;
+      return <StudioIcon icon={PathIcon} aria-hidden="true" />;
     case "agent":
-      return <Robot aria-hidden="true" />;
+      return <StudioIcon icon={Robot01Icon} aria-hidden="true" />;
     case "turn":
-      return <GitBranch aria-hidden="true" />;
+      return <StudioIcon icon={GitBranchIcon} aria-hidden="true" />;
     case "generation":
-      return <Cpu aria-hidden="true" />;
+      return <StudioIcon icon={CpuIcon} aria-hidden="true" />;
     case "tool":
-      return <Wrench aria-hidden="true" />;
+      return <StudioIcon icon={Wrench01Icon} aria-hidden="true" />;
   }
 }
 

@@ -1,4 +1,4 @@
-import { ArrowUp, Paperclip, X } from "@phosphor-icons/react";
+import { ArrowUp02Icon, AttachmentIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { type ChangeEvent, type KeyboardEvent, lazy, type RefObject, Suspense } from "react";
 import type { StudioConfig, StudioModelSummary, StudioSessionLogEntry } from "../../../../types";
 import {
@@ -7,6 +7,7 @@ import {
   supportedAttachmentTypes,
 } from "../../app-helpers";
 import { Button } from "../../components/ui/button";
+import { StudioIcon } from "../../components/ui/icon";
 import {
   Select,
   SelectContent,
@@ -62,7 +63,7 @@ export function PlaygroundPage(props: {
   return (
     <section className="grid h-full min-h-0 min-w-0 max-h-full max-w-full grid-cols-[minmax(0,1fr)_minmax(0,460px)] overflow-hidden bg-background/45 max-xl:grid-cols-1">
       <div className="grid min-h-0 min-w-0 pb-6 pr-6">
-        <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-lg border border-border/80 bg-card/70 p-2 shadow-sm">
+        <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-2xl border border-border/80 bg-card/70 p-2 shadow-sm">
           <section
             className="min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 [scrollbar-gutter:stable]"
             ref={props.transcriptScrollerRef}
@@ -123,7 +124,7 @@ export function PlaygroundPage(props: {
                 ))}
               </div>
             )}
-            <div className="mx-auto grid w-full max-w-235 gap-2 rounded-lg border border-border/80 bg-card/95 p-2.5 shadow-xl shadow-black/35 backdrop-blur focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25">
+            <div className="mx-auto grid w-full max-w-235 gap-2 rounded-xl border border-border/80 bg-card/95 p-2.5 backdrop-blur">
               <Textarea
                 className="min-h-16 min-w-0 resize-none rounded-lg border-0 bg-transparent px-3 py-3 text-[15px] leading-7 text-foreground shadow-none outline-none ring-0 placeholder:text-muted-foreground/70 focus:border-transparent focus:ring-0"
                 ref={props.promptRef}
@@ -151,7 +152,7 @@ export function PlaygroundPage(props: {
                         variant="ghost"
                         onClick={() => props.onRemovePromptAttachment(attachment.id)}
                       >
-                        <X aria-hidden="true" />
+                        <StudioIcon icon={Cancel01Icon} aria-hidden="true" />
                       </Button>
                     </span>
                   ))}
@@ -176,7 +177,7 @@ export function PlaygroundPage(props: {
                     disabled={props.runState === "running"}
                     onClick={() => props.attachmentInputRef.current?.click()}
                   >
-                    <Paperclip aria-hidden="true" />
+                    <StudioIcon icon={AttachmentIcon} aria-hidden="true" />
                   </Button>
                 </div>
                 <div className="flex min-w-0 items-center gap-2">
@@ -221,11 +222,7 @@ export function PlaygroundPage(props: {
                         ))}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <span className="hidden max-w-60 truncate rounded-lg px-2 py-1 font-mono text-xs font-medium text-muted-foreground sm:block">
-                      {props.selectedAgent?.name ?? props.selectedAgent?.id ?? "Agent"}
-                    </span>
-                  )}
+                  ) : null}
                   <Button
                     aria-label={props.runState === "running" ? "Running" : "Send message"}
                     className="h-9 min-h-9 w-9 rounded-lg border-primary bg-primary text-primary-foreground hover:bg-primary/90"
@@ -233,7 +230,7 @@ export function PlaygroundPage(props: {
                     type="submit"
                     disabled={props.runState === "running" || props.selectedAgentId.length === 0}
                   >
-                    <ArrowUp />
+                    <StudioIcon icon={ArrowUp02Icon} />
                   </Button>
                 </div>
               </div>

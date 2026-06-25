@@ -1,7 +1,8 @@
-import { ArrowClockwise } from "@phosphor-icons/react";
+import { RefreshIcon } from "@hugeicons/core-free-icons";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import type { StudioKnowledgeItemsPage, StudioKnowledgeSummary } from "../../../../types";
 import { Button } from "../../components/ui/button";
+import { StudioIcon } from "../../components/ui/icon";
 import type { KnowledgeTab } from "../shared/types";
 import {
   flattenSources,
@@ -161,7 +162,7 @@ export function KnowledgePage(props: {
             variant="secondary"
             onClick={props.onRefresh}
           >
-            <ArrowClockwise aria-hidden="true" />
+            <StudioIcon icon={RefreshIcon} aria-hidden="true" />
             Refresh
           </Button>
         </div>
