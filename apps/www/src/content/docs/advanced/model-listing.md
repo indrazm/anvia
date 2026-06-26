@@ -11,6 +11,8 @@ Model listing is a provider-neutral contract for discovering available provider 
 
 Do not treat a listed model as proof that every Anvia capability is supported. Providers differ in tool behavior, streaming, structured output, media support, context length, rate limits, and account access.
 
+Provider-specific model listing behavior is covered in the [OpenAI](/docs/providers/openai), [Anthropic](/docs/providers/anthropic), [Gemini](/docs/providers/gemini), and [Mistral](/docs/providers/mistral) provider guides.
+
 ## Contract
 
 `@anvia/core/model-listing` defines `ModelListingClient`, which returns a normalized `ModelList` containing `ListedModel` entries. When listing fails, providers can throw `ModelListingError` with provider and status details.

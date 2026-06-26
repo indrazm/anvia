@@ -9,6 +9,8 @@ sidebar:
 
 Install `@anvia/core` plus one provider package. The core package is provider-neutral; a provider package turns a vendor API into a model that the core runtime can call.
 
+Read [Providers overview](/docs/providers/overview) if you need to choose between OpenAI, Anthropic, Gemini, and Mistral before continuing.
+
 ## Prerequisites
 
 Start from a TypeScript project that can import ESM packages. The examples use `pnpm`, but the package list is the important part.
