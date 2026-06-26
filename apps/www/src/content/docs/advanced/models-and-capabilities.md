@@ -11,6 +11,8 @@ A model in Anvia is a reusable capability object. Provider packages create model
 
 Choose models by required capability, operational behavior, and provider constraints. Do not assume every model supports the same tools, streaming, structured output, images, documents, reasoning metadata, or media APIs.
 
+Use [Capability matrix](/docs/providers/capability-matrix) for the current adapter-level provider comparison, then smoke test the exact model id before production use.
+
 ## Provider Shape
 
 ```ts
