@@ -28,7 +28,18 @@ const sidebarGroupOrder: Partial<Record<DocsSection, string[]>> = {
     "LLM Gateway",
     "Operational patterns",
   ],
-  examples: ["Examples"],
+  examples: [
+    "Getting started",
+    "Tools",
+    "Structured output",
+    "Providers and media",
+    "Pipelines",
+    "Retrieval",
+    "Multi-agent",
+    "Evaluations",
+    "Studio",
+    "Integrations",
+  ],
   compare: ["Compare"],
 };
 
