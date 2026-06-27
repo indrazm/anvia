@@ -9,7 +9,7 @@ sidebar:
 
 Embeddings turn text into vectors so retrieval can compare a user query with prepared knowledge. In core, the embedding model is just an interface:
 
-The current provider adapters with embeddings are [OpenAI](/docs/providers/openai), [Gemini](/docs/providers/gemini), and [Mistral](/docs/providers/mistral).
+The current provider adapters with embeddings are [OpenAI](/docs/providers/openai), [Gemini](/docs/providers/gemini), and [Mistral](/docs/providers/mistral). First-party local embedding adapters are also available through `@anvia/fastembed` and `@anvia/transformers`.
 
 ```ts
 import type { EmbeddingModel } from "@anvia/core/embeddings";
