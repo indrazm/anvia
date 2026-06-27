@@ -2,8 +2,6 @@
   <img src="apps/www/public/assets/logo.png" alt="Anvia logo" width="180" />
 </p>
 
-<h1 align="center">Anvia</h1>
-
 <p align="center">
   <strong>Build provider-agnostic AI agents and workflows in TypeScript.</strong>
 </p>
@@ -70,14 +68,6 @@ Anvia includes `@anvia/studio`, a local browser UI for inspecting and running ag
 ```ts
 new Studio([agent]).start({ port: 4021 });
 ```
-
-<p align="center">
-  <img src="apps/www/public/assets/illustrations/agent-gateway-card.png" alt="Anvia agent gateway preview" width="960" />
-</p>
-
-<p align="center">
-  <em>Preview of the Anvia website and agent gateway.</em>
-</p>
 
 ## What You Can Build
 
