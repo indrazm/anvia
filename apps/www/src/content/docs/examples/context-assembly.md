@@ -31,14 +31,16 @@ A customer asks, "Can I change the shipping address for A-100 like last time?" T
 import { AgentBuilder } from "@anvia/core";
 import { vectorFilter } from "@anvia/core/vector-store";
 
+const CHECKOUT_AGENT_INSTRUCTIONS = [
+  "Answer checkout questions for signed-in customers.",
+  "Use retrieved policy for policy answers.",
+  "Use tools for live order state and account-specific actions.",
+  "If policy evidence is missing, say what needs to be checked.",
+].join("\n");
+
 export function createCheckoutAgent(scope: CheckoutAgentScope) {
   return new AgentBuilder("checkout-support", scope.model)
-    .instructions(`
-Answer checkout questions for signed-in customers.
-Use retrieved policy for policy answers.
-Use tools for live order state and account-specific actions.
-If policy evidence is missing, say what needs to be checked.
-    `)
+    .instructions(CHECKOUT_AGENT_INSTRUCTIONS)
     .context(
       "Company support tone: concise, direct, and specific about next steps.",
       "support_tone",

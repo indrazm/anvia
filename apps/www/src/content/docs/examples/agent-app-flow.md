@@ -11,25 +11,22 @@ An agent app flow is the application-owned shell around one Anvia run. It starts
 
 ## Scenario
 
-A signed-in customer asks, "Where is order A-100 and can I change the address?" The app must authenticate the user, load conversation history, expose only tools scoped to that user and tenant, retrieve support policy, run the agent, persist messages and events, and return only the answer the UI needs.
+A signed-in customer asks, "Where is order A-100 and can I change the address?" The app must authenticate the user, open the conversation session, expose only tools scoped to that user and tenant, retrieve support policy, run the agent, persist the run record, and return only the answer the UI needs.
 
 ## Flow
 
 | Step | Owner | Example responsibility |
 | --- | --- | --- |
 | Transport | app | Parse HTTP, server action, queue, or UI input. |
-| Runner | app | Validate input, resolve auth, load history, create request scope. |
+| Runner | app | Validate input, resolve auth, create request scope, choose the memory-backed session. |
 | Agent runtime | Anvia + app | Run instructions, model, tools, context, memory, observers, and approvals. |
 | Tools | app | Enforce permissions and call product services. |
-| Persistence | app | Save messages, events, audit records, and product state. |
+| Persistence | Anvia + app | Memory saves conversation messages; app stores events, audit records, run records, and product state. |
 | Response | app | Return a UI or API shape, not raw provider internals. |
 
-## Example
+## Route
 
 ```ts
-import { AgentBuilder, Message } from "@anvia/core";
-import { vectorFilter } from "@anvia/core/vector-store";
-
 export async function POST(request: Request) {
   const body = await request.json();
 
@@ -37,33 +34,44 @@ export async function POST(request: Request) {
     conversationId: body.conversationId,
     message: body.message,
     auth,
-    conversations,
+    memoryStore,
     model,
     policyIndex,
     services: { orders, tickets },
+    runRecords,
     traces,
   });
 
   return Response.json(result);
 }
+```
 
+The route stays thin. It parses transport input, passes app services to the runner, and returns the product response shape.
+
+## Runner
+
+```ts
 export async function runSupportTurn(input: SupportTurnInput) {
+  if (input.message.trim().length === 0) {
+    return { ok: false as const, error: "message_required" };
+  }
+
   const user = await input.auth.requireUser();
-  const history = await input.conversations.loadMessages({
-    conversationId: input.conversationId,
-    userId: user.id,
-    tenantId: user.tenantId,
-  });
 
   const agent = createSupportAgent({
     model: input.model,
     user,
+    memoryStore: input.memoryStore,
     policyIndex: input.policyIndex,
     services: input.services,
   });
 
   const response = await agent
-    .prompt([...history, Message.user(input.message)])
+    .session(input.conversationId, {
+      userId: user.id,
+      metadata: { tenantId: user.tenantId },
+    })
+    .prompt(input.message)
     .withTrace({
       name: "support-chat",
       userId: user.id,
@@ -74,10 +82,12 @@ export async function runSupportTurn(input: SupportTurnInput) {
     })
     .send();
 
-  await input.conversations.append({
+  await input.runRecords.record({
     conversationId: input.conversationId,
     userId: user.id,
-    messages: response.messages,
+    traceId: response.trace?.traceId,
+    output: response.output,
+    usage: response.usage,
   });
 
   if (response.trace?.traceId !== undefined) {
@@ -88,25 +98,43 @@ export async function runSupportTurn(input: SupportTurnInput) {
   }
 
   return {
+    ok: true as const,
     answer: response.output,
     traceId: response.trace?.traceId,
   };
 }
+```
+
+The runner does not load history and does not build a `Message[]` transcript. Conversation history belongs to the configured memory store, and the current turn enters the runtime as a string prompt through the session.
+
+## Agent Factory
+
+```ts
+import { AgentBuilder } from "@anvia/core";
+import { vectorFilter } from "@anvia/core/vector-store";
+
+const SUPPORT_INSTRUCTIONS = [
+  "Answer with the user's current account state and retrieved policy evidence.",
+  "Use tools for customer-specific data.",
+  "Do not claim an action was completed unless a tool result says it was completed.",
+].join("\n");
 
 function createSupportAgent(scope: SupportAgentScope) {
+  const publicCheckoutPolicy = vectorFilter.and(
+    vectorFilter.and(
+      vectorFilter.eq("tenantId", scope.user.tenantId),
+      vectorFilter.eq("productArea", "checkout"),
+    ),
+    vectorFilter.eq("visibility", "public"),
+  );
+
   return new AgentBuilder("support", scope.model)
-    .instructions(`
-Answer with the user's current account state and retrieved policy evidence.
-Use tools for customer-specific data.
-Do not claim an action was completed unless a tool result says it was completed.
-    `)
+    .instructions(SUPPORT_INSTRUCTIONS)
+    .memory(scope.memoryStore, { savePolicy: "turn" })
     .dynamicContext(scope.policyIndex, {
       topK: 4,
       threshold: 0.72,
-      filter: vectorFilter.and(
-        vectorFilter.eq("productArea", "checkout"),
-        vectorFilter.eq("visibility", "public"),
-      ),
+      filter: publicCheckoutPolicy,
       format: (result) => ({
         id: result.id,
         text: [

@@ -13,17 +13,17 @@ Permissioned tools are the model's narrow interface to your application. A tool 
 
 A support agent can read orders, create tickets, and request refunds. The model can ask for those actions, but the app must enforce user, tenant, role, idempotency, approval, audit, and safe return shapes.
 
-## Example
+## Approval Policy
 
 ```ts
 import { createTool, type ToolApprovalPolicy } from "@anvia/core";
 import { z } from "zod";
 
-const refundInput = z.object({
-  orderId: z.string(),
-  amountCents: z.number().int().positive(),
-  reason: z.string().min(1),
-});
+type RefundArgs = {
+  orderId: string;
+  amountCents: number;
+  reason: string;
+};
 
 const refundApproval = {
   when(ctx) {
@@ -33,10 +33,26 @@ const refundApproval = {
     return `Refund ${ctx.args.amountCents} cents for order ${ctx.args.orderId}.`;
   },
   rejectMessage: "The refund was not approved.",
-} satisfies ToolApprovalPolicy<z.infer<typeof refundInput>>;
+} satisfies ToolApprovalPolicy<RefundArgs>;
+```
 
+## Tool Catalog
+
+```ts
 export function createSupportTools(scope: SupportToolScope) {
-  const lookupOrder = createTool({
+  return [
+    createLookupOrderTool(scope),
+    createTicketTool(scope),
+    createRequestRefundTool(scope),
+  ];
+}
+```
+
+## Read Tool
+
+```ts
+function createLookupOrderTool(scope: SupportToolScope) {
+  return createTool({
     name: "lookup_order",
     description: "Look up one order owned by the current customer.",
     input: z.object({
@@ -61,8 +77,14 @@ export function createSupportTools(scope: SupportToolScope) {
       };
     },
   });
+}
+```
 
-  const createTicket = createTool({
+## Ticket Write
+
+```ts
+function createTicketTool(scope: SupportToolScope) {
+  return createTool({
     name: "create_ticket",
     description: "Create a support ticket for the current customer.",
     input: z.object({
@@ -98,11 +120,21 @@ export function createSupportTools(scope: SupportToolScope) {
       };
     },
   });
+}
+```
 
-  const requestRefund = createTool({
+## Refund Write
+
+```ts
+function createRequestRefundTool(scope: SupportToolScope) {
+  return createTool({
     name: "request_refund",
     description: "Request a refund for an eligible order.",
-    input: refundInput,
+    input: z.object({
+      orderId: z.string(),
+      amountCents: z.number().int().positive(),
+      reason: z.string().min(1),
+    }),
     output: z.object({
       refundId: z.string().optional(),
       status: z.enum(["queued", "not_allowed"]),
@@ -133,8 +165,6 @@ export function createSupportTools(scope: SupportToolScope) {
       };
     },
   });
-
-  return [lookupOrder, createTicket, requestRefund];
 }
 ```
 

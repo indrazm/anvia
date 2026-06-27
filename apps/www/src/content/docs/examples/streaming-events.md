@@ -19,11 +19,11 @@ A support UI needs to show "looking up order", stream the answer, persist the fi
 | --- | --- |
 | run agent stream | server runner |
 | reduce events for UI | app reducer |
-| persist final event | conversation/job store |
+| persist final event | memory store and product run store |
 | store trace/run ids | product run record |
 | filter browser events | transport layer |
 
-## Example
+## Server Runner
 
 ```ts
 import type { AgentStreamEvent } from "@anvia/core";
@@ -39,6 +39,10 @@ export async function* runSupportTurnStream(input: SupportStreamInput) {
   const agent = createSupportAgent({ ...input, user });
 
   const stream = agent
+    .session(input.conversationId, {
+      userId: user.id,
+      metadata: { tenantId: user.tenantId },
+    })
     .prompt(input.message)
     .withTrace({
       name: "support-chat",
@@ -62,11 +66,6 @@ export async function* runSupportTurnStream(input: SupportStreamInput) {
     }
 
     if (event.type === "final") {
-      await input.conversations.append({
-        conversationId: input.conversationId,
-        messages: event.messages,
-      });
-
       await input.runs.record({
         conversationId: input.conversationId,
         runId: event.runId,
@@ -77,7 +76,11 @@ export async function* runSupportTurnStream(input: SupportStreamInput) {
     }
   }
 }
+```
 
+## UI Event Mapping
+
+```ts
 function toSupportUiEvent(event: AgentStreamEvent): SupportUiEvent | undefined {
   if (event.type === "tool_call") {
     return {
@@ -116,11 +119,19 @@ Server-side transport can expose the filtered UI stream:
 ```ts
 export async function POST(request: Request) {
   const body = await request.json();
-  const stream = runSupportTurnStream({ ...body, auth, conversations, services, runEvents });
+  const stream = runSupportTurnStream({
+    ...body,
+    auth,
+    memoryStore,
+    services,
+    runEvents,
+  });
 
   return createEventStream(stream, { format: "jsonl" });
 }
 ```
+
+The session memory store records conversation messages as the stream is consumed. The final event is still useful for app-owned run records, reload state, usage tracking, and trace lookup.
 
 ## Browser State
 

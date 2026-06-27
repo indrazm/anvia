@@ -28,17 +28,19 @@ An operations user asks the agent to refund an order, create a ticket, and notif
 ```ts
 import { AgentBuilder } from "@anvia/core";
 
+const BACKOFFICE_INSTRUCTIONS = [
+  "Use tools for operational actions.",
+  "Explain which actions were performed and which were denied.",
+  "Do not perform destructive actions without approval.",
+  "Never rely on prompt text for permissions.",
+].join("\n");
+
 export async function runBackofficeAction(input: BackofficeInput) {
   const operator = await input.auth.requireUser();
   await input.authz.require(operator, "backoffice:use_agent");
 
   const agent = new AgentBuilder("backoffice", input.model)
-    .instructions(`
-Use tools for operational actions.
-Explain which actions were performed and which were denied.
-Do not perform destructive actions without approval.
-Never rely on prompt text for permissions.
-    `)
+    .instructions(BACKOFFICE_INSTRUCTIONS)
     .tools(createBackofficeTools({
       operator,
       services: input.services,

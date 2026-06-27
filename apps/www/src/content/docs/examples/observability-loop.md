@@ -28,7 +28,11 @@ A support answer is wrong. The team needs to see the user, tenant, selected docu
 
 ```ts
 const response = await agent
-  .prompt([...history, Message.user(input.message)])
+  .session(input.conversationId, {
+    userId: user.id,
+    metadata: { tenantId: user.tenantId },
+  })
+  .prompt(input.message)
   .withTrace({
     name: "support-chat",
     userId: user.id,

@@ -43,13 +43,15 @@ const askTechnical = technicalAgent.asTool({
   stream: true,
 });
 
+const COORDINATOR_INSTRUCTIONS = [
+  "Coordinate specialist tools.",
+  "Ask specialists for evidence, not final user-facing answers.",
+  "Summarize disagreements and uncertainty.",
+  "Return one final answer with cited assumptions.",
+].join("\n");
+
 const coordinator = new AgentBuilder("research-coordinator", model)
-  .instructions(`
-Coordinate specialist tools.
-Ask specialists for evidence, not final user-facing answers.
-Summarize disagreements and uncertainty.
-Return one final answer with cited assumptions.
-  `)
+  .instructions(COORDINATOR_INSTRUCTIONS)
   .tools([askPolicy, askPricing, askTechnical])
   .defaultMaxTurns(6)
   .build();

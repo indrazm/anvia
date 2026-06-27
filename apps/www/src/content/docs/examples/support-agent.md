@@ -7,7 +7,7 @@ sidebar:
   order: 1
 ---
 
-A support agent combines the foundation patterns: a request runner, scoped tools, conversation history, retrieved policy evidence, trace metadata, safe persistence, and typed product responses.
+A support agent combines the foundation patterns: a request runner, scoped tools, memory-backed conversation history, retrieved policy evidence, trace metadata, safe persistence, and typed product responses.
 
 ## Scenario
 
@@ -17,33 +17,25 @@ A signed-in customer asks, "Where is order A-100 and can I change the address?" 
 
 | Step | Pattern |
 | --- | --- |
-| authenticate and load history | Agent App Flow |
+| authenticate and open session | Agent App Flow |
 | retrieve policy | Retrieval Agent |
 | read/change account state | Permissioned Tools |
 | persist messages and trace | Runtime State and Persistence |
 | test and evaluate | Testing Harness and Eval Loop |
 
-## Example
+## Runner
 
 ```ts
-import { AgentBuilder, Message } from "@anvia/core";
-import { vectorFilter } from "@anvia/core/vector-store";
-
 export async function runSupportTurn(input: SupportTurnInput) {
   if (input.message.trim().length === 0) {
     return { ok: false as const, error: "message_required" };
   }
 
   const user = await input.auth.requireUser();
-  const history = await input.conversations.loadMessages({
-    conversationId: input.conversationId,
-    userId: user.id,
-    tenantId: user.tenantId,
-  });
-
   const agent = createSupportAgent({
     model: input.model,
     user,
+    memoryStore: input.memoryStore,
     services: input.services,
     supportDocsIndex: input.supportDocsIndex,
     auditLog: input.auditLog,
@@ -51,7 +43,11 @@ export async function runSupportTurn(input: SupportTurnInput) {
   });
 
   const response = await agent
-    .prompt([...history, Message.user(input.message)])
+    .session(input.conversationId, {
+      userId: user.id,
+      metadata: { tenantId: user.tenantId, channel: input.channel },
+    })
+    .prompt(input.message)
     .withTrace({
       name: "support-chat",
       userId: user.id,
@@ -63,12 +59,6 @@ export async function runSupportTurn(input: SupportTurnInput) {
     })
     .send();
 
-  await input.conversations.append({
-    conversationId: input.conversationId,
-    userId: user.id,
-    messages: response.messages,
-  });
-
   await input.runRecords.record({
     conversationId: input.conversationId,
     traceId: response.trace?.traceId,
@@ -78,6 +68,23 @@ export async function runSupportTurn(input: SupportTurnInput) {
 
   return { ok: true as const, output: response.output };
 }
+```
+
+Conversation messages are loaded and appended by the configured `MemoryStore`. The runner stores the product run record separately so analytics, traces, and UI history do not get coupled to the prompt assembly path.
+
+## Agent Factory
+
+```ts
+import { AgentBuilder } from "@anvia/core";
+import { vectorFilter } from "@anvia/core/vector-store";
+
+const SUPPORT_INSTRUCTIONS = [
+  "Answer support questions clearly.",
+  "Use account tools for customer-specific data.",
+  "Use retrieved support docs for policy.",
+  "Ask for missing details before guessing.",
+  "Do not say an action succeeded unless a tool result says it succeeded.",
+].join("\n");
 
 export function createSupportAgent(scope: SupportAgentScope) {
   const publicCheckoutPolicy = vectorFilter.and(
@@ -89,13 +96,8 @@ export function createSupportAgent(scope: SupportAgentScope) {
   );
 
   return new AgentBuilder("support", scope.model)
-    .instructions(`
-Answer support questions clearly.
-Use account tools for customer-specific data.
-Use retrieved support docs for policy.
-Ask for missing details before guessing.
-Do not say an action succeeded unless a tool result says it succeeded.
-    `)
+    .instructions(SUPPORT_INSTRUCTIONS)
+    .memory(scope.memoryStore, { savePolicy: "turn" })
     .dynamicContext(scope.supportDocsIndex, {
       topK: 4,
       threshold: 0.72,
@@ -141,7 +143,7 @@ Each tool closes over `user`, `tenantId`, service handles, audit log, and idempo
 
 - Order tools accept user ids from the model.
 - Retrieval includes private drafts.
-- History grows without summarization or memory policy.
+- Session memory grows without summarization or memory policy.
 - The route returns raw runtime data instead of a product response shape.
 - The answer cites account tool output as if it were support policy.
 

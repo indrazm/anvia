@@ -52,12 +52,14 @@ export async function createCodingAssistant(input: CodingAssistantInput) {
     },
   });
 
+  const codingAssistantInstructions = [
+    "Use docs MCP tools only for reference.",
+    "Use sandbox tools for workspace files and commands.",
+    "Do not claim a command passed unless the tool result says it passed.",
+  ].join("\n");
+
   return new AgentBuilder("coding-assistant", input.model)
-    .instructions(`
-Use docs MCP tools only for reference.
-Use sandbox tools for workspace files and commands.
-Do not claim a command passed unless the tool result says it passed.
-    `)
+    .instructions(codingAssistantInstructions)
     .tools([...docsTools, ...workspaceTools])
     .defaultMaxTurns(8)
     .build();

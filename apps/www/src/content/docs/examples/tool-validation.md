@@ -24,7 +24,7 @@ The agent can change a shipping address, but only before the order ships, only f
 | output schema | accidental unsafe or inconsistent return values |
 | audit/event log | why the action was allowed or denied |
 
-## Example
+## Tool Implementation
 
 ```ts
 import { createTool } from "@anvia/core";

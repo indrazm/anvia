@@ -29,6 +29,13 @@ A coding agent can inspect a project, run focused checks, and propose patches. C
 import { AgentBuilder } from "@anvia/core";
 import { createSandboxTools } from "@anvia/sandbox";
 
+const SANDBOX_CODING_INSTRUCTIONS = [
+  "Inspect files before editing.",
+  "Prefer focused commands over broad test suites.",
+  "Summarize changed files and verification.",
+  "Never claim a command passed unless the tool result says it did.",
+].join("\n");
+
 export async function createCodingRun(input: CodingRunInput) {
   const session = await input.sandbox.createSession({
     workspace: { mode: "persistent", id: input.workspaceId },
@@ -48,12 +55,7 @@ export async function createCodingRun(input: CodingRunInput) {
   });
 
   const agent = new AgentBuilder("coding-agent", input.model)
-    .instructions(`
-Inspect files before editing.
-Prefer focused commands over broad test suites.
-Summarize changed files and verification.
-Never claim a command passed unless the tool result says it did.
-    `)
+    .instructions(SANDBOX_CODING_INSTRUCTIONS)
     .tools(tools)
     .defaultMaxTurns(10)
     .build();
