@@ -31,7 +31,7 @@ const embedded = await embedDocuments(embeddingModel, documents, {
 });
 ```
 
-Metadata values can be strings, numbers, booleans, or `null`. Keep metadata flat. Store ids and flags, not large nested records.
+Metadata values can be strings, numbers, booleans, or `null`. Keep metadata flat. Store ids and flags, not large nested records. Prefer non-null values for fields you plan to filter across production vector adapters.
 
 ## Filter A Search
 
@@ -85,7 +85,7 @@ const filter = vectorFilter.and(
 );
 ```
 
-Number comparisons are the common case. String and boolean comparisons are also supported, but use them deliberately so ordering is obvious to the next maintainer.
+Number comparisons are the portable production case. Core's in-memory store also supports string and boolean ordering, but vector database adapters may narrow range filters to numeric metadata. Use string, boolean, or `null` filter values only after checking the adapter you deploy.
 
 ## Dynamic Context Filters
 

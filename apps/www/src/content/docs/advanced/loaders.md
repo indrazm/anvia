@@ -86,7 +86,7 @@ const manualPages = await pdfPageLoaderToDocuments(
 );
 ```
 
-PDF page documents include `source`, `mediaType`, and a zero-based `pageNumber` in `additionalProps`.
+PDF page documents include `source`, `mediaType`, and a `pageNumber` string in `additionalProps`. The value contains the zero-based PDF page number.
 
 ## Error Handling
 
