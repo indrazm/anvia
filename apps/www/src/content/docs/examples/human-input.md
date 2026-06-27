@@ -59,7 +59,7 @@ const askRefundPreference = createTool({
 });
 ```
 
-The later request resumes with the user's answer:
+The later request resumes the same memory-backed session with the user's answer:
 
 ```ts
 export async function resumeCancellation(input: ResumeCancellationInput) {
@@ -71,15 +71,18 @@ export async function resumeCancellation(input: ResumeCancellationInput) {
   });
 
   const response = await input.agent
-    .prompt([
-      ...pending.messages,
-      Message.user(`Use refund preference ${input.preference} for order ${pending.orderId}.`),
-    ])
+    .session(pending.conversationId, {
+      userId: user.id,
+      metadata: { tenantId: pending.tenantId },
+    })
+    .prompt(`Use refund preference ${input.preference} for order ${pending.orderId}.`)
     .send();
 
   return { output: response.output };
 }
 ```
+
+The pending human-input record stores workflow state and ownership checks. It should not become a hand-built prompt transcript; the agent's `MemoryStore` owns conversation history.
 
 Use the answer in a guarded side-effect tool:
 

@@ -23,7 +23,19 @@ A developer asks the agent to fix a failing test. The agent can inspect files an
 | collect patch | Runtime State and Persistence |
 | create review | Guarded Side Effects |
 
-## Example
+## Instructions
+
+```ts
+const CODING_AGENT_INSTRUCTIONS = [
+  "Inspect before editing.",
+  "Run focused checks when possible.",
+  "Write proposed changes to .anvia/patch.diff.",
+  "Summarize changed files and verification.",
+  "Never claim a command passed unless the tool result says it did.",
+].join("\n");
+```
+
+## Runner
 
 ```ts
 import { AgentBuilder } from "@anvia/core";
@@ -36,13 +48,7 @@ export async function runCodingTask(input: CodingTaskInput) {
   });
 
   const agent = new AgentBuilder("coding-agent", input.model)
-    .instructions(`
-Inspect before editing.
-Run focused checks when possible.
-Write proposed changes to .anvia/patch.diff.
-Summarize changed files and verification.
-Never claim a command passed unless the tool result says it did.
-    `)
+    .instructions(CODING_AGENT_INSTRUCTIONS)
     .tools(createSandboxTools(session, {
       allow: ["list_files", "read_file", "write_file", "exec_command"],
       readFile: { maxBytes: 160_000 },

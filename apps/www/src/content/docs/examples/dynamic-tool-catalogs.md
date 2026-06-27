@@ -30,6 +30,12 @@ import { AgentBuilder } from "@anvia/core";
 import { createToolIndex } from "@anvia/core/tool";
 import { vectorFilter } from "@anvia/core/vector-store";
 
+const SUPPORT_ADMIN_INSTRUCTIONS = [
+  "Use the smallest relevant tool set for each request.",
+  "If no selected tool can safely perform the action, explain what is missing.",
+  "Do not assume a tool is authorized just because it was selected.",
+].join("\n");
+
 export async function createSupportAdminAgent(scope: SupportAdminScope) {
   const tools = [
     ...createOrderTools(scope),
@@ -57,11 +63,7 @@ export async function createSupportAdminAgent(scope: SupportAdminScope) {
   );
 
   return new AgentBuilder("support-admin", scope.model)
-    .instructions(`
-Use the smallest relevant tool set for each request.
-If no selected tool can safely perform the action, explain what is missing.
-Do not assume a tool is authorized just because it was selected.
-    `)
+    .instructions(SUPPORT_ADMIN_INSTRUCTIONS)
     .dynamicTools(toolIndex, {
       topK: 6,
       threshold: 0.68,

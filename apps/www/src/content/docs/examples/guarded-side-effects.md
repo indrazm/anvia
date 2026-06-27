@@ -24,17 +24,17 @@ A backoffice agent can refund an order. The operation requires operator permissi
 | audit | tool execution path |
 | safe output | tool output schema |
 
-## Example
+## Approval Policy
 
 ```ts
-import { createTool, type ToolApprovalPolicy, type ToolApprovalsOptions } from "@anvia/core";
+import type { ToolApprovalPolicy } from "@anvia/core";
 import { z } from "zod";
 
-const refundInput = z.object({
-  orderId: z.string(),
-  amountCents: z.number().int().positive(),
-  reason: z.string().min(1),
-});
+type RefundArgs = {
+  orderId: string;
+  amountCents: number;
+  reason: string;
+};
 
 const refundApproval = {
   when(ctx) {
@@ -44,13 +44,23 @@ const refundApproval = {
     return `Refund ${ctx.args.amountCents} cents for order ${ctx.args.orderId}.`;
   },
   rejectMessage: "The refund was not approved.",
-} satisfies ToolApprovalPolicy<z.infer<typeof refundInput>>;
+} satisfies ToolApprovalPolicy<RefundArgs>;
+```
+
+## Guarded Tool
+
+```ts
+import { createTool } from "@anvia/core";
 
 export function createIssueRefundTool(scope: BackofficeToolScope) {
   return createTool({
     name: "issue_refund",
     description: "Issue a refund for an eligible order after policy checks.",
-    input: refundInput,
+    input: z.object({
+      orderId: z.string(),
+      amountCents: z.number().int().positive(),
+      reason: z.string().min(1),
+    }),
     output: z.object({
       refundId: z.string().optional(),
       status: z.enum(["issued", "not_allowed"]),
@@ -95,6 +105,12 @@ export function createIssueRefundTool(scope: BackofficeToolScope) {
     },
   });
 }
+```
+
+## Approval Handler
+
+```ts
+import type { ToolApprovalsOptions } from "@anvia/core";
 
 export const approvals = {
   async handler(request) {

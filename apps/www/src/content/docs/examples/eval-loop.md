@@ -22,11 +22,9 @@ Support answers must follow refund policy, call order tools when account state m
 | answer quality | deterministic metrics first, judge metrics when needed |
 | regressions from incidents | named eval cases tied to release/prompt version |
 
-## Example
+## Cases
 
 ```ts
-import { contains, defineMetric, EvalOutcome, runEvalSuite } from "@anvia/core/evals";
-
 const supportCases = [
   {
     id: "refund-policy-with-order",
@@ -57,6 +55,12 @@ const supportCases = [
     },
   },
 ];
+```
+
+## Metric
+
+```ts
+import { defineMetric, EvalOutcome } from "@anvia/core/evals";
 
 const calledExpectedTool = defineMetric({
   name: "called_expected_tool",
@@ -72,6 +76,12 @@ const calledExpectedTool = defineMetric({
       : EvalOutcome.fail(false, { comment: `Missing ${expected.expectedTool}.` });
   },
 });
+```
+
+## Suite
+
+```ts
+import { contains, runEvalSuite } from "@anvia/core/evals";
 
 const result = await runEvalSuite({
   name: "support-regression",

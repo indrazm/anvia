@@ -57,8 +57,11 @@ const supportResultSchema = z.object({
   needsHuman: z.boolean(),
 });
 
+const SUPPORT_RESULT_INSTRUCTIONS =
+  "Use tools when account state is needed. Return the final result object.";
+
 const agent = new AgentBuilder("support", model)
-  .instructions("Use tools when account state is needed. Return the final result object.")
+  .instructions(SUPPORT_RESULT_INSTRUCTIONS)
   .tools(createSupportTools(scope))
   .outputSchema(supportResultSchema)
   .build();
@@ -81,8 +84,10 @@ const invoiceSchema = z.object({
   dueDate: z.string().nullable(),
 });
 
+const INVOICE_EXTRACTION_INSTRUCTIONS = "Extract invoice fields from the supplied text.";
+
 const extractor = new ExtractorBuilder(model, invoiceSchema)
-  .instructions("Extract invoice fields from the supplied text.")
+  .instructions(INVOICE_EXTRACTION_INSTRUCTIONS)
   .retries(1)
   .build();
 

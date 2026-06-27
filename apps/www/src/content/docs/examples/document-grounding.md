@@ -27,8 +27,15 @@ The support agent retrieves checkout policy chunks. It should answer with the po
 Use manual retrieval when the application needs an exact evidence log:
 
 ```ts
-import { AgentBuilder, Message } from "@anvia/core";
+import { AgentBuilder } from "@anvia/core";
 import { vectorFilter } from "@anvia/core/vector-store";
+
+const GROUNDED_POLICY_INSTRUCTIONS = [
+  "Use the provided policy sources as evidence.",
+  "Cite source ids or titles when policy affects the answer.",
+  "If no source supports the answer, say the policy needs to be checked.",
+  "Do not cite account tools as policy sources.",
+].join("\n");
 
 export async function answerWithPolicyEvidence(input: GroundedPolicyInput) {
   const user = await input.auth.requireUser();
@@ -45,19 +52,14 @@ export async function answerWithPolicyEvidence(input: GroundedPolicyInput) {
   });
 
   const agent = new AgentBuilder("grounded-support", input.model)
-    .instructions(`
-Use the provided policy sources as evidence.
-Cite source ids or titles when policy affects the answer.
-If no source supports the answer, say the policy needs to be checked.
-Do not cite account tools as policy sources.
-    `)
+    .instructions(GROUNDED_POLICY_INSTRUCTIONS)
     .context(renderEvidence(evidence), "selected-policy-evidence")
     .tools(createAccountTools({ user, services: input.services }))
     .defaultMaxTurns(4)
     .build();
 
   const response = await agent
-    .prompt(Message.user(input.message))
+    .prompt(input.message)
     .withTrace({
       name: "grounded-policy-answer",
       userId: user.id,
@@ -84,7 +86,11 @@ Do not cite account tools as policy sources.
 
   return { answer: response.output };
 }
+```
 
+Render evidence with source handles the model can cite:
+
+```ts
 function renderEvidence(evidence: GroundingEvidence[]) {
   return evidence
     .map((item) =>

@@ -11,7 +11,7 @@ Test deterministic boundaries before relying on live model behavior. Runners, to
 
 ## Scenario
 
-The support runner must reject empty messages, scope order tools to the signed-in user, filter retrieval by tenant, and append messages only after success.
+The support runner must reject empty messages, scope order tools to the signed-in user, filter retrieval by tenant, and avoid writing session memory when validation fails.
 
 ## Flow
 
@@ -28,13 +28,13 @@ The support runner must reject empty messages, scope order tools to the signed-i
 ```ts
 it("rejects empty messages before model execution", async () => {
   const model = fakeCompletionModel();
-  const conversations = fakeConversations();
+  const memoryStore = fakeMemoryStore();
 
   const result = await runSupportTurn({
     conversationId: "conv_1",
     message: " ",
     auth: fakeAuth({ userId: "user_1", tenantId: "tenant_1" }),
-    conversations,
+    memoryStore,
     services: fakeServices(),
     supportDocsIndex: fakeVectorIndex(),
     model,
@@ -42,7 +42,7 @@ it("rejects empty messages before model execution", async () => {
 
   expect(result).toEqual({ ok: false, error: "message_required" });
   expect(model.requests).toHaveLength(0);
-  expect(conversations.append).not.toHaveBeenCalled();
+  expect(memoryStore.append).not.toHaveBeenCalled();
 });
 ```
 

@@ -25,11 +25,10 @@ A support answer is wrong. The team needs to find the conversation, replay the a
 | retrieved evidence | evidence log or trace metadata | citation debugging and eval review |
 | job status | job table or queue backend | UI status, retries, and worker recovery |
 
-## Example
+## Event Store
 
 ```ts
 import type { AgentEventStore } from "@anvia/core/agent";
-import { AgentBuilder } from "@anvia/core";
 
 export const eventStore: AgentEventStore = {
   async append(input) {
@@ -51,17 +50,29 @@ export const eventStore: AgentEventStore = {
     await db.agentEvents.deleteMany({ where: { runId } });
   },
 };
+```
+
+## Agent Factory
+
+```ts
+import { AgentBuilder } from "@anvia/core";
+
+const PERSISTENT_SUPPORT_INSTRUCTIONS = "Answer support questions using tools and retrieved policy.";
 
 export function createPersistentAgent(scope: PersistentAgentScope) {
   return new AgentBuilder("support", scope.model)
-    .instructions("Answer support questions using tools and retrieved policy.")
+    .instructions(PERSISTENT_SUPPORT_INSTRUCTIONS)
     .tools(createSupportTools(scope))
     .memory(scope.memoryStore, { savePolicy: "turn" })
     .eventStore(eventStore, { include: "all" })
     .observe(scope.observer)
     .build();
 }
+```
 
+## Runner
+
+```ts
 export async function runSupportTurn(input: SupportTurnInput) {
   const user = await input.auth.requireUser();
   const agent = createPersistentAgent({ ...input, user });

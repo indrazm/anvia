@@ -28,14 +28,16 @@ An analyst asks for a market brief. The workflow searches internal notes, reads 
 ```ts
 import { AgentBuilder } from "@anvia/core";
 
+const RESEARCH_INSTRUCTIONS = [
+  "Collect evidence before writing.",
+  "Cite source ids from retrieved notes or search tools.",
+  "Separate findings from assumptions.",
+  "If sources disagree, explain the disagreement.",
+].join("\n");
+
 export function createResearchAgent(scope: ResearchAgentScope) {
   return new AgentBuilder("research", scope.model)
-    .instructions(`
-Collect evidence before writing.
-Cite source ids from retrieved notes or search tools.
-Separate findings from assumptions.
-If sources disagree, explain the disagreement.
-    `)
+    .instructions(RESEARCH_INSTRUCTIONS)
     .tools([
       createSearchInternalNotesTool(scope),
       createReadApprovedSourceTool(scope),
@@ -54,12 +56,14 @@ export async function runResearchBrief(input: ResearchBriefInput) {
     notesIndex: input.notesIndex,
   });
 
+  const prompt = [
+    `Research topic: ${input.topic}`,
+    `Audience: ${input.audience}`,
+    "Return a brief with findings, assumptions, and cited source ids.",
+  ].join("\n");
+
   const response = await agent
-    .prompt([
-      `Research topic: ${input.topic}`,
-      `Audience: ${input.audience}`,
-      "Return a brief with findings, assumptions, and cited source ids.",
-    ].join("\n"))
+    .prompt(prompt)
     .withTrace({
       name: "research-brief",
       userId: user.id,

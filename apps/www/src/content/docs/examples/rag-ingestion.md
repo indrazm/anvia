@@ -24,7 +24,7 @@ Support knowledge comes from three places: published CMS articles, text-based PD
 | store | `ChromaVectorStore.upsertDocuments(...)` | collection ownership and refresh policy |
 | serve retrieval | `store.index(embeddings)` | tenant/product filters and freshness checks |
 
-## Example
+## Provider Setup
 
 ```ts
 import { readFile } from "node:fs/promises";
@@ -39,8 +39,40 @@ const mistral = new MistralClient({ apiKey: process.env.MISTRAL_API_KEY });
 
 const embeddings = openai.embeddingModel("text-embedding-3-small");
 const ocr = mistral.ocrModel();
+```
 
-export async function refreshSupportKnowledge(input: RefreshKnowledgeInput) {
+## OCR Scanned Files
+
+```ts
+async function loadScannedFile(input: RefreshKnowledgeInput, file: ScannedKnowledgeFile) {
+  const result = await ocr.ocr({
+    source: {
+      type: "bytes",
+      data: await readFile(file.path),
+      filename: file.filename,
+    },
+    tableFormat: "markdown",
+    includeImageBase64: false,
+  });
+
+  return result.pages.map((page) => ({
+    id: `${file.id}#page=${page.index}`,
+    title: file.title,
+    text: page.markdown,
+    source: file.path,
+    pageNumber: page.index,
+    tenantId: input.tenantId,
+    productArea: "checkout",
+    visibility: "public",
+    updatedAt: file.updatedAt,
+  }));
+}
+```
+
+## Load Sources
+
+```ts
+export async function loadSupportSources(input: RefreshKnowledgeInput) {
   const cmsDocs = await input.cms.listPublishedArticles({
     tenantId: input.tenantId,
     productArea: "checkout",
@@ -51,32 +83,10 @@ export async function refreshSupportKnowledge(input: RefreshKnowledgeInput) {
   );
 
   const scannedDocs = await Promise.all(
-    input.scannedFiles.map(async (file) => {
-      const result = await ocr.ocr({
-        source: {
-          type: "bytes",
-          data: await readFile(file.path),
-          filename: file.filename,
-        },
-        tableFormat: "markdown",
-        includeImageBase64: false,
-      });
-
-      return result.pages.map((page) => ({
-        id: `${file.id}#page=${page.index}`,
-        title: file.title,
-        text: page.markdown,
-        source: file.path,
-        pageNumber: page.index,
-        tenantId: input.tenantId,
-        productArea: "checkout",
-        visibility: "public",
-        updatedAt: file.updatedAt,
-      }));
-    }),
+    input.scannedFiles.map((file) => loadScannedFile(input, file)),
   );
 
-  const sourceDocuments = [
+  return [
     ...cmsDocs.map((article) => ({
       id: article.id,
       title: article.title,
@@ -100,7 +110,14 @@ export async function refreshSupportKnowledge(input: RefreshKnowledgeInput) {
     })),
     ...scannedDocs.flat(),
   ];
+}
+```
 
+## Embed And Store
+
+```ts
+export async function refreshSupportKnowledge(input: RefreshKnowledgeInput) {
+  const sourceDocuments = await loadSupportSources(input);
   const chunks = sourceDocuments.flatMap((document) =>
     splitIntoChunks(document.text).map((chunk, index) => ({
       id: `${document.id}#chunk=${index}`,
