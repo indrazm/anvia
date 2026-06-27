@@ -19,6 +19,20 @@ interface Props {
   activeSection?: DocsSection;
   currentId?: string;
   headings?: MarkdownHeading[];
+  customSidebarGroups?: SidebarGroup[];
+  sidebarActiveId?: string;
+  sidebarScrollKey?: string;
+}
+
+interface SidebarEntry {
+  id: string;
+  href: string;
+  label: string;
+}
+
+interface SidebarGroup {
+  title: string;
+  entries: SidebarEntry[];
 }
 
 const {
@@ -28,11 +42,25 @@ const {
   activeSection = "basics",
   currentId,
   headings = [],
+  customSidebarGroups,
+  sidebarActiveId = currentId,
+  sidebarScrollKey: sidebarScrollKeyOverride,
 } = Astro.props;
-const sidebarGroups = getSidebarGroups(entries, activeSection);
+const sidebarGroups =
+  customSidebarGroups ??
+  getSidebarGroups(entries, activeSection).map((group) => ({
+    title: group.title,
+    entries: group.entries.map((entry) => ({
+      id: entry.id,
+      href: docHref(entry),
+      label: docLabel(entry),
+    })),
+  }));
 const tableOfContents = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
 const hasTableOfContents = tableOfContents.length > 0;
-const sidebarScrollKey = `anvia:docs-sidebar-scroll:${currentId === "packages" ? "packages" : activeSection}`;
+const sidebarScrollKey =
+  sidebarScrollKeyOverride ??
+  `anvia:docs-sidebar-scroll:${currentId === "packages" ? "packages" : activeSection}`;
 ---
 
 <html lang="en">
@@ -83,7 +111,7 @@ const sidebarScrollKey = `anvia:docs-sidebar-scroll:${currentId === "packages" ?
             href="/docs/packages"
             class:list={[
               "inline-flex shrink-0 items-center border-b-2 px-0.5 font-semibold text-sm transition",
-              currentId === "packages"
+              currentId === "packages" || activeSection === "packages"
                 ? "border-[#2BF563] text-zinc-50"
                 : "border-transparent text-zinc-300 hover:text-zinc-100",
             ]}
@@ -117,14 +145,14 @@ const sidebarScrollKey = `anvia:docs-sidebar-scroll:${currentId === "packages" ?
                 <div class="mt-3 grid">
                   {section.entries.map((entry) => (
                     <a
-                      href={docHref(entry)}
-                      data-docs-sidebar-active={entry.id === currentId ? "true" : undefined}
+                      href={entry.href}
+                      data-docs-sidebar-active={entry.id === sidebarActiveId ? "true" : undefined}
                       class:list={[
                         "-mx-2.5 flex items-center justify-between rounded-lg px-2.5 py-2 font-medium text-sm transition hover:bg-white/[0.045] hover:text-zinc-100",
-                        entry.id === currentId ? "bg-white/[0.055] text-zinc-50" : "text-zinc-300",
+                        entry.id === sidebarActiveId ? "bg-white/[0.055] text-zinc-50" : "text-zinc-300",
                       ]}
                     >
-                      <span>{docLabel(entry)}</span>
+                      <span>{entry.label}</span>
                     </a>
                   ))}
                 </div>

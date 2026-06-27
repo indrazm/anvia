@@ -2,6 +2,13 @@
 import { getCollection, render, type CollectionEntry } from "astro:content";
 import DocsShell from "../../components/docs/DocsShell.astro";
 import { docHref, isPublishedDoc, sectionLabel, sortDocs } from "../../lib/docs";
+import {
+  getPackageBySlug,
+  getPackageReferencePages,
+  packageDocHref,
+  packageDocPages,
+  packageReferenceHref,
+} from "../../lib/packages";
 
 export async function getStaticPaths() {
   const docs = sortDocs((await getCollection("docs")).filter(isPublishedDoc));
@@ -19,6 +26,44 @@ interface Props {
 
 const { entry, docs } = Astro.props;
 const { Content, headings } = await render(entry);
+const packageSlug = entry.data.section === "packages" ? entry.id.split("/")[1] : undefined;
+const packageRelativePageId =
+  entry.data.section === "packages" ? entry.id.split("/").slice(2).join("/") : undefined;
+const packageInfo = packageSlug ? getPackageBySlug(packageSlug) : undefined;
+const packageReferencePages = packageInfo ? getPackageReferencePages(packageInfo.slug) : [];
+const visiblePackageDocPages =
+  packageReferencePages.length > 0
+    ? packageDocPages.filter((page) => page.id !== "reference")
+    : packageDocPages;
+const packageSidebarGroups =
+  packageInfo && packageRelativePageId
+    ? [
+        {
+          title: "Packages",
+          entries: [{ id: "all-packages", href: "/docs/packages", label: "All packages" }],
+        },
+        {
+          title: packageInfo.name,
+          entries: visiblePackageDocPages.map((page) => ({
+            id: page.id,
+            href: packageDocHref(packageInfo.slug, page.id),
+            label: page.label,
+          })),
+        },
+        ...(packageReferencePages.length > 0
+          ? [
+              {
+                title: "Reference",
+                entries: packageReferencePages.map((page) => ({
+                  id: page.id,
+                  href: packageReferenceHref(packageInfo.slug, page.id),
+                  label: page.label,
+                })),
+              },
+            ]
+          : []),
+      ]
+    : undefined;
 ---
 
 <DocsShell
@@ -26,8 +71,11 @@ const { Content, headings } = await render(entry);
   description={entry.data.description}
   entries={docs}
   activeSection={entry.data.section}
-  currentId={entry.id}
+  currentId={entry.data.section === "packages" ? "packages" : entry.id}
   headings={headings}
+  customSidebarGroups={packageSidebarGroups}
+  sidebarActiveId={packageRelativePageId ?? entry.id}
+  sidebarScrollKey={packageInfo ? `anvia:docs-sidebar-scroll:packages:${packageInfo.slug}` : undefined}
 >
   <article
     class="docs-content w-full max-w-none"
@@ -52,8 +100,11 @@ const { Content, headings } = await render(entry);
     </div>
 
     <footer class="mt-14 border-white/[0.08] border-t pt-6" data-pagefind-ignore>
-      <a href="/docs" class="font-semibold text-[#2BF563] text-sm transition hover:text-[#24dc59]">
-        Back to docs -&gt;
+      <a
+        href={entry.data.section === "packages" ? "/docs/packages" : "/docs"}
+        class="font-semibold text-[#2BF563] text-sm transition hover:text-[#24dc59]"
+      >
+        {entry.data.section === "packages" ? "Back to all packages" : "Back to docs"} -&gt;
       </a>
     </footer>
   </article>
