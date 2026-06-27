@@ -8,7 +8,6 @@ export const docsSections: Array<{ id: DocsSection; label: string }> = [
   { id: "advanced", label: "Advanced" },
   { id: "providers", label: "Providers" },
   { id: "examples", label: "Examples" },
-  { id: "compare", label: "Compare" },
 ];
 
 const sidebarGroupOrder: Partial<Record<DocsSection, string[]>> = {
@@ -38,7 +37,6 @@ const sidebarGroupOrder: Partial<Record<DocsSection, string[]>> = {
     "Quality and Operations",
     "Real Cases",
   ],
-  compare: ["Compare"],
 };
 
 export function docHref(entry: DocsEntry) {
@@ -50,6 +48,10 @@ export function docLabel(entry: DocsEntry) {
 }
 
 export function sectionLabel(sectionId: DocsSection) {
+  if (sectionId === "packages") {
+    return "Packages";
+  }
+
   return docsSections.find((section) => section.id === sectionId)?.label ?? sectionId;
 }
 

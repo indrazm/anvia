@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
+    "reference-check": "node scripts/check-reference-coverage.mjs",
     "generate:models-dev": "node scripts/generate-models-dev-snapshot.mjs",
     "preview": "astro preview",
     "astro": "astro"
