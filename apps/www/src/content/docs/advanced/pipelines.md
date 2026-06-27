@@ -143,7 +143,7 @@ const result = await pipeline.run(input, {
 });
 ```
 
-Observers receive stage started, completed, and failed events with the graph node and duration. Use this for workflow-level telemetry. Agent observers still belong on the agents themselves.
+Observers receive stage started, completed, and failed events with the graph node. Completed and failed events also include `durationMs`. Use this for workflow-level telemetry. Agent observers still belong on the agents themselves.
 
 ## Inspect The Graph
 

@@ -71,7 +71,7 @@ A transcription request includes:
 - optional `temperature`
 - optional `additionalParams`
 
-Set `filename(...)` to a useful name with an extension when the provider uses it to infer media type. Use `language(...)` when known; it can improve accuracy and reduce provider ambiguity.
+Set `filename(...)` to a useful name with an extension when the provider uses it to infer media type. Use `language(...)` when known, but check your provider adapter: some providers use it directly, while others rely on prompt guidance or provider-specific parameters.
 
 Use `prompt(...)` for transcription guidance, not unrelated instructions. Good prompts include domain vocabulary, speaker context, or formatting expectations.
 
