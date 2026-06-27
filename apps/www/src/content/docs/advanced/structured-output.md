@@ -43,7 +43,7 @@ const escalationSchema = z.object({
 });
 ```
 
-Descriptions are converted into provider JSON schema metadata.
+Field `.describe(...)` values are converted into JSON Schema `description` metadata and travel with tool parameters and output schemas. Use `.meta({ title: "..." })` on the root object when you need a stable schema name. Keep root metadata conservative: provider adapters may use `title` for names, but provider-specific wrapper descriptions and arbitrary metadata keys are not portable. Zod exposes `.meta(...)`; do not rely on a `.metadata(...)` method.
 
 ## Agent Final Output
 
