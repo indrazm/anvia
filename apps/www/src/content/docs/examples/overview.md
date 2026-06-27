@@ -21,10 +21,11 @@ The examples use concrete defaults where a full flow is easier to understand wit
 | Typed model output for classification, extraction, or workflow results | [Structured Results](/docs/examples/structured-results) | [Testing Harness](/docs/examples/testing-harness) |
 | RAG over PDFs, images, documents, and product knowledge | [RAG Ingestion](/docs/examples/rag-ingestion) | [Retrieval Agent](/docs/examples/retrieval-agent), [Document Grounding](/docs/examples/document-grounding) |
 | A support agent with account tools and policy evidence | [Support Agent](/docs/examples/support-agent) | [Permissioned Tools](/docs/examples/permissioned-tools), [Retrieval Agent](/docs/examples/retrieval-agent) |
-| A background document or research workflow | [Pipeline Worker](/docs/examples/pipeline-worker) | [Long-running Jobs](/docs/examples/long-running-jobs), [Eval Loop](/docs/examples/eval-loop) |
+| A background document or research workflow | [Pipeline Worker](/docs/examples/pipeline-worker) | [Long-running Jobs](/docs/examples/long-running-jobs) |
 | A coding or file agent with command boundaries | [Coding Agent](/docs/examples/coding-agent) | [Sandbox Execution](/docs/examples/sandbox-execution) |
 | A workflow that needs human approval before writes | [Guarded Side Effects](/docs/examples/guarded-side-effects) | [Human Input](/docs/examples/human-input) |
-| A production feedback loop for traces, events, tests, and evals | [Runtime State and Persistence](/docs/examples/runtime-state-persistence) | [Observability Loop](/docs/examples/observability-loop), [Production Readiness](/docs/examples/production-readiness) |
+| Runtime visibility for traces, events, logs, evidence, and final answers | [Runtime State and Persistence](/docs/examples/runtime-state-persistence) | [Observability Loop](/docs/examples/observability-loop), [Production Readiness](/docs/examples/production-readiness) |
+| Repeatable evals for completions, streams, agents, and product runners | [Eval Loop](/docs/examples/eval-loop) | [Testing Harness](/docs/examples/testing-harness), [Observability Loop](/docs/examples/observability-loop) |
 
 ## Common Flows
 
@@ -34,7 +35,7 @@ Knowledge applications usually combine [RAG Ingestion](/docs/examples/rag-ingest
 
 Action-taking applications usually combine [Permissioned Tools](/docs/examples/permissioned-tools), [Tool Validation](/docs/examples/tool-validation), [Guarded Side Effects](/docs/examples/guarded-side-effects), and [Human Input](/docs/examples/human-input). The model can request work, but application code owns permissions, approval, idempotency, audit, and safe output.
 
-Production applications usually add [Runtime State and Persistence](/docs/examples/runtime-state-persistence), [Testing Harness](/docs/examples/testing-harness), [Observability Loop](/docs/examples/observability-loop), [Eval Loop](/docs/examples/eval-loop), and [Production Readiness](/docs/examples/production-readiness).
+Production applications usually add [Runtime State and Persistence](/docs/examples/runtime-state-persistence), [Testing Harness](/docs/examples/testing-harness), [Observability Loop](/docs/examples/observability-loop), [Eval Loop](/docs/examples/eval-loop), and [Production Readiness](/docs/examples/production-readiness). Observability records runtime evidence. Evals replay behavior through target adapters and check it with deterministic metrics first.
 
 ## More Maps
 

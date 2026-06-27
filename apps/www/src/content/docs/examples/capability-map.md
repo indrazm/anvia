@@ -59,6 +59,6 @@ The concrete RAG stack used in examples is Mistral OCR, OpenAI embeddings, and C
 | --- | --- | --- |
 | Tests | [Testing Harness](/docs/examples/testing-harness) | Deterministic boundaries are testable without relying on live model behavior. |
 | Traces and observers | [Observability Loop](/docs/examples/observability-loop), [Runtime State and Persistence](/docs/examples/runtime-state-persistence) | A run can be debugged from request id to model events and tool calls. |
-| Evals | [Eval Loop](/docs/examples/eval-loop) | Expected product behavior becomes repeatable regression coverage. |
+| Evals | [Eval Loop](/docs/examples/eval-loop) | Completions, parsed completions, streams, agents, and product runners become repeatable regression targets. |
 | Provider switching | [Provider Switching](/docs/examples/provider-switching) | Model selection changes at the runtime boundary, not throughout product code. |
 | Launch review | [Production Readiness](/docs/examples/production-readiness) | The workflow has permission, privacy, retry, audit, and operational checks. |

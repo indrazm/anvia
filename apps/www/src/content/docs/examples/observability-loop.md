@@ -1,17 +1,19 @@
 ---
 title: Observability Loop
-description: A pattern for connecting traces, runtime events, logs, evidence, and evals.
+description: A pattern for connecting traces, runtime events, logs, evidence, and product records.
 section: examples
 sidebar:
   group: Quality and Operations
   order: 2
 ---
 
-Observability should connect one product request across traces, runtime events, logs, retrieved evidence, tool calls, final answers, and eval outcomes. Each store has a different job.
+Observability should connect one product request across traces, runtime events, logs, retrieved evidence, tool calls, and final answers. Each store has a different job.
+
+Keep observability separate from eval mechanics. Observability answers "what happened in this run?" Evals answer "does this behavior still pass repeatable checks?"
 
 ## Scenario
 
-A support answer is wrong. The team needs to see the user, tenant, selected documents, tool calls, final answer, trace id, run events, and whether a regression eval caught it.
+A support answer is wrong. The team needs to see the user, tenant, selected documents, tool calls, final answer, trace id, run events, prompt version, and release.
 
 ## Flow
 
@@ -22,7 +24,6 @@ A support answer is wrong. The team needs to see the user, tenant, selected docu
 | selected evidence | evidence log |
 | permission decisions | app log/audit log |
 | final answer | conversation or job record |
-| eval result | eval reporter |
 
 ## Example
 
@@ -80,7 +81,7 @@ await evidenceLog.record({
 });
 ```
 
-Send eval outcomes back to the same product ids:
+When evals replay a production case, report them through the eval system and keep the same product ids:
 
 ```ts
 const evalReporter = {
@@ -89,13 +90,15 @@ const evalReporter = {
       suite: args.suiteName,
       caseId: args.case.id,
       metric: args.metric.name,
-      status: args.outcome.status,
+      status: args.outcome.outcome,
       conversationId: args.case.metadata?.conversationId,
       release: args.case.metadata?.release,
     });
   },
 };
 ```
+
+This keeps observability storage focused on runtime telemetry while eval storage tracks pass, fail, invalid, score, and feedback history.
 
 ## Failure Modes
 
