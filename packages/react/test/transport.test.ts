@@ -122,7 +122,11 @@ describe("@anvia/react useChat", () => {
           partId: "assistant_1_text",
           delta: "lo",
         };
-        yield { type: "message_end", messageId: "assistant_1" };
+        yield {
+          type: "message_end",
+          messageId: "assistant_1",
+          metadata: { providerMessageId: "provider_1" },
+        };
       },
     };
 
@@ -137,7 +141,12 @@ describe("@anvia/react useChat", () => {
     expect(result.current.text).toBe("Hello");
     expect(result.current.messages).toMatchObject([
       { id: "user_1", role: "user", parts: [{ type: "text", text: "hi" }] },
-      { id: "assistant_1", role: "assistant", parts: [{ type: "text", text: "Hello" }] },
+      {
+        id: "assistant_1",
+        role: "assistant",
+        parts: [{ type: "text", text: "Hello" }],
+        metadata: { providerMessageId: "provider_1" },
+      },
     ]);
     expect(result.current.events).toHaveLength(4);
     expect(onEvent).toHaveBeenCalledTimes(4);

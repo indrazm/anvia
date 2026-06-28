@@ -64,6 +64,17 @@ export function applyUIStreamEvent(messages: UIMessage[], event: UIStreamEvent):
     ];
   }
 
+  if (event.type === "message_end") {
+    const { metadata } = event;
+    if (metadata === undefined) {
+      return messages;
+    }
+
+    return messages.map((message) =>
+      message.id === event.messageId ? { ...message, metadata } : message,
+    );
+  }
+
   return messages;
 }
 
