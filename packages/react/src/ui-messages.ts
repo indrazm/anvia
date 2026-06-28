@@ -163,7 +163,8 @@ export function applyAnviaStreamEvent(
 
   if (event.type === "final") {
     if (isRecord(event.response) && Array.isArray(event.response.choice)) {
-      const next = replaceAssistantText(messages, textFromAssistantContent(event.response.choice));
+      const finalText = textFromAssistantContent(event.response.choice);
+      const next = finalText.length > 0 ? replaceAssistantText(messages, finalText) : messages;
       const providerMessageId = event.response.messageId;
       return typeof providerMessageId === "string"
         ? setLastAssistantMetadata(next, { providerMessageId })
@@ -171,7 +172,8 @@ export function applyAnviaStreamEvent(
     }
 
     if (typeof event.output === "string") {
-      const next = replaceAssistantText(messages, event.output);
+      const next =
+        event.output.length > 0 ? replaceAssistantText(messages, event.output) : messages;
       return typeof event.runId === "string"
         ? setLastAssistantMetadata(next, { runId: event.runId })
         : next;
