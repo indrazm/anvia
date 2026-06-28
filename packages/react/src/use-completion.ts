@@ -174,7 +174,7 @@ export function useCompletion<TRequest = UIStreamRequest, TEvent = UIStreamEvent
       if (userMessage === undefined) {
         return;
       }
-      const nextMessages = [userMessage];
+      const nextMessages = [...messagesRef.current, userMessage];
 
       abortRef.current?.abort();
       const abortController = new AbortController();

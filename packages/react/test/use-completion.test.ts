@@ -89,6 +89,50 @@ describe("@anvia/react useCompletion", () => {
     expect(result.current.completion).toBe("hi");
   });
 
+  it("appends completion turns instead of replacing message state", async () => {
+    const requests: UIStreamRequest[] = [];
+    const transport: EventTransport<UIStreamRequest, CompletionStreamEvent> = {
+      send: async function* (request) {
+        requests.push(request);
+        const text = requests.length === 1 ? "One" : "Two";
+        yield { type: "text_delta", delta: text };
+        yield {
+          type: "final",
+          response: {
+            choice: [AssistantContent.text(text)],
+            usage: Usage.empty(),
+            rawResponse: {},
+            messageId: `provider_${requests.length}`,
+          },
+        };
+      },
+    };
+    const { result } = renderHook(() => useCompletion({ transport }));
+
+    await act(async () => {
+      await result.current.complete("first");
+    });
+    await act(async () => {
+      await result.current.complete("second");
+    });
+
+    expect(result.current.completion).toBe("Two");
+    expect(result.current.messages).toMatchObject([
+      { role: "user", parts: [{ type: "text", text: "first" }] },
+      { role: "assistant", parts: [{ type: "text", text: "One" }] },
+      { role: "user", parts: [{ type: "text", text: "second" }] },
+      { role: "assistant", parts: [{ type: "text", text: "Two" }] },
+    ]);
+    expect(requests[0]?.messages).toMatchObject([
+      { role: "user", content: [{ type: "text", text: "first" }] },
+    ]);
+    expect(requests[1]?.messages).toMatchObject([
+      { role: "user", content: [{ type: "text", text: "first" }] },
+      { role: "assistant", content: [{ type: "text", text: "One" }] },
+      { role: "user", content: [{ type: "text", text: "second" }] },
+    ]);
+  });
+
   it("passes core and UI messages to custom completion request factories", async () => {
     type CustomRequest = {
       messages: unknown[];

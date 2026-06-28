@@ -43,7 +43,7 @@ export function Chat() {
 - `createFetchTransport(options)` creates an `EventTransport`.
 - `createChatTransport(options)` creates the default fetch-backed chat transport.
 - `useChat(options)` manages `UIMessage[]` chat state from any `EventTransport`.
-- `useCompletion(options)` manages a single-turn `UIMessage[]` exchange and exposes derived `completion` text.
+- `useCompletion(options)` appends completion turns into `UIMessage[]` state and exposes derived `completion` text.
 
 Default hook requests use one shared wire shape:
 
