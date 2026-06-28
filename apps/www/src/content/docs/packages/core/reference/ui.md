@@ -53,7 +53,12 @@ type UIStreamEvent =
   | { type: "message_start"; message: UIMessage }
   | { type: "text_delta"; messageId: string; partId: string; delta: string }
   | { type: "reasoning_delta"; messageId: string; partId: string; delta: string }
-  | { type: "tool_update"; messageId: string; partId: string; part: UIMessagePart }
+  | {
+      type: "tool_update";
+      messageId: string;
+      partId: string;
+      part: Extract<UIMessagePart, { type: "tool" }>;
+    }
   | { type: "message_end"; messageId: string; usage?: Usage; metadata?: JsonValue }
   | { type: "error"; error: UIError };
 

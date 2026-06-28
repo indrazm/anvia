@@ -111,6 +111,27 @@ describe("@anvia/react useCompletion", () => {
     expect(result.current.completion).toBe("one two");
   });
 
+  it("lets custom delta mapping override raw Anvia event names", async () => {
+    const transport: EventTransport<UIStreamRequest, { type: "text_delta"; delta: string }> = {
+      send: async function* () {
+        yield { type: "text_delta", delta: "raw" };
+      },
+    };
+
+    const { result } = renderHook(() =>
+      useCompletion({
+        transport,
+        eventToDelta: (event) => (event.type === "text_delta" ? "custom" : undefined),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.complete("hi");
+    });
+
+    expect(result.current.completion).toBe("custom");
+  });
+
   it("does not send empty input", async () => {
     const transport: EventTransport<UIStreamRequest, UIStreamEvent> = {
       send: vi.fn(async function* (): AsyncIterable<UIStreamEvent> {

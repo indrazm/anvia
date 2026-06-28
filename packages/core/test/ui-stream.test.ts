@@ -8,6 +8,7 @@ import {
   type CompletionRequest,
   type CompletionResponse,
   type CompletionStreamEvent,
+  coreMessagesToUIMessages,
   createAgentUIStream,
   createCompletion,
   createCompletionStream,
@@ -17,6 +18,7 @@ import {
   type StreamingCompletionModel,
   type UIMessage,
   Usage,
+  UserContent,
   uiMessagesToCoreMessages,
 } from "./helpers/imports";
 
@@ -93,6 +95,60 @@ describe("UI message adapters", () => {
     ]);
   });
 
+  it("preserves supported user data parts when converting back to core messages", () => {
+    const coreMessages = [
+      Message.user([
+        UserContent.text("describe"),
+        UserContent.imageUrl("https://example.test/image.png"),
+      ]),
+    ];
+
+    expect(uiMessagesToCoreMessages(coreMessagesToUIMessages(coreMessages))).toEqual(coreMessages);
+  });
+
+  it("rejects unsupported user UI parts instead of dropping them", () => {
+    const messages: UIMessage[] = [
+      {
+        id: "user_1",
+        role: "user",
+        parts: [{ id: "custom_1", type: "data", name: "custom", data: { value: 1 } }],
+      },
+    ];
+
+    expect(() => uiMessagesToCoreMessages(messages)).toThrow(
+      "User UI messages can only be converted from text parts",
+    );
+  });
+
+  it("preserves completed assistant tool parts as core tool results", () => {
+    const messages: UIMessage[] = [
+      {
+        id: "assistant_1",
+        role: "assistant",
+        parts: [
+          {
+            id: "tool_tool_1",
+            type: "tool",
+            toolName: "add",
+            toolCallId: "tool_1",
+            callId: "call_1",
+            state: "output-available",
+            input: { x: 2, y: 5 },
+            output: "7",
+          },
+        ],
+      },
+    ];
+
+    expect(uiMessagesToCoreMessages(messages)).toEqual([
+      Message.assistant(
+        [AssistantContent.toolCall("tool_1", "add", { x: 2, y: 5 }, "call_1")],
+        "assistant_1",
+      ),
+      Message.toolResult("tool_1", "7", { callId: "call_1" }),
+    ]);
+  });
+
   it("accepts UI messages in createCompletionStream options", async () => {
     const model = new StreamModel([
       [
@@ -150,6 +206,16 @@ describe("UI message adapters", () => {
         messages: [Message.user("Hi"), uiMessage] as never,
       }),
     ).toThrow("messages must contain only Message[] or only UIMessage[]");
+  });
+
+  it("rejects malformed single message input", () => {
+    const model = new StreamModel([]);
+
+    expect(() =>
+      createCompletionStream(model, {
+        input: { role: "user", content: "Hello" } as never,
+      }),
+    ).toThrow("input must be a string, Message, Message[], UIMessage, or UIMessage[]");
   });
 
   it("normalizes completion streams into UI stream events", async () => {

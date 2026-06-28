@@ -208,7 +208,7 @@ export async function* agentStreamToUIStream(
     }
 
     if (event.type === "tool_result") {
-      const toolCallId = event.toolCallId ?? event.internalCallId;
+      const toolCallId = event.internalCallId;
       yield {
         type: "tool_update",
         messageId,

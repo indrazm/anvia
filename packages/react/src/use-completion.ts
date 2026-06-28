@@ -113,7 +113,12 @@ export function useCompletion<TRequest = UIStreamRequest, TEvent = UIStreamEvent
         return;
       }
 
-      if (options.eventToUIEvent === undefined) {
+      const hasCustomEventMapper =
+        options.eventToUIEvent !== undefined ||
+        options.eventToDelta !== undefined ||
+        options.eventToFinal !== undefined;
+
+      if (!hasCustomEventMapper) {
         let handled = false;
         setMessagesState((current) => {
           const next = applyAnviaStreamEvent(current, event);
