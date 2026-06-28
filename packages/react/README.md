@@ -51,6 +51,7 @@ Default hook requests use one shared wire shape:
 type UIStreamRequest = {
   messages: UIMessage[];
   stream: true;
+  metadata?: JsonValue;
 };
 ```
 

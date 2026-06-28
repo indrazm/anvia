@@ -61,6 +61,19 @@ Default behavior: writes JSONL with `content-type: application/x-ndjson; charset
 
 Use `format: "sse"` to emit `text/event-stream`.
 
+## createUIStreamResponse
+
+```ts
+function createUIStreamResponse(
+  events: AsyncIterable<UIStreamEvent>,
+  options?: CreateEventStreamOptions<UIStreamEvent>,
+): Response;
+```
+
+Purpose: convert a standard `UIStreamEvent` iterable into an HTTP response for `@anvia/react` hooks.
+
+Default behavior: uses the same JSONL response format and headers as `createEventStream(...)` unless `format: "sse"` is passed.
+
 ## createJsonlStream
 
 ```ts
