@@ -333,9 +333,9 @@ function useCompletion<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(
 ): UseCompletionResult<TEvent>;
 ```
 
-Purpose: React hook for single-prompt text completion streaming that also exposes the underlying assistant `messages`.
+Purpose: React hook for text completion streaming that also exposes the underlying assistant `messages`.
 
-By default, `complete(prompt)` creates one user `UIMessage`, converts it to a core `Message`, sends `{ messages, stream: true }`, and consumes raw `CompletionStreamEvent`, raw `AgentStreamEvent`, or `UIStreamEvent` records. Custom request factories receive the UI array as `messages` for compatibility and the converted array as `coreMessages`. `completion` is a convenience string derived from assistant text parts.
+By default, `complete(prompt)` appends one user `UIMessage` to the current messages, converts the full UI history to core messages, sends `{ messages, stream: true }`, and consumes raw `CompletionStreamEvent`, raw `AgentStreamEvent`, or `UIStreamEvent` records. Custom request factories receive the UI array as `messages` for compatibility and the converted array as `coreMessages`. `completion` is a convenience string derived from the latest assistant text parts.
 
 ## createDirectTransport
 
