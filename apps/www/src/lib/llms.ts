@@ -15,17 +15,28 @@ export async function buildLlmsIndex(options: LlmsOptions = {}) {
     "",
     "> TypeScript runtime for building provider-agnostic AI agents, tools, retrieval, pipelines, and observability inside application code.",
     "",
-    "Use these Basics docs links when you need Anvia documentation optimized for coding agents and LLM context windows.",
+    "Basics documentation optimized for coding agents and LLM context windows.",
   ];
 
-  if (docs.length > 0) {
-    lines.push("", `## ${sectionLabel("basics")}`, "");
-  }
-
   for (const entry of docs) {
+    const body = normalizeMarkdown(entry.body ?? "", baseUrl).trim();
+
     lines.push(
-      `- [${docLabel(entry)}](${absoluteUrl(docHref(entry), baseUrl)}): ${entry.data.description}`,
+      "",
+      "---",
+      "",
+      `# ${docLabel(entry)}`,
+      "",
+      `URL: ${absoluteUrl(docHref(entry), baseUrl)}`,
+      `Section: ${sectionLabel(entry.data.section)}`,
+      `Group: ${entry.data.sidebar.group}`,
+      `Description: ${entry.data.description}`,
+      "",
     );
+
+    if (body.length > 0) {
+      lines.push(body, "");
+    }
   }
 
   return `${lines.join("\n")}\n`;

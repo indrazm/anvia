@@ -112,7 +112,7 @@ const searchRunbooks = runbookIndex.asTool({
 
 const agent = new AgentBuilder("incident-assistant", model)
   .instructions("Search runbooks before answering incident response questions.")
-  .tool(searchRunbooks)
+  .tools([searchRunbooks])
   .defaultMaxTurns(3)
   .build();
 ```

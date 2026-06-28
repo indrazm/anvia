@@ -51,7 +51,7 @@ import { publicDocsTool } from "./support-tools";
 export const supportAgent = new AgentBuilder("support", model)
   .name("Support Agent")
   .instructions("Answer support questions clearly. Ask before guessing.")
-  .tool(publicDocsTool)
+  .tools([publicDocsTool])
   .defaultMaxTurns(3)
   .build();
 ```
