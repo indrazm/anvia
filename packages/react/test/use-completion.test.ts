@@ -89,6 +89,72 @@ describe("@anvia/react useCompletion", () => {
     expect(result.current.completion).toBe("hi");
   });
 
+  it("keeps streamed text when the raw completion final choice is empty", async () => {
+    const transport: EventTransport<UIStreamRequest, CompletionStreamEvent> = {
+      send: async function* () {
+        yield { type: "text_delta", delta: "Hai" };
+        yield {
+          type: "final",
+          response: {
+            choice: [],
+            usage: Usage.empty(),
+            rawResponse: {},
+            messageId: "provider_1",
+          },
+        };
+      },
+    };
+
+    const { result } = renderHook(() => useCompletion({ transport }));
+
+    await act(async () => {
+      await result.current.complete("hey");
+    });
+
+    expect(result.current.completion).toBe("Hai");
+    expect(result.current.messages).toMatchObject([
+      { role: "user", parts: [{ type: "text", text: "hey" }] },
+      {
+        role: "assistant",
+        parts: [{ type: "text", text: "Hai" }],
+        metadata: { providerMessageId: "provider_1" },
+      },
+    ]);
+  });
+
+  it("does not add empty text for reasoning-only raw completion finals", async () => {
+    const transport: EventTransport<UIStreamRequest, CompletionStreamEvent> = {
+      send: async function* () {
+        yield { type: "reasoning_delta", delta: "Think first." };
+        yield {
+          type: "final",
+          response: {
+            choice: [],
+            usage: Usage.empty(),
+            rawResponse: {},
+            messageId: "provider_1",
+          },
+        };
+      },
+    };
+
+    const { result } = renderHook(() => useCompletion({ transport }));
+
+    await act(async () => {
+      await result.current.complete("hey");
+    });
+
+    expect(result.current.completion).toBe("");
+    expect(result.current.messages).toMatchObject([
+      { role: "user", parts: [{ type: "text", text: "hey" }] },
+      {
+        role: "assistant",
+        parts: [{ type: "reasoning", text: "Think first." }],
+        metadata: { providerMessageId: "provider_1" },
+      },
+    ]);
+  });
+
   it("supports custom event mapping for non-UI streams", async () => {
     const transport: EventTransport<UIStreamRequest, { type: string; delta?: string }> = {
       send: async function* () {
