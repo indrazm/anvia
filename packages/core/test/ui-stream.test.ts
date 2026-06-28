@@ -149,7 +149,7 @@ describe("UI message adapters", () => {
     ]);
   });
 
-  it("accepts UI messages in createCompletionStream options", async () => {
+  it("accepts core messages in createCompletionStream options", async () => {
     const model = new StreamModel([
       [
         {
@@ -165,35 +165,25 @@ describe("UI message adapters", () => {
 
     await collect(
       createCompletionStream(model, {
-        messages: [
-          {
-            id: "user_1",
-            role: "user",
-            parts: [{ id: "part_1", type: "text", text: "Hello" }],
-          },
-        ],
+        messages: [Message.user("Hello")],
       }),
     );
 
     expect(model.requests[0]?.chatHistory).toEqual([Message.user("Hello")]);
   });
 
-  it("accepts a UI message as createCompletion input", async () => {
+  it("accepts a core message as createCompletion input", async () => {
     const model = new StreamModel([]);
 
     const result = await createCompletion(model, {
-      input: {
-        id: "user_1",
-        role: "user",
-        parts: [{ id: "part_1", type: "text", text: "Hello" }],
-      },
+      input: Message.user("Hello"),
     });
 
     expect(result.text).toBe("ok");
     expect(model.requests[0]?.chatHistory).toEqual([Message.user("Hello")]);
   });
 
-  it("rejects mixed core and UI message arrays", () => {
+  it("rejects non-core message arrays", () => {
     const model = new StreamModel([]);
     const uiMessage: UIMessage = {
       id: "user_1",
@@ -205,7 +195,7 @@ describe("UI message adapters", () => {
       createCompletionStream(model, {
         messages: [Message.user("Hi"), uiMessage] as never,
       }),
-    ).toThrow("messages must contain only Message[] or only UIMessage[]");
+    ).toThrow("messages must contain only Message values.");
   });
 
   it("rejects malformed single message input", () => {
@@ -215,7 +205,7 @@ describe("UI message adapters", () => {
       createCompletionStream(model, {
         input: { role: "user", content: "Hello" } as never,
       }),
-    ).toThrow("input must be a string, Message, Message[], UIMessage, or UIMessage[]");
+    ).toThrow("input must be a string, Message, or Message[].");
   });
 
   it("normalizes completion streams into UI stream events", async () => {

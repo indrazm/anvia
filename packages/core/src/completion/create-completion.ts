@@ -1,6 +1,4 @@
 import { toProviderJsonSchema, type ZodSchema } from "../schema/zod-schema";
-import { isUIMessage, uiMessagesToCoreMessages } from "../ui/messages";
-import type { UIMessage } from "../ui/types";
 import type {
   AssistantContent,
   CompletionModel,
@@ -18,11 +16,11 @@ import type {
 } from "./types";
 import { assertCompletionRequestSupported, Message, textFromAssistantContent } from "./types";
 
-export type CreateCompletionInput = string | MessageType | MessageType[] | UIMessage | UIMessage[];
+export type CreateCompletionInput = string | MessageType | MessageType[];
 
 export type CreateCompletionBaseOptions = {
   input?: CreateCompletionInput | undefined;
-  messages?: MessageType[] | UIMessage[] | undefined;
+  messages?: MessageType[] | undefined;
   instructions?: string | undefined;
   documents?: Document[] | undefined;
   tools?: ToolDefinition[] | undefined;
@@ -159,37 +157,20 @@ function messagesFromInput(input: CreateCompletionInput | undefined): MessageTyp
   if (Array.isArray(input)) {
     return normalizeMessageArray(input, "input");
   }
-  if (isUIMessage(input)) {
-    return uiMessagesToCoreMessages([input]);
-  }
   if (!isCoreMessage(input)) {
-    throw new TypeError("input must be a string, Message, Message[], UIMessage, or UIMessage[].");
+    throw new TypeError("input must be a string, Message, or Message[].");
   }
   return [input];
 }
 
-function messagesFromMessages(messages: MessageType[] | UIMessage[] | undefined): MessageType[] {
+function messagesFromMessages(messages: MessageType[] | undefined): MessageType[] {
   return messages === undefined ? [] : normalizeMessageArray(messages, "messages");
 }
 
 function normalizeMessageArray(
-  messages: (MessageType | UIMessage)[],
+  messages: MessageType[],
   fieldName: "input" | "messages",
 ): MessageType[] {
-  const hasUIMessage = messages.some(isUIMessage);
-  const hasCoreMessage = messages.some(isCoreMessage);
-
-  if (hasUIMessage && hasCoreMessage) {
-    throw new TypeError(`${fieldName} must contain only Message[] or only UIMessage[].`);
-  }
-
-  if (hasUIMessage) {
-    if (!messages.every(isUIMessage)) {
-      throw new TypeError(`${fieldName} must contain only UIMessage values.`);
-    }
-    return uiMessagesToCoreMessages(messages);
-  }
-
   if (!messages.every(isCoreMessage)) {
     throw new TypeError(`${fieldName} must contain only Message values.`);
   }

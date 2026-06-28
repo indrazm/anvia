@@ -281,11 +281,11 @@ Notable errors: throws `CompletionCapabilityError` for unsupported tools, tool c
 ## Direct Completion Helpers
 
 ```ts
-type CreateCompletionInput = string | Message | Message[] | UIMessage | UIMessage[];
+type CreateCompletionInput = string | Message | Message[];
 
 type CreateCompletionBaseOptions = {
   input?: CreateCompletionInput;
-  messages?: Message[] | UIMessage[];
+  messages?: Message[];
   instructions?: string;
   documents?: Document[];
   tools?: ToolDefinition[];
@@ -337,9 +337,9 @@ Return behavior: `createCompletion(...)` always returns a promise for the final 
 
 `createParsedCompletion(...)` converts `schema` to `outputSchema`, calls the model once, parses the assistant text as JSON, validates it with the same schema, and returns `data` plus the normal completion result fields.
 
-`messages` supplies an existing transcript. It can be core `Message[]` or React-facing `UIMessage[]`. `input` accepts a string, one message, or multiple messages and is appended after `messages`. At least one of `input` or `messages` is required.
+`messages` supplies an existing core message transcript. `input` accepts a string, one message, or multiple messages and is appended after `messages`. At least one of `input` or `messages` is required.
 
-`UIMessage[]` is normalized internally, so endpoints used by `@anvia/react` can pass `body.messages` directly to `createCompletion(...)`, `createCompletionStream(...)`, or `createParsedCompletion(...)`.
+`@anvia/react` hooks convert UI message state into core messages before sending requests, so endpoints can pass `body.messages` directly to `createCompletion(...)`, `createCompletionStream(...)`, or `createParsedCompletion(...)`.
 
 `params` maps to `CompletionRequest.additionalParams` for provider-specific options.
 

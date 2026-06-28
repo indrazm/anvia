@@ -51,7 +51,7 @@ type UIMessagePart =
   | { id: string; type: "error"; error: UIError };
 
 type UIStreamRequest = {
-  messages: UIMessage[];
+  messages: Message[];
   stream: true;
   metadata?: unknown;
 };
@@ -79,7 +79,8 @@ type SendMessageInput =
     };
 
 type CreateChatRequestArgs = {
-  messages: UIMessage[];
+  messages: Message[];
+  uiMessages: UIMessage[];
 };
 
 type UseChatStatus = "idle" | "streaming" | "error";
@@ -286,12 +287,17 @@ function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(options?: {
 
 Purpose: React chat state machine that sends `UIStreamRequest` by default and accumulates response events into `UIMessage[]`.
 
-Passing `endpoint` creates a default JSONL fetch transport. Passing `transport` makes the hook independent of HTTP. `sendMessage(...)` appends a user message and sends the full UI message history. The hook applies raw `CompletionStreamEvent`, raw `AgentStreamEvent`, or `UIStreamEvent` records as the assistant response arrives.
+Passing `endpoint` creates a default JSONL fetch transport. Passing `transport` makes the hook independent of HTTP. `sendMessage(...)` appends a user message, keeps the full UI message history in state, and sends the converted core message history. The hook applies raw `CompletionStreamEvent`, raw `AgentStreamEvent`, or `UIStreamEvent` records as the assistant response arrives.
 
 ## useCompletion
 
 ```ts
 type UseCompletionStatus = "idle" | "streaming" | "error";
+
+type UseCompletionRequestArgs = {
+  messages: Message[];
+  uiMessages: UIMessage[];
+};
 
 type UseCompletionOptions<TRequest = UIStreamRequest, TEvent = UIStreamEvent> = {
   transport?: EventTransport<TRequest, TEvent>;
@@ -299,7 +305,7 @@ type UseCompletionOptions<TRequest = UIStreamRequest, TEvent = UIStreamEvent> = 
   format?: "jsonl" | "sse";
   initialMessages?: UIMessage[];
   initialCompletion?: string;
-  createRequest?: (args: { messages: UIMessage[] }) => TRequest;
+  createRequest?: (args: UseCompletionRequestArgs) => TRequest;
   eventToUIEvent?: (event: TEvent) => UIStreamEvent | undefined;
   eventToDelta?: (event: TEvent) => string | undefined;
   eventToFinal?: (event: TEvent) => string | undefined;
@@ -327,7 +333,7 @@ function useCompletion<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(
 
 Purpose: React hook for single-prompt text completion streaming that also exposes the underlying assistant `messages`.
 
-By default, `complete(prompt)` creates one user `UIMessage`, sends `{ messages, stream: true }`, and consumes raw `CompletionStreamEvent`, raw `AgentStreamEvent`, or `UIStreamEvent` records. `completion` is a convenience string derived from assistant text parts.
+By default, `complete(prompt)` creates one user `UIMessage`, converts it to a core `Message`, sends `{ messages, stream: true }`, and consumes raw `CompletionStreamEvent`, raw `AgentStreamEvent`, or `UIStreamEvent` records. `completion` is a convenience string derived from assistant text parts.
 
 ## createDirectTransport
 

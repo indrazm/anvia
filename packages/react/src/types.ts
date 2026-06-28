@@ -1,3 +1,4 @@
+import type { Message } from "@anvia/core/completion";
 import type { UIMessage, UIStreamEvent, UIStreamRequest } from "@anvia/core/ui";
 
 export type {
@@ -116,7 +117,8 @@ export type SendMessageInput =
     };
 
 export type CreateChatRequestArgs = {
-  messages: UIMessage[];
+  messages: Message[];
+  uiMessages: UIMessage[];
 };
 
 export type UseChatStatus = "idle" | "streaming" | "error";

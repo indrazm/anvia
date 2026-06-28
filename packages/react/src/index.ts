@@ -5,6 +5,7 @@ export { readJsonlStream, readSseStream } from "./streams";
 export type { CreateFetchTransportOptions } from "./transport";
 export { createChatTransport, createFetchTransport } from "./transport";
 export type {
+  CreateChatRequestArgs,
   EventStreamFormat,
   EventTransport,
   HumanInputOptions,
@@ -33,6 +34,7 @@ export type {
 export { useChat } from "./use-chat";
 export type {
   UseCompletionOptions,
+  UseCompletionRequestArgs,
   UseCompletionResult,
   UseCompletionStatus,
 } from "./use-completion";

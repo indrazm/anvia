@@ -1,4 +1,4 @@
-import type { JsonValue, Usage } from "../completion/types";
+import type { JsonValue, Message, Usage } from "../completion/types";
 
 export type UIMessageRole = "system" | "user" | "assistant" | "tool";
 
@@ -52,7 +52,7 @@ export type UIMessagePart =
 export type UIToolMessagePart = Extract<UIMessagePart, { type: "tool" }>;
 
 export type UIStreamRequest = {
-  messages: UIMessage[];
+  messages: Message[];
   stream: true;
   metadata?: JsonValue;
 };

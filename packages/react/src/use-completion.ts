@@ -1,4 +1,6 @@
+import type { Message } from "@anvia/core/completion";
 import type { UIMessage, UIStreamEvent, UIStreamRequest } from "@anvia/core/ui";
+import { uiMessagesToCoreMessages } from "@anvia/core/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createFetchTransport } from "./transport";
@@ -14,13 +16,18 @@ import {
 
 export type UseCompletionStatus = "idle" | "streaming" | "error";
 
+export type UseCompletionRequestArgs = {
+  messages: Message[];
+  uiMessages: UIMessage[];
+};
+
 export type UseCompletionOptions<TRequest = UIStreamRequest, TEvent = UIStreamEvent> = {
   transport?: EventTransport<TRequest, TEvent>;
   endpoint?: string | URL;
   format?: EventStreamFormat;
   initialMessages?: UIMessage[];
   initialCompletion?: string;
-  createRequest?: (args: { messages: UIMessage[] }) => TRequest;
+  createRequest?: (args: UseCompletionRequestArgs) => TRequest;
   eventToUIEvent?: (event: TEvent) => UIStreamEvent | undefined;
   eventToDelta?: (event: TEvent) => string | undefined;
   eventToFinal?: (event: TEvent) => string | undefined;
@@ -174,9 +181,10 @@ export function useCompletion<TRequest = UIStreamRequest, TEvent = UIStreamEvent
 
       const createRequest =
         options.createRequest ??
-        ((args: { messages: UIMessage[] }) =>
+        ((args: UseCompletionRequestArgs) =>
           ({ messages: args.messages, stream: true }) as TRequest);
-      const request = createRequest({ messages: nextMessages });
+      const requestMessages = uiMessagesToCoreMessages(nextMessages);
+      const request = createRequest({ messages: requestMessages, uiMessages: nextMessages });
 
       setMessages(nextMessages);
       setInput("");

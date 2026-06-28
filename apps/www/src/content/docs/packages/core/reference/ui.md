@@ -44,7 +44,7 @@ type UIMessagePart =
   | { id: string; type: "error"; error: UIError };
 
 type UIStreamRequest = {
-  messages: UIMessage[];
+  messages: Message[];
   stream: true;
   metadata?: JsonValue;
 };
@@ -80,7 +80,7 @@ type CreateAgentUIStreamOptions = {
 };
 ```
 
-Purpose: shared UI message shape for React-facing completion and chat state. The request always carries `messages`. React hooks can consume raw completion streams, raw agent streams, or `UIStreamEvent` records.
+Purpose: shared UI message shape for React-facing completion and chat state. The default request carries converted core `messages`. React hooks can consume raw completion streams, raw agent streams, or `UIStreamEvent` records.
 
 ## uiMessagesToCoreMessages
 
@@ -98,7 +98,7 @@ Return behavior: text, reasoning, tool call, and tool output parts are mapped in
 function coreMessagesToUIMessages(messages: Message[]): UIMessage[];
 ```
 
-Purpose: convert existing core message history into the UI message shape used by React hooks and UI stream requests.
+Purpose: convert existing core message history into the UI message shape used by React hooks.
 
 Return behavior: generated IDs are assigned where the core message format does not already provide one.
 
@@ -111,11 +111,11 @@ function createCompletionUIStream<Model extends StreamingCompletionModel>(
 ): AsyncIterable<UIStreamEvent>;
 ```
 
-Purpose: advanced adapter that runs `createCompletionStream(...)` from UI messages and adapts the completion stream into UI stream events.
+Purpose: advanced adapter that runs `createCompletionStream(...)` from server-side UI messages and adapts the completion stream into UI stream events.
 
 Return behavior: yields an assistant `message_start`, text or reasoning deltas, tool updates, `message_end`, and error events.
 
-For normal React completion routes, prefer calling `createCompletionStream(model, { messages: body.messages })` directly.
+For normal React completion routes, the request already contains core messages, so prefer calling `createCompletionStream(model, { messages: body.messages })` directly.
 
 ## createAgentUIStream
 
