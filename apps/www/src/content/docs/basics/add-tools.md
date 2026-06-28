@@ -47,7 +47,7 @@ const lookupOrder = createTool({
 
 const agent = new AgentBuilder("support", model)
   .instructions("Use tools when order data is needed.")
-  .tool(lookupOrder)
+  .tools([lookupOrder])
   .defaultMaxTurns(3)
   .build();
 ```

@@ -24,8 +24,7 @@ const agent = new AgentBuilder("incident-review", model)
       "Do not expose private tool results in the final answer.",
     ].join("\n"),
   )
-  .tool(createThinkTool())
-  .tools(incidentTools)
+  .tools([createThinkTool(), ...incidentTools])
   .build();
 ```
 
@@ -69,7 +68,7 @@ const agent = new AgentBuilder("support", model)
   .instructions(
     "Use think when a request requires comparing tool results or planning multiple steps.",
   )
-  .tool(createThinkTool())
+  .tools([createThinkTool()])
   .build();
 ```
 

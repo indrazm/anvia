@@ -28,14 +28,14 @@ Expose it as a tool on the coordinator:
 ```ts
 const supportAgent = new AgentBuilder("support", model)
   .instructions("Answer support questions. Ask policy_review before high-risk answers.")
-  .tool(
+  .tools([
     policyAgent.asTool({
       name: "policy_review",
       description: "Review a draft support answer for policy risk.",
       maxTurns: 2,
     }),
-  )
-  .tools(supportTools)
+    ...supportTools,
+  ])
   .build();
 ```
 
@@ -116,8 +116,10 @@ const coordinator = new AgentBuilder("incident-coordinator", model)
       "Synthesize the final answer yourself after tools return.",
     ].join("\n"),
   )
-  .tool(logAgent.asTool({ name: "log_analysis", maxTurns: 3 }))
-  .tool(policyAgent.asTool({ name: "policy_review", maxTurns: 2 }))
+  .tools([
+    logAgent.asTool({ name: "log_analysis", maxTurns: 3 }),
+    policyAgent.asTool({ name: "policy_review", maxTurns: 2 }),
+  ])
   .build();
 ```
 

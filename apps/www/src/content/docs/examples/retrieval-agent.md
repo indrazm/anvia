@@ -122,8 +122,7 @@ const SUPPORT_DOC_SEARCH_INSTRUCTIONS = "Search support docs before answering po
 
 const agent = new AgentBuilder("checkout-support", model)
   .instructions(SUPPORT_DOC_SEARCH_INSTRUCTIONS)
-  .tool(searchSupportDocs)
-  .tools(createSupportTools(scope))
+  .tools([searchSupportDocs, ...createSupportTools(scope)])
   .defaultMaxTurns(4)
   .build();
 ```

@@ -106,7 +106,7 @@ An agent can use both:
 
 ```ts
 const agent = new AgentBuilder("support", model)
-  .tool(createEscalationTool(scope))
+  .tools([createEscalationTool(scope)])
   .dynamicTools(toolIndex, {
     topK: 5,
     threshold: 0.7,

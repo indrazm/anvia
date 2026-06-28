@@ -35,7 +35,7 @@ export function createSupportAgent(input: { model: CompletionModel; orders: Orde
 
   return new AgentBuilder("support", input.model)
     .instructions("Help customers with order questions.")
-    .tool(lookupOrder)
+    .tools([lookupOrder])
     .defaultMaxTurns(4)
     .build();
 }

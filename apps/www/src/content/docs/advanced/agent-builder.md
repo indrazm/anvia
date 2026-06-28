@@ -44,7 +44,7 @@ Use builder defaults for behavior that is safe across requests:
 
 - `.instructions(...)` for durable operating rules
 - `.context(text, id)` for small static documents
-- `.tool(...)` or `.tools(...)` for stable tool definitions
+- `.tools([...])` for stable tool definitions
 - `.mcp(...)` for tools loaded from MCP servers
 - `.skills(...)` for skill instructions and skill tools
 - `.dynamicContext(...)` for retrieval-selected context
