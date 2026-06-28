@@ -1,8 +1,15 @@
-import type { UIStreamEvent, UIStreamRequest } from "@anvia/core/ui";
+import type { UIMessage, UIStreamEvent, UIStreamRequest } from "@anvia/core/ui";
+import { uiMessagesToCoreMessages } from "@anvia/core/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createChatTransport } from "./transport";
-import type { EventTransport, SendMessageInput, UseChatOptions, UseChatResult } from "./types";
+import type {
+  CreateChatRequestArgs,
+  EventTransport,
+  SendMessageInput,
+  UseChatOptions,
+  UseChatResult,
+} from "./types";
 import {
   appendAssistantDelta,
   applyAnviaStreamEvent,
@@ -96,7 +103,7 @@ export function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(
   );
 
   const sendMessages = useCallback(
-    async (nextMessages: UIStreamRequest["messages"]) => {
+    async (nextMessages: UIMessage[]) => {
       if (transport === undefined) {
         throw new Error("useChat requires either transport or endpoint");
       }
@@ -107,9 +114,9 @@ export function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(
 
       const createRequest =
         options.createRequest ??
-        ((args: { messages: UIStreamRequest["messages"] }) =>
-          ({ messages: args.messages, stream: true }) as TRequest);
-      const request = createRequest({ messages: nextMessages });
+        ((args: CreateChatRequestArgs) => ({ messages: args.messages, stream: true }) as TRequest);
+      const requestMessages = uiMessagesToCoreMessages(nextMessages);
+      const request = createRequest({ messages: requestMessages, uiMessages: nextMessages });
 
       setMessages(nextMessages);
       setEvents([]);
@@ -177,7 +184,7 @@ export function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(
   }, []);
 
   const reset = useCallback(
-    (nextMessages: UIStreamRequest["messages"] = []) => {
+    (nextMessages: UIMessage[] = []) => {
       abortRef.current?.abort();
       abortRef.current = undefined;
       setMessages(nextMessages);
@@ -203,7 +210,7 @@ export function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(
   };
 }
 
-function findLastUserIndex(messages: UIStreamRequest["messages"]): number {
+function findLastUserIndex(messages: UIMessage[]): number {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index]?.role === "user") {
       return index;

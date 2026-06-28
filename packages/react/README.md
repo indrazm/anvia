@@ -49,11 +49,14 @@ Default hook requests use one shared wire shape:
 
 ```ts
 type UIStreamRequest = {
-  messages: UIMessage[];
+  messages: Message[];
   stream: true;
   metadata?: JsonValue;
 };
 ```
+
+Hooks convert their local `UIMessage[]` state into core messages before sending. Custom
+`createRequest` callbacks receive both `{ messages, uiMessages }`.
 
 The shared boundary is:
 

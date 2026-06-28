@@ -96,8 +96,8 @@ for await (const event of createCompletionStream(model, {
 }
 ```
 
-React hooks send standardized `UIMessage[]` in their request body. Pass those messages directly to
-`createCompletionStream`; the helper normalizes them before calling the provider:
+React hooks keep `UIMessage[]` state locally, but send core `Message[]` in their request body. Pass
+those messages directly to `createCompletionStream`:
 
 ```ts
 import { createCompletionStream } from "@anvia/core";

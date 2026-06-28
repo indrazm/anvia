@@ -61,13 +61,13 @@ export function Chat() {
 
 ```ts
 type UIStreamRequest = {
-  messages: UIMessage[];
+  messages: Message[];
   stream: true;
   metadata?: JsonValue;
 };
 ```
 
-It reads JSONL by default and updates message state from raw completion streams, raw agent streams, or UI stream events.
+It converts local `UIMessage[]` state to core `Message[]` before sending, reads JSONL by default, and updates UI message state from raw completion streams, raw agent streams, or UI stream events.
 
 Use `createRequest` or a custom transport when your server expects a different request shape or event mapping.
 

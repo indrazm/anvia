@@ -3,7 +3,7 @@ import type { UIStreamEvent, UIStreamRequest } from "@anvia/core/ui";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { EventTransport } from "../src";
+import type { EventTransport, UseCompletionRequestArgs } from "../src";
 import { useCompletion } from "../src";
 
 afterEach(() => {
@@ -17,7 +17,7 @@ describe("@anvia/react useCompletion", () => {
     const transport: EventTransport<UIStreamRequest, CompletionStreamEvent> = {
       send: async function* (request) {
         expect(request.messages).toMatchObject([
-          { role: "user", parts: [{ type: "text", text: "hello" }] },
+          { role: "user", content: [{ type: "text", text: "hello" }] },
         ]);
         expect(request.stream).toBe(true);
         yield { type: "message_id", id: "provider_1" };
@@ -83,10 +83,54 @@ describe("@anvia/react useCompletion", () => {
 
     const [, init] = fetchMock.mock.calls[0] ?? [];
     expect(JSON.parse(String(init?.body))).toMatchObject({
-      messages: [{ role: "user", parts: [{ type: "text", text: "hello" }] }],
+      messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
       stream: true,
     });
     expect(result.current.completion).toBe("hi");
+  });
+
+  it("passes core and UI messages to custom completion request factories", async () => {
+    type CustomRequest = {
+      messages: unknown[];
+      uiMessages: unknown[];
+      stream: true;
+    };
+    const createRequest = vi.fn((args: UseCompletionRequestArgs) => ({
+      ...args,
+      stream: true as const,
+    }));
+    const transport: EventTransport<CustomRequest, UIStreamEvent> = {
+      send: async function* (request) {
+        expect(request.messages[0]).toMatchObject({
+          role: "user",
+          content: [{ type: "text", text: "hello" }],
+        });
+        expect(request.uiMessages[0]).toMatchObject({
+          role: "user",
+          parts: [{ type: "text", text: "hello" }],
+        });
+        yield {
+          type: "message_start",
+          message: { id: "assistant_1", role: "assistant", parts: [] },
+        };
+      },
+    };
+
+    const { result } = renderHook(() => useCompletion<CustomRequest>({ transport, createRequest }));
+
+    await act(async () => {
+      await result.current.complete("hello");
+    });
+
+    expect(createRequest).toHaveBeenCalledWith({
+      messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+      uiMessages: [
+        expect.objectContaining({
+          role: "user",
+          parts: [expect.objectContaining({ type: "text", text: "hello" })],
+        }),
+      ],
+    });
   });
 
   it("keeps streamed text when the raw completion final choice is empty", async () => {

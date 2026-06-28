@@ -5,6 +5,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  type CreateChatRequestArgs,
   createChatTransport,
   createFetchTransport,
   EventStreamHttpError,
@@ -98,14 +99,14 @@ describe("@anvia/react transports", () => {
 });
 
 describe("@anvia/react useChat", () => {
-  it("sends full UI messages and applies UI stream events", async () => {
+  it("sends converted core messages and applies UI stream events", async () => {
     const onEvent = vi.fn();
     const transport: EventTransport<UIStreamRequest, UIStreamEvent> = {
       send: async function* (request) {
         expect(request.messages).toHaveLength(1);
         expect(request.messages[0]).toMatchObject({
           role: "user",
-          parts: [{ type: "text", text: "hi" }],
+          content: [{ type: "text", text: "hi" }],
         });
         expect(request.stream).toBe(true);
         yield {
@@ -176,10 +177,53 @@ describe("@anvia/react useChat", () => {
 
     const [, init] = fetchMock.mock.calls[0] ?? [];
     expect(JSON.parse(String(init?.body))).toMatchObject({
-      messages: [{ role: "user", parts: [{ type: "text", text: "hello" }] }],
+      messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
       stream: true,
     });
     expect(result.current.text).toBe("hi");
+  });
+
+  it("passes core and UI messages to custom chat request factories", async () => {
+    type CustomRequest = {
+      messages: unknown[];
+      uiMessages: unknown[];
+      stream: true;
+    };
+    const createRequest = vi.fn((args: CreateChatRequestArgs) => ({
+      ...args,
+      stream: true as const,
+    }));
+    const transport: EventTransport<CustomRequest, UIStreamEvent> = {
+      send: async function* (request) {
+        expect(request.messages[0]).toMatchObject({
+          role: "user",
+          content: [{ type: "text", text: "hello" }],
+        });
+        expect(request.uiMessages[0]).toMatchObject({
+          role: "user",
+          parts: [{ type: "text", text: "hello" }],
+        });
+        yield {
+          type: "message_start",
+          message: { id: "assistant_1", role: "assistant", parts: [] },
+        };
+      },
+    };
+    const { result } = renderHook(() => useChat<CustomRequest>({ transport, createRequest }));
+
+    await act(async () => {
+      await result.current.send("hello");
+    });
+
+    expect(createRequest).toHaveBeenCalledWith({
+      messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+      uiMessages: [
+        expect.objectContaining({
+          role: "user",
+          parts: [expect.objectContaining({ type: "text", text: "hello" })],
+        }),
+      ],
+    });
   });
 
   it("applies raw completion stream events", async () => {

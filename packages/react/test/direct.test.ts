@@ -85,7 +85,7 @@ describe("@anvia/react createDirectTransport", () => {
       async function* (request) {
         expect(request.messages[0]).toMatchObject({
           role: "user",
-          parts: [{ type: "text", text: "hello" }],
+          content: [{ type: "text", text: "hello" }],
         });
         yield {
           type: "message_start",
@@ -115,7 +115,7 @@ describe("@anvia/react createDirectTransport", () => {
       async function* (request) {
         expect(request.messages[0]).toMatchObject({
           role: "user",
-          parts: [{ type: "text", text: "hi" }],
+          content: [{ type: "text", text: "hi" }],
         });
         yield {
           type: "message_start",
