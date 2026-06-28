@@ -162,6 +162,9 @@ function messagesFromInput(input: CreateCompletionInput | undefined): MessageTyp
   if (isUIMessage(input)) {
     return uiMessagesToCoreMessages([input]);
   }
+  if (!isCoreMessage(input)) {
+    throw new TypeError("input must be a string, Message, Message[], UIMessage, or UIMessage[].");
+  }
   return [input];
 }
 
@@ -195,14 +198,154 @@ function normalizeMessageArray(
 }
 
 function isCoreMessage(value: unknown): value is MessageType {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.role === "system") {
+    return typeof value.content === "string";
+  }
+
+  if (value.role === "user") {
+    return Array.isArray(value.content) && value.content.every(isUserContent);
+  }
+
+  if (value.role === "assistant") {
+    return (
+      (value.id === undefined || typeof value.id === "string") &&
+      Array.isArray(value.content) &&
+      value.content.every(isAssistantContent)
+    );
+  }
+
+  if (value.role === "tool") {
+    return Array.isArray(value.content) && value.content.every(isToolContent);
+  }
+
+  return false;
+}
+
+function isUserContent(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.type === "text") {
+    return typeof value.text === "string";
+  }
+
+  if (value.type === "image") {
+    return isImageContent(value);
+  }
+
+  if (value.type === "document") {
+    return isDocumentContent(value);
+  }
+
+  return false;
+}
+
+function isAssistantContent(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.type === "text") {
+    return typeof value.text === "string";
+  }
+
+  if (value.type === "reasoning") {
+    return (
+      typeof value.text === "string" &&
+      (value.id === undefined || typeof value.id === "string") &&
+      (value.content === undefined || Array.isArray(value.content))
+    );
+  }
+
+  if (value.type === "tool_call") {
+    return (
+      typeof value.id === "string" &&
+      (value.callId === undefined || typeof value.callId === "string") &&
+      isRecord(value.function) &&
+      typeof value.function.name === "string" &&
+      "arguments" in value.function
+    );
+  }
+
+  if (value.type === "image") {
+    return isImageContent(value);
+  }
+
+  return false;
+}
+
+function isToolContent(value: unknown): boolean {
   return (
     isRecord(value) &&
-    (value.role === "system" ||
-      value.role === "user" ||
-      value.role === "assistant" ||
-      value.role === "tool") &&
-    "content" in value
+    value.type === "tool_result" &&
+    typeof value.id === "string" &&
+    (value.callId === undefined || typeof value.callId === "string") &&
+    Array.isArray(value.content) &&
+    value.content.every(isToolResultContent)
   );
+}
+
+function isToolResultContent(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.type === "text") {
+    return typeof value.text === "string";
+  }
+
+  if (value.type === "image") {
+    return (
+      typeof value.data === "string" &&
+      (value.mediaType === undefined || typeof value.mediaType === "string")
+    );
+  }
+
+  return false;
+}
+
+function isImageContent(value: Record<string, unknown>): boolean {
+  if (!isRecord(value.source)) {
+    return false;
+  }
+
+  if (value.source.type === "url") {
+    return typeof value.source.url === "string";
+  }
+
+  if (value.source.type === "base64") {
+    return typeof value.source.data === "string" && typeof value.source.mediaType === "string";
+  }
+
+  return false;
+}
+
+function isDocumentContent(value: Record<string, unknown>): boolean {
+  if (!isRecord(value.source)) {
+    return false;
+  }
+
+  if (value.source.type === "url") {
+    return typeof value.source.url === "string" && typeof value.source.mediaType === "string";
+  }
+
+  if (value.source.type === "base64") {
+    return typeof value.source.data === "string" && typeof value.source.mediaType === "string";
+  }
+
+  if (value.source.type === "text") {
+    return (
+      typeof value.source.text === "string" &&
+      (value.source.mediaType === undefined || typeof value.source.mediaType === "string")
+    );
+  }
+
+  return false;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -215,6 +215,39 @@ describe("@anvia/react useChat", () => {
     ]);
   });
 
+  it("merges raw completion tool call deltas", async () => {
+    const transport: EventTransport<UIStreamRequest, CompletionStreamEvent> = {
+      send: async function* () {
+        yield {
+          type: "tool_call_delta",
+          id: "tool_1",
+          name: "lookup",
+          argumentsDelta: '{"query"',
+        };
+        yield {
+          type: "tool_call_delta",
+          id: "tool_1",
+          argumentsDelta: ':"Anvia"}',
+        };
+      },
+    };
+    const { result } = renderHook(() => useChat({ transport }));
+
+    await act(async () => {
+      await result.current.send("lookup");
+    });
+
+    expect(result.current.messages[1]?.parts).toEqual([
+      expect.objectContaining({
+        type: "tool",
+        toolName: "lookup",
+        toolCallId: "tool_1",
+        state: "input-streaming",
+        input: '{"query":"Anvia"}',
+      }),
+    ]);
+  });
+
   it("applies raw agent stream events", async () => {
     const transport: EventTransport<UIStreamRequest, AgentStreamEvent> = {
       send: async function* () {
@@ -231,7 +264,8 @@ describe("@anvia/react useChat", () => {
           internalCallId: "tool_1",
           args: '{"x":2,"y":5}',
           result: "7",
-        };
+          structuredResult: { value: 7 },
+        } as unknown as AgentStreamEvent;
         yield { type: "text_delta", turn: 1, delta: "7" };
         yield {
           type: "final",
@@ -256,16 +290,20 @@ describe("@anvia/react useChat", () => {
         metadata: { runId: "run_1" },
       },
     ]);
+    const toolParts = result.current.messages[1]?.parts.filter((part) => part.type === "tool");
+    expect(toolParts).toEqual([
+      expect.objectContaining({
+        type: "tool",
+        toolName: "add",
+        toolCallId: "tool_1",
+        callId: "call_1",
+        state: "output-available",
+        input: { x: 2, y: 5 },
+        output: { value: 7 },
+      }),
+    ]);
     expect(result.current.messages[1]?.parts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "tool",
-          toolName: "add",
-          state: "output-available",
-          output: "7",
-        }),
-        expect.objectContaining({ type: "text", text: "7" }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ type: "text", text: "7" })]),
     );
   });
 
@@ -287,6 +325,26 @@ describe("@anvia/react useChat", () => {
     });
 
     expect(result.current.text).toBe("ok");
+  });
+
+  it("lets custom delta mapping override raw Anvia event names", async () => {
+    const transport: EventTransport<UIStreamRequest, { type: "text_delta"; delta: string }> = {
+      send: async function* () {
+        yield { type: "text_delta", delta: "raw" };
+      },
+    };
+    const { result } = renderHook(() =>
+      useChat({
+        transport,
+        eventToDelta: (event) => (event.type === "text_delta" ? "custom" : undefined),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.send("hi");
+    });
+
+    expect(result.current.text).toBe("custom");
   });
 
   it("aborts active streams when stopped", async () => {

@@ -49,6 +49,8 @@ export type UIMessagePart =
       error: UIError;
     };
 
+export type UIToolMessagePart = Extract<UIMessagePart, { type: "tool" }>;
+
 export type UIStreamRequest = {
   messages: UIMessage[];
   stream: true;
@@ -76,7 +78,7 @@ export type UIStreamEvent =
       type: "tool_update";
       messageId: string;
       partId: string;
-      part: UIMessagePart;
+      part: UIToolMessagePart;
     }
   | {
       type: "message_end";

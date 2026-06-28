@@ -2,6 +2,8 @@ import type { JsonValue } from "@anvia/core/completion";
 import type { UIError, UIMessage, UIMessagePart, UIStreamEvent } from "@anvia/core/ui";
 import type { SendMessageInput } from "./types";
 
+type UIToolMessagePart = Extract<UIMessagePart, { type: "tool" }>;
+
 export function createUserMessage(input: SendMessageInput): UIMessage | undefined {
   if (isUIMessage(input)) {
     return input;
@@ -105,7 +107,7 @@ export function applyAnviaStreamEvent(
   }
 
   if (event.type === "tool_call_delta" && typeof event.id === "string") {
-    const part: UIMessagePart = {
+    const part: UIToolMessagePart = {
       id: toolPartId(event.id),
       type: "tool",
       toolName: typeof event.name === "string" ? event.name : "",
@@ -118,7 +120,7 @@ export function applyAnviaStreamEvent(
   }
 
   if (event.type === "tool_call" && isToolCall(event.toolCall)) {
-    const part: UIMessagePart = {
+    const part: UIToolMessagePart = {
       id: toolPartId(event.toolCall.id),
       type: "tool",
       toolName: event.toolCall.function.name,
@@ -132,24 +134,25 @@ export function applyAnviaStreamEvent(
 
   if (event.type === "tool_result") {
     const toolCallId =
-      typeof event.toolCallId === "string"
-        ? event.toolCallId
-        : typeof event.internalCallId === "string"
-          ? event.internalCallId
+      typeof event.internalCallId === "string"
+        ? event.internalCallId
+        : typeof event.toolCallId === "string"
+          ? event.toolCallId
           : undefined;
     if (toolCallId === undefined || typeof event.toolName !== "string") {
       return undefined;
     }
-    const part: UIMessagePart = {
+    const part: UIToolMessagePart = {
       id: toolPartId(toolCallId),
       type: "tool",
       toolName: event.toolName,
       toolCallId,
       ...(typeof event.toolCallId === "string" ? { callId: event.toolCallId } : {}),
       state: "output-available",
-      output: Array.isArray(event.structuredResult)
-        ? (event.structuredResult as JsonValue)
-        : valueToJson(event.result),
+      output:
+        "structuredResult" in event && event.structuredResult !== undefined
+          ? valueToJson(event.structuredResult)
+          : valueToJson(event.result),
     };
     return updateAssistantToolPart(messages, part);
   }
@@ -268,6 +271,8 @@ function updateMessagePart(
       (currentPart?.type === "reasoning" && part.type === "reasoning")
     ) {
       parts[partIndex] = { ...currentPart, text: `${currentPart.text}${part.text}` };
+    } else if (currentPart?.type === "tool" && part.type === "tool") {
+      parts[partIndex] = mergeToolPart(currentPart, part);
     } else {
       parts[partIndex] = part;
     }
@@ -275,10 +280,37 @@ function updateMessagePart(
   });
 }
 
-function updateAssistantToolPart(messages: UIMessage[], part: UIMessagePart): UIMessage[] {
+function updateAssistantToolPart(messages: UIMessage[], part: UIToolMessagePart): UIMessage[] {
   const current = ensureAssistantMessage(messages);
   const assistant = current[current.length - 1];
   return assistant === undefined ? current : updateMessagePart(current, assistant.id, part);
+}
+
+function mergeToolPart(
+  currentPart: UIToolMessagePart,
+  nextPart: UIToolMessagePart,
+): UIToolMessagePart {
+  const merged: UIToolMessagePart = { ...currentPart, ...nextPart };
+
+  if (nextPart.toolName.length === 0) {
+    merged.toolName = currentPart.toolName;
+  }
+  if (nextPart.callId === undefined && currentPart.callId !== undefined) {
+    merged.callId = currentPart.callId;
+  }
+  if (nextPart.input === undefined && currentPart.input !== undefined) {
+    merged.input = currentPart.input;
+  } else if (typeof currentPart.input === "string" && typeof nextPart.input === "string") {
+    merged.input = `${currentPart.input}${nextPart.input}`;
+  }
+  if (nextPart.output === undefined && currentPart.output !== undefined) {
+    merged.output = currentPart.output;
+  }
+  if (nextPart.error === undefined && currentPart.error !== undefined) {
+    merged.error = currentPart.error;
+  }
+
+  return merged;
 }
 
 function appendAssistantError(messages: UIMessage[], error: UIError): UIMessage[] {

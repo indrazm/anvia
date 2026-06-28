@@ -10,6 +10,7 @@ import {
   type ToolContent as ToolContentType,
   type ToolResultContent,
   UserContent,
+  type UserContent as UserContentType,
 } from "../completion/types";
 import type { UIMessage, UIMessagePart } from "./types";
 
@@ -27,9 +28,20 @@ export function uiMessagesToCoreMessages(messages: UIMessage[]): CoreMessage[] {
     }
 
     if (message.role === "user") {
-      const content = message.parts
-        .filter((part): part is Extract<UIMessagePart, { type: "text" }> => part.type === "text")
-        .map((part) => UserContent.text(part.text));
+      const content: UserContentType[] = [];
+      for (const part of message.parts) {
+        if (part.type === "text") {
+          content.push(UserContent.text(part.text));
+          continue;
+        }
+        if (part.type === "data" && isUserContent(part.data)) {
+          content.push(part.data);
+          continue;
+        }
+        throw new TypeError(
+          "User UI messages can only be converted from text parts or image/document data parts.",
+        );
+      }
       if (content.length > 0) {
         coreMessages.push(Message.user(content));
       }
@@ -38,6 +50,7 @@ export function uiMessagesToCoreMessages(messages: UIMessage[]): CoreMessage[] {
 
     if (message.role === "assistant") {
       const content: AssistantContentType[] = [];
+      const toolResults: ToolContentType[] = [];
       for (const part of message.parts) {
         if (part.type === "text" && part.text.length > 0) {
           content.push(AssistantContent.text(part.text));
@@ -49,7 +62,9 @@ export function uiMessagesToCoreMessages(messages: UIMessage[]): CoreMessage[] {
         }
         if (
           part.type === "tool" &&
-          (part.state === "input-streaming" || part.state === "input-available")
+          (part.state === "input-streaming" ||
+            part.state === "input-available" ||
+            part.state === "output-available")
         ) {
           content.push(
             AssistantContent.toolCall(
@@ -59,10 +74,22 @@ export function uiMessagesToCoreMessages(messages: UIMessage[]): CoreMessage[] {
               part.callId,
             ),
           );
+          if (part.state === "output-available") {
+            toolResults.push(
+              ToolContent.toolResult(
+                part.toolCallId,
+                outputToToolResultContent(part.output),
+                part.callId,
+              ),
+            );
+          }
         }
       }
       if (content.length > 0) {
         coreMessages.push(Message.assistant(content, message.id));
+      }
+      if (toolResults.length > 0) {
+        coreMessages.push(Message.tool(toolResults));
       }
       continue;
     }
@@ -211,6 +238,65 @@ function toolResultContentToJson(content: ToolResultContent[]): JsonValue {
     return content[0].text;
   }
   return content as JsonValue;
+}
+
+function isUserContent(value: unknown): value is UserContentType {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.type === "text") {
+    return typeof value.text === "string";
+  }
+
+  if (value.type === "image") {
+    return isImageContent(value);
+  }
+
+  if (value.type === "document") {
+    return isDocumentContent(value);
+  }
+
+  return false;
+}
+
+function isImageContent(value: Record<string, unknown>): boolean {
+  if (!isRecord(value.source)) {
+    return false;
+  }
+
+  if (value.source.type === "url") {
+    return typeof value.source.url === "string";
+  }
+
+  if (value.source.type === "base64") {
+    return typeof value.source.data === "string" && typeof value.source.mediaType === "string";
+  }
+
+  return false;
+}
+
+function isDocumentContent(value: Record<string, unknown>): boolean {
+  if (!isRecord(value.source)) {
+    return false;
+  }
+
+  if (value.source.type === "url") {
+    return typeof value.source.url === "string" && typeof value.source.mediaType === "string";
+  }
+
+  if (value.source.type === "base64") {
+    return typeof value.source.data === "string" && typeof value.source.mediaType === "string";
+  }
+
+  if (value.source.type === "text") {
+    return (
+      typeof value.source.text === "string" &&
+      (value.source.mediaType === undefined || typeof value.source.mediaType === "string")
+    );
+  }
+
+  return false;
 }
 
 function toolPartId(toolCallId: string): string {

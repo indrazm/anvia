@@ -62,7 +62,12 @@ export function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(
         return;
       }
 
-      if (options.eventToUIEvent === undefined) {
+      const hasCustomEventMapper =
+        options.eventToUIEvent !== undefined ||
+        options.eventToDelta !== undefined ||
+        options.eventToFinal !== undefined;
+
+      if (!hasCustomEventMapper) {
         let handled = false;
         setMessages((current) => {
           const next = applyAnviaStreamEvent(current, event);
