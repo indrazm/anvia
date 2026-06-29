@@ -80,8 +80,6 @@ export type {
 } from "./tool/middleware";
 export { createMiddleware, createToolMiddleware } from "./tool/middleware";
 export type {
-  CreateAgentUIStreamOptions,
-  CreateCompletionUIStreamOptions,
   UIError,
   UIMessage,
   UIMessagePart,
@@ -90,10 +88,6 @@ export type {
   UIStreamRequest,
 } from "./ui";
 export {
-  agentStreamToUIStream,
-  completionStreamToUIStream,
   coreMessagesToUIMessages,
-  createAgentUIStream,
-  createCompletionUIStream,
   uiMessagesToCoreMessages,
 } from "./ui";

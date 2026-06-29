@@ -27,6 +27,7 @@ import * as skills from "../src/skills";
 import * as streaming from "../src/streaming";
 import * as tool from "../src/tool";
 import * as transcription from "../src/transcription";
+import * as ui from "../src/ui";
 import * as vectorStore from "../src/vector-store";
 
 describe("public exports", () => {
@@ -80,6 +81,17 @@ describe("public exports", () => {
     expect("PromptCancelledError" in request).toBe(true);
     expect("MaxTurnsError" in request).toBe(true);
     expect("ToolApprovalRequiredError" in request).toBe(true);
+  });
+
+  it("does not expose removed experimental UI stream creators", () => {
+    expect("createCompletionUIStream" in publicCore).toBe(false);
+    expect("createAgentUIStream" in publicCore).toBe(false);
+    expect("completionStreamToUIStream" in publicCore).toBe(false);
+    expect("agentStreamToUIStream" in publicCore).toBe(false);
+    expect("createCompletionUIStream" in ui).toBe(false);
+    expect("createAgentUIStream" in ui).toBe(false);
+    expect("completionStreamToUIStream" in ui).toBe(false);
+    expect("agentStreamToUIStream" in ui).toBe(false);
   });
 
   it("keeps public subpath runtime exports available", () => {
