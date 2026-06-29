@@ -1,5 +1,5 @@
-import { createHook, type PromptHook } from "@anvia/core/agent";
 import type { JsonObject, JsonValue } from "@anvia/core/completion";
+import { createHook, type PromptHook } from "@anvia/core/hooks";
 import { parseToolArgs } from "@anvia/core/tool";
 import type { Context, Hono } from "hono";
 import type {
