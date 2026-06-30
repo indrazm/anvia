@@ -6,6 +6,7 @@ import type {
   ToolResultContent,
   Usage,
 } from "../completion/index";
+import type { GuardrailDecisionRecord } from "../guardrails";
 import type { AgentTraceInfo } from "../observability/types";
 
 export type PromptResponse = {
@@ -13,6 +14,7 @@ export type PromptResponse = {
   usage: Usage;
   messages: MessageType[];
   trace?: AgentTraceInfo | undefined;
+  guardrails?: GuardrailDecisionRecord[] | undefined;
 };
 
 export type AgentDeltaEvent =
@@ -67,12 +69,18 @@ export type AgentChildStreamEvent<RawResponse = unknown> =
       response: CompletionResponse<RawResponse>;
     }
   | {
+      type: "guardrail_decision";
+      turn?: number | undefined;
+      decision: GuardrailDecisionRecord;
+    }
+  | {
       type: "final";
       runId: string;
       output: string;
       usage: Usage;
       messages: MessageType[];
       trace?: AgentTraceInfo | undefined;
+      guardrails?: GuardrailDecisionRecord[] | undefined;
     }
   | {
       type: "error";

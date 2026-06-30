@@ -1,4 +1,6 @@
 import type { CompletionModel, Document, JsonObject, JsonValue, ToolChoice } from "../completion";
+import { appendGuardrailPolicies } from "../guardrails";
+import type { GuardrailPolicy, GuardrailPolicyInput } from "../guardrails";
 import type { PromptHook } from "../hooks";
 import type { McpServer } from "../mcp";
 import { resolveMemoryOptions } from "../memory/options";
@@ -37,6 +39,7 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
   private requestHook: PromptHook | undefined;
   private schema: JsonObject | undefined;
   private approvalOptions: ToolApprovalsOptions | undefined;
+  private guardrailPolicies: GuardrailPolicy[] = [];
   private skillInstructionBlocks: string[] = [];
   private observerRegistrations: AgentObserverRegistration[] = [];
   private dynamicContextRegistrations: DynamicContextRegistration[] = [];
@@ -183,6 +186,11 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
     return this;
   }
 
+  guardrails(policies: GuardrailPolicyInput): this {
+    this.guardrailPolicies = appendGuardrailPolicies(this.guardrailPolicies, policies);
+    return this;
+  }
+
   memory(store: MemoryStore, options: MemoryOptions = {}): this {
     this.memoryRegistration = {
       store,
@@ -224,6 +232,7 @@ export class AgentBuilder<M extends CompletionModel = CompletionModel> {
       outputSchema: this.schema,
       observers: this.observerRegistrations,
       approvals: this.approvalOptions,
+      guardrails: this.guardrailPolicies,
       dynamicContexts: this.dynamicContextRegistrations,
       dynamicTools: this.dynamicToolRegistrations,
       middlewares: this.middlewareRegistrations,

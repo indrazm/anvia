@@ -4,6 +4,7 @@ export * from "../../src/completion";
 export * from "../../src/embeddings";
 export * from "../../src/evals";
 export * from "../../src/extractor";
+export * from "../../src/guardrails";
 export * from "../../src/hooks";
 export * from "../../src/image-generation";
 export * from "../../src/internal/agent";

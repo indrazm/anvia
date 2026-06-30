@@ -3,6 +3,7 @@ import {
   isToolResultContentArray,
   serializeToolResultOutput as serializeToolOutput,
 } from "../completion/types";
+import type { ToolGuardrail, ToolResultGuardrail } from "../guardrails";
 
 export type ToolApprovalRunContext = {
   agentId: string;
@@ -53,6 +54,8 @@ export type ToolCallContext = {
 export interface Tool<Args = unknown, Output = unknown> {
   readonly name: string;
   readonly approval?: ToolApprovalPolicy<Args>;
+  readonly inputGuardrails?: ToolGuardrail<Args>[] | undefined;
+  readonly outputGuardrails?: ToolResultGuardrail<Args>[] | undefined;
   definition(prompt: string): ToolDefinition | Promise<ToolDefinition>;
   call(args: Args, context?: ToolCallContext): Output | Promise<Output>;
   parseApprovalArgs?(args: unknown): Args;

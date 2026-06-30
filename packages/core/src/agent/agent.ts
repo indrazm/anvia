@@ -8,6 +8,7 @@ import type {
   Message as MessageType,
   ToolChoice,
 } from "../completion/index";
+import type { GuardrailPolicy } from "../guardrails";
 import type { PromptHook } from "../hooks";
 import { compact } from "../internal/compact";
 import type { MemoryRegistration, SessionOptions } from "../memory/types";
@@ -54,6 +55,7 @@ export class Agent<M extends CompletionModel = CompletionModel> {
   readonly outputSchema: JsonObject | undefined;
   readonly observers: AgentObserverRegistration[];
   readonly approvals: ToolApprovalsOptions | undefined;
+  readonly guardrails: GuardrailPolicy[];
   readonly dynamicContexts: DynamicContextRegistration[];
   readonly dynamicTools: DynamicToolRegistration[];
   readonly middlewares: AgentMiddleware[];
@@ -81,6 +83,7 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     this.outputSchema = options.outputSchema;
     this.observers = options.observers ?? [];
     this.approvals = options.approvals;
+    this.guardrails = options.guardrails ?? [];
     this.dynamicContexts = options.dynamicContexts ?? [];
     this.dynamicTools = options.dynamicTools ?? [];
     this.middlewares = options.middlewares ?? options.toolMiddlewares ?? [];

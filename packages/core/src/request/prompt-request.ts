@@ -1,11 +1,13 @@
 import type { Agent } from "../agent/agent";
 import { isStreamingCompletionModel } from "../completion/create-completion";
 import {
+  AssistantContent,
   assertCompletionRequestSupported,
   type CompletionModel,
   CompletionRequestBuilder,
   type CompletionResponse,
   type JsonObject,
+  type JsonValue,
   Message,
   type Message as MessageType,
   type ToolCall,
@@ -14,6 +16,16 @@ import {
   textFromAssistantContent,
   Usage,
 } from "../completion/index";
+import {
+  appendGuardrailPolicies,
+  type GuardrailDecisionRecord,
+  type GuardrailPolicy,
+  type GuardrailPolicyInput,
+  type GuardrailRunContext,
+  hasEnforcedOutputGuardrails,
+  runInputGuardrails,
+  runOutputGuardrails,
+} from "../guardrails";
 import type { PromptHook } from "../hooks";
 import { runControl } from "../hooks";
 import { createAsyncQueue } from "../internal/async-queue";
@@ -43,6 +55,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
   private maxTurnCount: number;
   private activeHook: PromptHook | undefined;
   private approvalOptions: ToolApprovalsOptions | undefined;
+  private guardrailPolicies: GuardrailPolicy[];
+  private guardrailDecisions: GuardrailDecisionRecord[] = [];
   private concurrency = 1;
   private traceOptions: AgentTraceOptions | undefined;
   private requestMiddlewares: AgentMiddleware[] = [];
@@ -52,7 +66,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
   private constructor(
     private readonly agent: Agent<M>,
-    private readonly promptMessage: MessageType,
+    private promptMessage: MessageType,
     initialHistory: MessageType[] = [],
     private readonly memoryContext: MemoryContext | undefined = undefined,
   ) {
@@ -60,6 +74,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     this.maxTurnCount = agent.defaultMaxTurns ?? 0;
     this.activeHook = agent.hook;
     this.approvalOptions = agent.approvals;
+    this.guardrailPolicies = [...agent.guardrails];
     this.memoryRecorder = new PromptRequestMemory(agent, memoryContext, initialHistory);
   }
 
@@ -84,6 +99,11 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
   approvals(options: ToolApprovalsOptions): this {
     this.approvalOptions = options;
+    return this;
+  }
+
+  guardrails(policies: GuardrailPolicyInput): this {
+    this.guardrailPolicies = appendGuardrailPolicies(this.guardrailPolicies, policies);
     return this;
   }
 
@@ -140,6 +160,26 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
   async send(): Promise<PromptResponse> {
     this.startRun();
     const runId = globalThis.crypto.randomUUID();
+    const inputResult = await runInputGuardrails(this.guardrailPolicies, {
+      prompt: this.promptMessage,
+      history: this.chatHistory,
+      inputText: textFromMessage(this.promptMessage),
+      run: this.guardrailRunContext(runId),
+    });
+    this.guardrailDecisions.push(...inputResult.decisions);
+    this.promptMessage = inputResult.prompt;
+    if (inputResult.blocked) {
+      const output = inputResult.message ?? "The request was blocked by a guardrail.";
+      const messages = [this.promptMessage, Message.assistant(output)];
+      this.runState = "completed";
+      return {
+        output,
+        usage: Usage.empty(),
+        messages,
+        guardrails: [...this.guardrailDecisions],
+      };
+    }
+
     const newMessages: MessageType[] = [this.promptMessage];
     this.chatHistory = await this.memoryRecorder.prepareRun(runId, newMessages);
     const pendingTurnMessages = this.memoryRecorder.pendingTurnMessages(newMessages);
@@ -194,18 +234,20 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         await this.runCompletionResponseHook(prompt, response, newMessages);
         await this.runTurnEndHook(currentTurns, response, newMessages);
 
-        const assistantMessage = Message.assistant(response.choice, response.messageId);
-        newMessages.push(assistantMessage);
-        await this.memoryRecorder.commitMessages(
-          runId,
-          currentTurns,
-          [assistantMessage],
-          pendingTurnMessages,
-        );
         const toolCalls = response.choice.filter(
           (item): item is ToolCall => item.type === "tool_call",
         );
+        const assistantMessage = Message.assistant(response.choice, response.messageId);
+        newMessages.push(assistantMessage);
         if (toolCalls.length === 0) {
+          if (this.steeringMessages.length > 0) {
+            await this.memoryRecorder.commitMessages(
+              runId,
+              currentTurns,
+              [assistantMessage],
+              pendingTurnMessages,
+            );
+          }
           if (
             await this.drainSteeringMessages(runId, currentTurns, newMessages, pendingTurnMessages)
           ) {
@@ -213,11 +255,28 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             continue;
           }
 
+          const guardedOutput = await this.runOutputGuardrailsForResponse(
+            runId,
+            usage,
+            response,
+            newMessages,
+            runObservers,
+          );
+          response = guardedOutput.response;
+          const finalAssistantMessage = Message.assistant(response.choice, response.messageId);
+          newMessages[newMessages.length - 1] = finalAssistantMessage;
+          await this.memoryRecorder.commitMessages(
+            runId,
+            currentTurns,
+            [finalAssistantMessage],
+            pendingTurnMessages,
+          );
           const result: PromptResponse = {
-            output: textFromAssistantContent(response.choice),
+            output: guardedOutput.output,
             usage,
             messages: [...newMessages],
             trace: runObservers.trace,
+            guardrails: [...this.guardrailDecisions],
           };
           await this.runRunEndHook(result, newMessages);
           await runObservers.end(result);
@@ -231,6 +290,12 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           return result;
         }
 
+        await this.memoryRecorder.commitMessages(
+          runId,
+          currentTurns,
+          [assistantMessage],
+          pendingTurnMessages,
+        );
         const toolResults = await this.executeToolCalls(
           runId,
           toolCalls,
@@ -241,6 +306,9 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             turn: currentTurns,
             runObservers,
             toolDefinitions: request.tools,
+          },
+          async (decision) => {
+            await this.recordGuardrailDecision(decision, runObservers);
           },
         );
         const toolMessage = Message.tool(toolResults);
@@ -272,6 +340,36 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
     this.startRun();
     const runId = globalThis.crypto.randomUUID();
+    const emit = async (event: AgentStreamEvent): Promise<AgentStreamEvent> => {
+      await this.recordAgentEvent(runId, event);
+      return event;
+    };
+    const inputResult = await runInputGuardrails(this.guardrailPolicies, {
+      prompt: this.promptMessage,
+      history: this.chatHistory,
+      inputText: textFromMessage(this.promptMessage),
+      run: this.guardrailRunContext(runId),
+    });
+    this.guardrailDecisions.push(...inputResult.decisions);
+    for (const decision of inputResult.decisions) {
+      yield await emit({ type: "guardrail_decision", decision });
+    }
+    this.promptMessage = inputResult.prompt;
+    if (inputResult.blocked) {
+      const output = inputResult.message ?? "The request was blocked by a guardrail.";
+      const messages = [this.promptMessage, Message.assistant(output)];
+      this.runState = "completed";
+      yield await emit({
+        type: "final",
+        runId,
+        output,
+        usage: Usage.empty(),
+        messages,
+        guardrails: [...this.guardrailDecisions],
+      });
+      return;
+    }
+
     const newMessages: MessageType[] = [this.promptMessage];
     this.chatHistory = await this.memoryRecorder.prepareRun(runId, newMessages);
     const pendingTurnMessages = this.memoryRecorder.pendingTurnMessages(newMessages);
@@ -279,10 +377,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     let currentTurns = 0;
     let lastPrompt = this.promptMessage;
     const runObservers = await this.startRunObservers();
-    const emit = async (event: AgentStreamEvent): Promise<AgentStreamEvent> => {
-      await this.recordAgentEvent(runId, event);
-      return event;
-    };
+    const bufferOutputDeltas = hasEnforcedOutputGuardrails(this.guardrailPolicies);
 
     try {
       await this.runRunStartHook(newMessages);
@@ -357,7 +452,11 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
               if (mapped.type === "tool_call") {
                 emittedToolCallIds.add(mapped.toolCall.id);
               }
-              if (!bufferResponseEvents) {
+              const shouldBuffer =
+                bufferResponseEvents ||
+                (bufferOutputDeltas &&
+                  (mapped.type === "text_delta" || mapped.type === "reasoning_delta"));
+              if (!shouldBuffer) {
                 yield await emit(addTurn(currentTurns, mapped));
               }
             }
@@ -381,31 +480,38 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         await this.runCompletionResponseHook(prompt, response, newMessages);
         await this.runTurnEndHook(currentTurns, response, newMessages);
 
-        const assistantMessage = Message.assistant(response.choice, response.messageId);
-        newMessages.push(assistantMessage);
-        await this.memoryRecorder.commitMessages(
-          runId,
-          currentTurns,
-          [assistantMessage],
-          pendingTurnMessages,
-        );
         const toolCalls = response.choice.filter(
           (item): item is ToolCall => item.type === "tool_call",
         );
-        if (bufferResponseEvents) {
-          for (const event of responseStreamEvents(currentTurns, response)) {
-            yield await emit(event);
-          }
-        } else {
-          for (const toolCall of toolCalls) {
-            if (!emittedToolCallIds.has(toolCall.id)) {
-              yield await emit({ type: "tool_call", turn: currentTurns, toolCall });
-            }
-          }
-        }
-        yield await emit({ type: "turn_end", turn: currentTurns, response });
+        let assistantMessage = Message.assistant(response.choice, response.messageId);
+        newMessages.push(assistantMessage);
 
         if (toolCalls.length === 0) {
+          const guardedOutput = await this.runOutputGuardrailsForResponse(
+            runId,
+            usage,
+            response,
+            newMessages,
+            runObservers,
+          );
+          for (const decision of guardedOutput.decisions) {
+            yield await emit({ type: "guardrail_decision", decision });
+          }
+          response = guardedOutput.response;
+          assistantMessage = Message.assistant(response.choice, response.messageId);
+          newMessages[newMessages.length - 1] = assistantMessage;
+          await this.memoryRecorder.commitMessages(
+            runId,
+            currentTurns,
+            [assistantMessage],
+            pendingTurnMessages,
+          );
+          if (bufferResponseEvents || bufferOutputDeltas) {
+            for (const event of responseStreamEvents(currentTurns, response)) {
+              yield await emit(event);
+            }
+          }
+          yield await emit({ type: "turn_end", turn: currentTurns, response });
           if (
             await this.drainSteeringMessages(runId, currentTurns, newMessages, pendingTurnMessages)
           ) {
@@ -414,10 +520,11 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           }
 
           const result: PromptResponse = {
-            output: textFromAssistantContent(response.choice),
+            output: guardedOutput.output,
             usage,
             messages: [...newMessages],
             trace: runObservers.trace,
+            guardrails: [...this.guardrailDecisions],
           };
           await this.runRunEndHook(result, newMessages);
           await runObservers.end(result);
@@ -435,9 +542,29 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             usage: result.usage,
             messages: result.messages,
             trace: result.trace,
+            guardrails: result.guardrails,
           });
           return;
         }
+
+        if (bufferResponseEvents) {
+          for (const event of responseStreamEvents(currentTurns, response)) {
+            yield await emit(event);
+          }
+        } else {
+          for (const toolCall of toolCalls) {
+            if (!emittedToolCallIds.has(toolCall.id)) {
+              yield await emit({ type: "tool_call", turn: currentTurns, toolCall });
+            }
+          }
+        }
+        await this.memoryRecorder.commitMessages(
+          runId,
+          currentTurns,
+          [assistantMessage],
+          pendingTurnMessages,
+        );
+        yield await emit({ type: "turn_end", turn: currentTurns, response });
 
         const toolResultEvents = createAsyncQueue<ToolExecutionEventPayload>();
         const toolResultsPromise = this.executeToolCalls(
@@ -454,6 +581,10 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             turn: currentTurns,
             runObservers,
             toolDefinitions: request.tools,
+          },
+          async (decision) => {
+            await this.recordGuardrailDecision(decision, runObservers);
+            toolResultEvents.enqueue({ type: "guardrail_decision", decision });
           },
         );
         toolResultsPromise.then(
@@ -544,11 +675,13 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       runObservers: ActiveAgentRunObservers;
       toolDefinitions?: ToolDefinition[];
     },
+    onGuardrailDecision?: (decision: GuardrailDecisionRecord) => void | Promise<void>,
   ): Promise<ToolResult[]> {
     const executor = new ToolCallExecutor(
       this.agent,
       this.activeHook,
       this.approvalOptions,
+      this.guardrailPolicies,
       {
         runId,
         sessionId: this.memoryContext?.sessionId,
@@ -557,8 +690,67 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       this.concurrency,
       this.requestMiddlewares,
       (reason) => this.cancelled(newMessages, reason),
+      onGuardrailDecision,
     );
     return executor.execute(toolCalls, onResult, onStreamEvent, observation);
+  }
+
+  private async runOutputGuardrailsForResponse(
+    runId: string,
+    usage: Usage,
+    response: CompletionResponse,
+    messages: MessageType[],
+    runObservers: ActiveAgentRunObservers,
+  ): Promise<{
+    output: string;
+    response: CompletionResponse;
+    decisions: GuardrailDecisionRecord[];
+  }> {
+    const originalOutput = textFromAssistantContent(response.choice);
+    const result = await runOutputGuardrails(this.guardrailPolicies, {
+      outputText: originalOutput,
+      messages: [...this.chatHistory, ...messages],
+      usage,
+      run: this.guardrailRunContext(runId),
+    });
+    for (const decision of result.decisions) {
+      await this.recordGuardrailDecision(decision, runObservers);
+    }
+    const output = result.blocked
+      ? (result.message ?? "The response was blocked by a guardrail.")
+      : result.outputText;
+    if (output === originalOutput) {
+      return { output, response, decisions: result.decisions };
+    }
+    return {
+      output,
+      response: {
+        ...response,
+        choice: [AssistantContent.text(output)],
+      },
+      decisions: result.decisions,
+    };
+  }
+
+  private async recordGuardrailDecision(
+    decision: GuardrailDecisionRecord,
+    runObservers: ActiveAgentRunObservers,
+  ): Promise<void> {
+    this.guardrailDecisions.push(decision);
+    await runObservers.event({
+      name: "guardrail.decision",
+      level: decision.action === "block" ? "WARNING" : "DEFAULT",
+      attributes: guardrailDecisionAttributes(decision),
+    });
+  }
+
+  private guardrailRunContext(runId: string): GuardrailRunContext {
+    return compact({
+      agentId: this.agent.id,
+      runId,
+      sessionId: this.memoryContext?.sessionId,
+      metadata: this.memoryContext?.metadata,
+    }) as GuardrailRunContext;
   }
 
   private async startRunObservers(): Promise<ActiveAgentRunObservers> {
@@ -886,4 +1078,37 @@ function responseStreamEvents(turn: number, response: CompletionResponse): Agent
     }
   }
   return events;
+}
+
+function textFromMessage(message: MessageType): string {
+  if (message.role === "system") {
+    return message.content;
+  }
+  return message.content
+    .flatMap((content) => {
+      if (content.type === "text") {
+        return [content.text];
+      }
+      if (content.type === "document" && content.source.type === "text") {
+        return [content.source.text];
+      }
+      return [];
+    })
+    .join("\n");
+}
+
+function guardrailDecisionAttributes(
+  decision: GuardrailDecisionRecord,
+): Record<string, JsonValue | undefined> {
+  return compact({
+    policyId: decision.policyId,
+    guardrailId: decision.guardrailId,
+    boundary: decision.boundary,
+    mode: decision.mode,
+    action: decision.action,
+    applied: decision.applied,
+    reason: decision.reason,
+    message: decision.message,
+    latencyMs: decision.latencyMs,
+  }) as Record<string, JsonValue | undefined>;
 }

@@ -7,6 +7,17 @@ import type {
   ToolResultContent,
 } from "../../completion";
 import { ToolContent } from "../../completion";
+import {
+  type GuardrailDecisionRecord,
+  type GuardrailPolicy,
+  type GuardrailRunContext,
+  runToolGuardrails,
+  runToolResultGuardrails,
+  type ToolGuardrail,
+  type ToolGuardrailContext,
+  type ToolResultGuardrail,
+  type ToolResultGuardrailContext,
+} from "../../guardrails";
 import type { PromptHook, ToolApprovalRequestOptions, ToolHookArgs } from "../../hooks";
 import { runControl, toolCallControl } from "../../hooks";
 import type { ActiveAgentRunObservers, ActiveToolObservers } from "../../observability/group";
@@ -53,7 +64,15 @@ export type AgentToolEventPayload = {
   event: AgentChildStreamEvent;
 };
 
-export type ToolExecutionEventPayload = ToolResultEventPayload | AgentToolEventPayload;
+export type GuardrailDecisionEventPayload = {
+  type: "guardrail_decision";
+  decision: GuardrailDecisionRecord;
+};
+
+export type ToolExecutionEventPayload =
+  | ToolResultEventPayload
+  | AgentToolEventPayload
+  | GuardrailDecisionEventPayload;
 
 export type ToolExecutionObservation = {
   turn: number;
@@ -72,10 +91,14 @@ export class ToolCallExecutor {
     private readonly agent: Agent,
     private readonly activeHook: PromptHook | undefined,
     private readonly approvals: ToolApprovalsOptions | undefined,
+    private readonly guardrails: GuardrailPolicy[],
     private readonly runContext: ToolExecutionRunContext,
     private readonly concurrency: number,
     private readonly requestMiddlewares: AgentMiddleware[],
     private readonly cancel: (reason: string) => Error,
+    private readonly onGuardrailDecision:
+      | ((decision: GuardrailDecisionRecord) => void | Promise<void>)
+      | undefined,
   ) {}
 
   async execute(
@@ -114,96 +137,104 @@ export class ToolCallExecutor {
         }),
       );
 
-      const callAction = await this.activeHook?.onToolCall?.({
-        ...hookArgs,
-        tool: toolCallControl,
-      });
-      if (callAction?.type === "terminate") {
-        await recordToolError(
-          toolObservers,
-          observation?.turn,
-          toolCall,
-          internalCallId,
-          args,
-          callAction.reason,
-        );
-        throw this.cancel(callAction.reason);
-      }
       let output: NormalizedToolOutput;
       let skipped = false;
       let effectiveArgs = args;
-      if (callAction?.type === "skip") {
-        output = callAction.reason;
+
+      const inputGuardrailResult = await runToolGuardrails(
+        this.guardrails,
+        (tool?.inputGuardrails ?? []) as ToolGuardrail[],
+        toolGuardrailContext(tool, hookArgs, this.agent, this.runContext, observation?.turn ?? 0),
+      );
+      await this.recordGuardrailDecisions(inputGuardrailResult.decisions);
+      effectiveArgs = inputGuardrailResult.rawArgs;
+      hookArgs.args = effectiveArgs;
+      if (inputGuardrailResult.blocked) {
+        output = inputGuardrailResult.message ?? "Tool call blocked by guardrail.";
         skipped = true;
+      } else if (inputGuardrailResult.approval !== undefined) {
+        const approvalDecision = await this.requestApproval(
+          tool,
+          hookArgs,
+          compact({
+            reason: inputGuardrailResult.approval.reason,
+            rejectMessage: inputGuardrailResult.approval.rejectMessage,
+          }),
+        );
+        if (!approvalDecision.approved) {
+          output = approvalDecision.result;
+          skipped = true;
+        } else {
+          output = await this.runApprovedToolCall(
+            toolCall,
+            hookArgs,
+            effectiveArgs,
+            args,
+            toolObservers,
+            observation,
+            onStreamEvent,
+          );
+          effectiveArgs = hookArgs.args;
+        }
       } else {
-        let approvalDecision: { approved: true } | { approved: false; result: string };
-        try {
-          effectiveArgs = await this.runToolInputMiddlewares({
-            ...hookArgs,
-            turn: observation?.turn ?? 0,
-            originalArgs: args,
-          });
-          const effectiveHookArgs = { ...hookArgs, args: effectiveArgs };
-          approvalDecision =
-            callAction?.type === "approval_request"
-              ? await this.requestApproval(tool, effectiveHookArgs, callAction)
-              : ((await this.evaluateToolApproval(tool, effectiveHookArgs)) ?? { approved: true });
-        } catch (error) {
+        const callAction = await this.activeHook?.onToolCall?.({
+          ...hookArgs,
+          tool: toolCallControl,
+        });
+        if (callAction?.type === "terminate") {
           await recordToolError(
             toolObservers,
             observation?.turn,
             toolCall,
             internalCallId,
             effectiveArgs,
-            error,
+            callAction.reason,
           );
-          throw error;
+          throw this.cancel(callAction.reason);
         }
-
-        if (!approvalDecision.approved) {
-          output = approvalDecision.result;
+        if (callAction?.type === "skip") {
+          output = callAction.reason;
           skipped = true;
         } else {
+          let approvalDecision: { approved: true } | { approved: false; result: string };
           try {
-            output = await this.agent.callTool(toolCall.function.name, effectiveArgs, {
-              emitStreamEvent: async (event) => {
-                await toolObservers?.streamEvent(
-                  compact({
-                    turn: observation?.turn ?? 0,
-                    toolCall,
-                    toolName: toolCall.function.name,
-                    internalCallId,
-                    args: effectiveArgs,
-                    toolCallId: toolCall.callId,
-                    event,
-                  }),
-                );
-                const payload = agentToolEventPayload(toolCall, internalCallId, event);
-                if (payload !== undefined) {
-                  onStreamEvent?.(payload);
-                }
-              },
-            });
-          } catch (error) {
-            const errorAction = await this.activeHook?.onToolError?.({
+            effectiveArgs = await this.runToolInputMiddlewares({
               ...hookArgs,
-              args: effectiveArgs,
-              error,
-              run: runControl,
-            });
-            await toolObservers?.error({
               turn: observation?.turn ?? 0,
-              toolCall,
-              toolName: toolCall.function.name,
-              internalCallId,
-              args: effectiveArgs,
-              ...(toolCall.callId !== undefined && { toolCallId: toolCall.callId }),
-              error,
+              originalArgs: args,
             });
-            if (errorAction?.type === "terminate") {
-              throw this.cancel(errorAction.reason);
-            }
-            output = error instanceof Error ? error.toString() : String(error);
+            hookArgs.args = effectiveArgs;
+            approvalDecision =
+              callAction?.type === "approval_request"
+                ? await this.requestApproval(tool, hookArgs, callAction)
+                : ((await this.evaluateToolApproval(tool, hookArgs)) ?? { approved: true });
+          } catch (error) {
+            await recordToolError(
+              toolObservers,
+              observation?.turn,
+              toolCall,
+              internalCallId,
+              effectiveArgs,
+              error,
+            );
+            throw error;
+          }
+
+          if (!approvalDecision.approved) {
+            output = approvalDecision.result;
+            skipped = true;
+          } else {
+            output = await this.runApprovedToolCall(
+              toolCall,
+              hookArgs,
+              effectiveArgs,
+              args,
+              toolObservers,
+              observation,
+              onStreamEvent,
+              false,
+            );
+            effectiveArgs = hookArgs.args;
           }
         }
       }
@@ -225,6 +256,33 @@ export class ToolCallExecutor {
           result = toolOutputToText(middlewareReplacement);
           structuredResult = toolOutputToStructuredResult(middlewareReplacement);
         }
+      }
+
+      const resultGuardrailResult = await runToolResultGuardrails(
+        this.guardrails,
+        (tool?.outputGuardrails ?? []) as ToolResultGuardrail[],
+        toolResultGuardrailContext(
+          tool,
+          hookArgs,
+          result,
+          structuredResult,
+          this.agent,
+          this.runContext,
+          observation?.turn ?? 0,
+        ),
+      );
+      await this.recordGuardrailDecisions(resultGuardrailResult.decisions);
+      if (resultGuardrailResult.blocked) {
+        output = resultGuardrailResult.message ?? "Tool result blocked by guardrail.";
+        result = toolOutputToText(output);
+        structuredResult = toolOutputToStructuredResult(output);
+      } else if (
+        resultGuardrailResult.result !== result ||
+        resultGuardrailResult.structuredResult !== structuredResult
+      ) {
+        output = resultGuardrailResult.structuredResult ?? resultGuardrailResult.result;
+        result = resultGuardrailResult.result;
+        structuredResult = resultGuardrailResult.structuredResult;
       }
 
       const resultAction = await this.activeHook?.onToolResult?.({
@@ -263,6 +321,74 @@ export class ToolCallExecutor {
       onResult?.(resultPayload);
       return ToolContent.toolResult(toolCall.id, output, toolCall.callId);
     });
+  }
+
+  private async runApprovedToolCall(
+    toolCall: ToolCall,
+    hookArgs: ToolHookArgs,
+    effectiveArgs: string,
+    originalArgs: string,
+    toolObservers: ActiveToolObservers | undefined,
+    observation: ToolExecutionObservation | undefined,
+    onStreamEvent?: (event: AgentToolEventPayload) => void,
+    applyInputMiddleware = true,
+  ): Promise<NormalizedToolOutput> {
+    const middlewareArgs = applyInputMiddleware
+      ? await this.runToolInputMiddlewares({
+          ...hookArgs,
+          args: effectiveArgs,
+          turn: observation?.turn ?? 0,
+          originalArgs,
+        })
+      : effectiveArgs;
+    hookArgs.args = middlewareArgs;
+    try {
+      return await this.agent.callTool(toolCall.function.name, middlewareArgs, {
+        emitStreamEvent: async (event) => {
+          await toolObservers?.streamEvent(
+            compact({
+              turn: observation?.turn ?? 0,
+              toolCall,
+              toolName: toolCall.function.name,
+              internalCallId: hookArgs.internalCallId,
+              args: middlewareArgs,
+              toolCallId: toolCall.callId,
+              event,
+            }),
+          );
+          const payload = agentToolEventPayload(toolCall, hookArgs.internalCallId, event);
+          if (payload !== undefined) {
+            onStreamEvent?.(payload);
+          }
+        },
+      });
+    } catch (error) {
+      const errorAction = await this.activeHook?.onToolError?.({
+        ...hookArgs,
+        args: middlewareArgs,
+        error,
+        run: runControl,
+      });
+      await toolObservers?.error({
+        turn: observation?.turn ?? 0,
+        toolCall,
+        toolName: toolCall.function.name,
+        internalCallId: hookArgs.internalCallId,
+        args: middlewareArgs,
+        ...(toolCall.callId !== undefined && { toolCallId: toolCall.callId }),
+        error,
+      });
+      if (errorAction?.type === "terminate") {
+        throw this.cancel(errorAction.reason);
+      }
+      return error instanceof Error ? error.toString() : String(error);
+    }
+  }
+
+  private async recordGuardrailDecisions(decisions: GuardrailDecisionRecord[]): Promise<void> {
+    for (const decision of decisions) {
+      await this.onGuardrailDecision?.(decision);
+    }
   }
 
   private async runToolResultMiddlewares(
@@ -397,6 +523,59 @@ function approvalContext(
   }) as ToolApprovalContext;
 }
 
+function toolGuardrailContext(
+  tool: AnyTool | undefined,
+  hookArgs: ToolHookArgs,
+  agent: Agent,
+  run: ToolExecutionRunContext,
+  turn: number,
+): ToolGuardrailContext {
+  const rawParsedArgs = parseToolArgs(hookArgs.args);
+  const parsedArgs = tool?.parseApprovalArgs?.(rawParsedArgs) ?? rawParsedArgs;
+  return compact({
+    toolName: hookArgs.toolName,
+    args: parsedArgs,
+    rawArgs: hookArgs.args,
+    toolCallId: hookArgs.toolCallId,
+    internalCallId: hookArgs.internalCallId,
+    turn,
+    run: guardrailRunContext(agent, run),
+  }) as ToolGuardrailContext;
+}
+
+function toolResultGuardrailContext(
+  tool: AnyTool | undefined,
+  hookArgs: ToolHookArgs,
+  result: string,
+  structuredResult: ToolResultContent[] | undefined,
+  agent: Agent,
+  run: ToolExecutionRunContext,
+  turn: number,
+): ToolResultGuardrailContext {
+  const rawParsedArgs = parseToolArgs(hookArgs.args);
+  const parsedArgs = tool?.parseApprovalArgs?.(rawParsedArgs) ?? rawParsedArgs;
+  return compact({
+    toolName: hookArgs.toolName,
+    args: parsedArgs,
+    rawArgs: hookArgs.args,
+    result,
+    structuredResult,
+    toolCallId: hookArgs.toolCallId,
+    internalCallId: hookArgs.internalCallId,
+    turn,
+    run: guardrailRunContext(agent, run),
+  }) as ToolResultGuardrailContext;
+}
+
+function guardrailRunContext(agent: Agent, run: ToolExecutionRunContext): GuardrailRunContext {
+  return compact({
+    agentId: agent.id,
+    runId: run.runId,
+    sessionId: run.sessionId,
+    metadata: run.metadata,
+  }) as GuardrailRunContext;
+}
+
 function normalizeApprovalDecision(decision: ToolApprovalDecision): {
   approved: boolean;
   reason?: string;
@@ -436,6 +615,8 @@ function toolTraceMetadata(tool: AnyTool | undefined): JsonObject | undefined {
       : undefined;
   return {
     approvalRequired: tool.approval !== undefined,
+    inputGuardrailCount: tool.inputGuardrails?.length ?? 0,
+    outputGuardrailCount: tool.outputGuardrails?.length ?? 0,
     ...(typeof mcpMetadata?.serverName === "string" && mcpMetadata.serverName.length > 0
       ? { mcpServerName: mcpMetadata.serverName }
       : {}),

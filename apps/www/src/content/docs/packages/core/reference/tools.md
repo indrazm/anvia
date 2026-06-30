@@ -15,6 +15,8 @@ Import from `@anvia/core` or `@anvia/core/tool`.
 interface Tool<Args = unknown, Output = unknown> {
   readonly name: string;
   readonly approval?: ToolApprovalPolicy<Args>;
+  readonly inputGuardrails?: ToolGuardrail<Args>[];
+  readonly outputGuardrails?: ToolResultGuardrail<Args>[];
   definition(prompt: string): ToolDefinition | Promise<ToolDefinition>;
   call(args: Args, context?: ToolCallContext): Output | Promise<Output>;
   parseApprovalArgs?(args: unknown): Args;
@@ -37,7 +39,7 @@ type ToolCallContext = {
 
 Purpose: normalized callable tool contract.
 
-Return behavior: `definition(...)` exposes provider JSON schema; `call(...)` executes local logic. The optional context is used by runtime-managed tools such as streaming agent-tools. Approval metadata is passive and is not included in provider tool definitions.
+Return behavior: `definition(...)` exposes provider JSON schema; `call(...)` executes local logic. The optional context is used by runtime-managed tools such as streaming agent-tools. Approval and guardrail metadata is passive and is not included in provider tool definitions.
 
 Notable errors: tool implementations can throw arbitrary errors.
 
@@ -50,6 +52,8 @@ type CreateToolOptions<InputSchema extends ZodSchema, OutputSchema extends ZodSc
   input: InputSchema;
   output?: OutputSchema;
   approval?: ToolApprovalPolicy<z.output<InputSchema>>;
+  inputGuardrails?: ToolGuardrail<z.output<InputSchema>>[];
+  outputGuardrails?: ToolResultGuardrail<z.output<InputSchema>>[];
   execute(args: z.output<InputSchema>, context: ToolCallContext): unknown | Promise<unknown>;
 };
 
