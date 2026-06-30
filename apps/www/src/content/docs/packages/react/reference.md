@@ -171,6 +171,45 @@ type SetMessages = (
 ) => void;
 ```
 
+
+## defaultEventToApproval
+
+```ts
+function defaultEventToApproval<TEvent>(event: TEvent): ToolApproval | undefined;
+```
+
+Purpose: map Studio `tool_approval_request` and `tool_approval_result` stream events into tracked `ToolApproval` records for `useChat` human-input state.
+
+## defaultEventToQuestion
+
+```ts
+function defaultEventToQuestion<TEvent>(event: TEvent): ToolQuestion | undefined;
+```
+
+Purpose: map Studio `tool_question_request` and `tool_question_result` stream events into tracked `ToolQuestion` records for `useChat` human-input state.
+
+## defaultDecideApproval
+
+```ts
+function defaultDecideApproval(
+  input: ToolApprovalDecisionInput,
+  options: { endpoint?: string | URL; fetch?: typeof fetch },
+): Promise<ToolApproval | undefined>;
+```
+
+Purpose: submit a tool approval decision to the default human-input endpoint path, `approvals/:approvalId/decision`, and return an updated approval when the response contains JSON.
+
+## defaultAnswerQuestion
+
+```ts
+function defaultAnswerQuestion(
+  input: ToolQuestionAnswerInput,
+  options: { endpoint?: string | URL; fetch?: typeof fetch },
+): Promise<ToolQuestion | undefined>;
+```
+
+Purpose: submit tool-question answers to the default human-input endpoint path, `questions/:questionId/answer`, and return an updated question when the response contains JSON.
+
 ## EventTransport
 
 ```ts
@@ -220,8 +259,10 @@ type CreateFetchTransportOptions<TRequest, TEvent> = {
   endpoint: string | URL | ((request: TRequest) => string | URL);
   method?: string;
   format?: "jsonl" | "sse";
+  fetch?: typeof fetch;
   headers?: HeadersInit | ((request: TRequest) => HeadersInit | Promise<HeadersInit>);
   body?: (request: TRequest) => BodyInit | null | undefined | Promise<BodyInit | null | undefined>;
+  init?: Omit<RequestInit, "body" | "headers" | "method" | "signal">;
   mapEvent?: (event: unknown) => TEvent;
 };
 
@@ -230,7 +271,7 @@ function createFetchTransport<TRequest, TEvent>(
 ): EventTransport<TRequest, TEvent>;
 ```
 
-Purpose: create a POST JSON transport by default while allowing custom headers, bodies, endpoints, and event mapping.
+Purpose: create a POST JSON transport by default while allowing custom headers, bodies, endpoints, init options, and event mapping. `GET` and `HEAD` transports do not add an implicit JSON body or `content-type`; pass `body` explicitly if a custom transport needs one.
 
 ## createChatTransport
 
@@ -254,6 +295,7 @@ type UseChatOptions<TRequest = UIStreamRequest, TEvent = UIStreamEvent> = {
   eventToUIEvent?: (event: TEvent) => UIStreamEvent | undefined;
   eventToDelta?: (event: TEvent) => string | undefined;
   eventToFinal?: (event: TEvent) => string | undefined;
+  humanInput?: HumanInputOptions<TEvent>;
   onEvent?: (event: TEvent) => void;
   onError?: (error: unknown) => void;
 };
@@ -270,6 +312,12 @@ type UseChatResult<TEvent = UIStreamEvent> = {
   status: UseChatStatus;
   error: unknown;
   text: string;
+  humanInput: HumanInputState;
+  decidingApprovals: Set<string>;
+  answeringQuestions: Set<string>;
+  approveTool(approvalId: string, reason?: string): Promise<void>;
+  rejectTool(approvalId: string, reason?: string): Promise<void>;
+  answerToolQuestion(questionId: string, answers: ToolQuestionAnswer[]): Promise<void>;
 };
 
 function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(options?: {
@@ -281,6 +329,7 @@ function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(options?: {
   eventToUIEvent?: (event: TEvent) => UIStreamEvent | undefined;
   eventToDelta?: (event: TEvent) => string | undefined;
   eventToFinal?: (event: TEvent) => string | undefined;
+  humanInput?: HumanInputOptions<TEvent>;
   onEvent?: (event: TEvent) => void;
   onError?: (error: unknown) => void;
 }): UseChatResult<TEvent>;
@@ -289,6 +338,8 @@ function useChat<TRequest = UIStreamRequest, TEvent = UIStreamEvent>(options?: {
 Purpose: React chat state machine that sends `UIStreamRequest` by default and accumulates response events into `UIMessage[]`.
 
 Passing `endpoint` creates a default JSONL fetch transport. Passing `transport` makes the hook independent of HTTP. `sendMessage(...)` appends a user message, keeps the full UI message history in state, and sends the converted core message history. Custom request factories receive the UI array as `messages` for compatibility and the converted array as `coreMessages`. The hook applies raw `CompletionStreamEvent`, raw `AgentStreamEvent`, or `UIStreamEvent` records as the assistant response arrives.
+
+Passing `humanInput` tracks streamed tool approval and question events in `humanInput.approvals` and `humanInput.questions`. The action helpers submit approval decisions and question answers through custom handlers or the default `/approvals/:id/decision` and `/questions/:id/answer` endpoint paths.
 
 ## useCompletion
 
