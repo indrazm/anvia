@@ -43,6 +43,36 @@ export {
   skipTool,
   toolCallControl,
 } from "./hooks";
+export type {
+  GuardrailBoundary,
+  GuardrailDecisionRecord,
+  GuardrailMode,
+  GuardrailPolicy,
+  GuardrailPolicyInput,
+  GuardrailPolicyOptions,
+  InputGuardrail,
+  InputGuardrailActions,
+  InputGuardrailContext,
+  OutputGuardrail,
+  OutputGuardrailActions,
+  OutputGuardrailContext,
+  ToolGuardrail,
+  ToolGuardrailActions,
+  ToolGuardrailContext,
+  ToolResultGuardrail,
+  ToolResultGuardrailActions,
+  ToolResultGuardrailContext,
+} from "./guardrails";
+export {
+  allow,
+  block,
+  defineGuardrailPolicy,
+  defineInputGuardrail,
+  defineOutputGuardrail,
+  defineToolGuardrail,
+  defineToolResultGuardrail,
+  guardrails,
+} from "./guardrails";
 export type { MemoryStore } from "./memory";
 export { MaxTurnsError, PromptCancelledError, ToolApprovalRequiredError } from "./request/errors";
 export type {

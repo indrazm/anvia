@@ -5,6 +5,7 @@ import type {
   JsonValue,
   ToolChoice,
 } from "../completion/index";
+import type { GuardrailPolicy } from "../guardrails";
 import type { PromptHook } from "../hooks";
 import type { MemoryRegistration } from "../memory/types";
 import type { AgentObserverRegistration } from "../observability";
@@ -31,6 +32,7 @@ export type AgentOptions<M extends CompletionModel = CompletionModel> = {
   outputSchema?: JsonObject | undefined;
   observers?: AgentObserverRegistration[] | undefined;
   approvals?: ToolApprovalsOptions | undefined;
+  guardrails?: GuardrailPolicy[] | undefined;
   dynamicContexts?: DynamicContextRegistration[] | undefined;
   dynamicTools?: DynamicToolRegistration[] | undefined;
   middlewares?: AgentMiddleware[] | undefined;

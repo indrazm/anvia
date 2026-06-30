@@ -151,6 +151,12 @@ export const packageReferencePagesBySlug: Record<string, PackageReferencePage[]>
       "Tool definitions, registries, middleware, approvals, and errors.",
     ),
     defineReferencePage(
+      "reference/guardrails",
+      "Guardrails",
+      "Guardrails",
+      "Experimental input, tool, tool-result, and output policy APIs.",
+    ),
+    defineReferencePage(
       "reference/pipeline",
       "Pipeline",
       "Pipeline",

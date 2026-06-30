@@ -11,6 +11,7 @@ import * as completion from "../src/completion";
 import * as embeddings from "../src/embeddings";
 import * as evals from "../src/evals";
 import * as extractor from "../src/extractor";
+import * as guardrails from "../src/guardrails";
 import * as hooks from "../src/hooks";
 import * as imageGeneration from "../src/image-generation";
 import type { ToolContent as RootToolContentType } from "../src/index";
@@ -108,6 +109,8 @@ describe("public exports", () => {
     expect(evals).toHaveProperty("runEvalSuite");
     expect(evals).toHaveProperty("EvalOutcome");
     expect(extractor).toHaveProperty("ExtractorBuilder");
+    expect(guardrails).toHaveProperty("defineGuardrailPolicy");
+    expect(guardrails).toHaveProperty("defineInputGuardrail");
     expect(imageGeneration).toHaveProperty("ImageGenerationRequestBuilder");
     expect(loaders).toHaveProperty("FileLoader");
     expect(mcp).toHaveProperty("connectMcp");
@@ -125,6 +128,12 @@ describe("public exports", () => {
     expect("createCompletion" in publicCore).toBe(true);
     expect("createParsedCompletion" in publicCore).toBe(true);
     expect("createCompletionStream" in publicCore).toBe(true);
+  });
+
+  it("exposes guardrail helpers from the root entrypoint", () => {
+    expect("defineGuardrailPolicy" in publicCore).toBe(true);
+    expect("defineToolGuardrail" in publicCore).toBe(true);
+    expect("guardrails" in publicCore).toBe(true);
   });
 
   it("exposes ToolContent from the root entrypoint", () => {

@@ -9,7 +9,7 @@ sidebar:
 ---
 Import from `@anvia/core/agent` when a module specifically builds or configures agents. Use `@anvia/core` for application code that wants one convenient authoring import.
 
-`@anvia/core/agent` is intentionally narrow. Prompt lifecycle hooks live in [`@anvia/core/hooks`](/docs/packages/core/reference/hooks). Prompt requests, stream events, responses, and prompt errors live in [`@anvia/core/request`](/docs/packages/core/reference/request). Tool approvals and middleware live in [`@anvia/core/tool`](/docs/packages/core/reference/tools).
+`@anvia/core/agent` is intentionally narrow. Prompt lifecycle hooks live in [`@anvia/core/hooks`](/docs/packages/core/reference/hooks). Prompt requests, stream events, responses, and prompt errors live in [`@anvia/core/request`](/docs/packages/core/reference/request). Guardrail policy helpers live in [`@anvia/core/guardrails`](/docs/packages/core/reference/guardrails). Tool approvals and middleware live in [`@anvia/core/tool`](/docs/packages/core/reference/tools).
 
 ## AgentBuilder
 
@@ -41,6 +41,7 @@ class AgentBuilder<M extends CompletionModel = CompletionModel> {
   toolMiddlewares(middlewares: ToolMiddleware[]): this;
   observe(observer: AgentObserver, options?: ObserveOptions): this;
   approvals(options: ToolApprovalsOptions): this;
+  guardrails(policies: GuardrailPolicy | GuardrailPolicy[]): this;
   memory(store: MemoryStore, options?: MemoryOptions): this;
   eventStore(store: AgentEventStore, options?: AgentEventStoreOptions): this;
   outputSchema(schema: ZodSchema): this;
@@ -61,6 +62,7 @@ type Agent<M extends CompletionModel = CompletionModel> = {
   readonly id: string;
   readonly name?: string;
   readonly description?: string;
+  readonly guardrails: GuardrailPolicy[];
   prompt(prompt: string | Message | Message[]): PromptRequest<M>;
   session(sessionId: string, options?: SessionOptions): AgentSession<M>;
   asTool(options: AgentToolOptions): Tool<{ prompt: string }, string>;
@@ -154,4 +156,4 @@ Purpose: configure retrieval-backed context, retrieval-backed tool definitions, 
 
 Return behavior: dynamic context documents and dynamic tool definitions are resolved before each model turn. `AgentToolOptions.stream` controls whether nested child-agent events are forwarded to the parent run.
 
-For prompt request methods, stream events, and run errors, see [`Request`](/docs/packages/core/reference/request). For hook contracts, see [`Hooks`](/docs/packages/core/reference/hooks).
+For prompt request methods, stream events, and run errors, see [`Request`](/docs/packages/core/reference/request). For hook contracts, see [`Hooks`](/docs/packages/core/reference/hooks). For guardrail policies, see [`Guardrails`](/docs/packages/core/reference/guardrails).
