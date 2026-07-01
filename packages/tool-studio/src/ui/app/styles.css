@@ -337,3 +337,29 @@
     stroke: var(--muted-foreground);
   }
 }
+
+.studio-sidebar-nav-button {
+  border-color: transparent;
+  outline: 1px solid transparent;
+  outline-offset: 2px;
+}
+
+.studio-sidebar-nav-button:hover {
+  border-color: color-mix(in oklch, var(--sidebar-foreground) 12%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--sidebar-accent) 88%, transparent) 0%,
+    color-mix(in oklch, var(--sidebar-accent) 74%, black) 100%
+  );
+}
+
+.studio-sidebar-nav-button-active,
+.studio-sidebar-nav-button-active:hover {
+  border-color: color-mix(in oklch, var(--sidebar-foreground) 16%, transparent);
+  outline-color: hsl(0 0% 0% / 58%);
+  background: linear-gradient(
+    180deg,
+    var(--sidebar-accent) 0%,
+    color-mix(in oklch, var(--sidebar-accent) 72%, black) 100%
+  );
+}
