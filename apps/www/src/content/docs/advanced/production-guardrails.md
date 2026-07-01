@@ -1,26 +1,39 @@
 ---
 title: Production guardrails
-description: Enforce input, tool, tool-result, and output policy around agent runs.
+description: Enforce input and output policy around agent runs.
 section: advanced
 sidebar:
   group: Quality and operations
   order: 53
 ---
 
-Guardrails are runtime policy checks around agent boundaries. They can block unsafe input, rewrite tool arguments, request approval for sensitive tools, redact tool results, and sanitize final output.
+Guardrails are runtime policy checks around agent text boundaries. They can block or
+rewrite unsafe input before model work, and they can sanitize final output before it is
+returned, streamed, or committed to memory.
 
 Guardrails do not replace product authorization, idempotency, audit records, or service-level validation. Keep those checks in your tools and services.
+
+The mental model is simple: guardrails decide automatically, approvals ask a person or
+external workflow, and tools/services enforce product truth.
+
+## Guardrails Or Approvals
+
+Use guardrails when policy can run automatically from runtime context. They are best for
+model-boundary text decisions: redact secrets, block unsafe input, or sanitize final
+assistant output.
+
+Use tool approvals when the next step is a decision from a human or external reviewer.
+Approval means the runtime may attempt the tool call. It does not mean the business
+operation is authorized or valid.
 
 ## Policy Setup
 
 ```ts
 import {
   AgentBuilder,
-  createTool,
   defineGuardrailPolicy,
   defineInputGuardrail,
   defineOutputGuardrail,
-  defineToolGuardrail,
 } from "@anvia/core";
 
 const redactInput = defineInputGuardrail({
@@ -30,16 +43,6 @@ const redactInput = defineInputGuardrail({
     return inputText === ctx.inputText
       ? allow()
       : rewrite({ inputText, reason: "card_number_redacted" });
-  },
-});
-
-const refundApproval = defineToolGuardrail<{ amountCents: number }>({
-  id: "large-refund-approval",
-  tool: "issue_refund",
-  check(ctx, { allow, requestApproval }) {
-    return ctx.args.amountCents > 10_000
-      ? requestApproval({ reason: "Large refunds require review." })
-      : allow();
   },
 });
 
@@ -56,7 +59,6 @@ const redactOutput = defineOutputGuardrail({
 const policy = defineGuardrailPolicy({
   id: "support-production",
   input: [redactInput],
-  tools: [refundApproval],
   output: [redactOutput],
 });
 
@@ -70,7 +72,8 @@ const agent = new AgentBuilder("support", model)
 
 ## Boundaries
 
-Input guardrails run before memory and model work. Tool guardrails run after tool-call hooks and tool input middleware, then before approvals and tool execution. Tool-result guardrails run before results return to the model. Output guardrails run before final responses are returned, streamed, or committed to memory.
+Input guardrails run before memory and model work. Output guardrails run before final
+responses are returned, streamed, or committed to memory.
 
 During streaming, enforced output guardrails buffer text and reasoning deltas until the final output is checked. This prevents unsafe raw output from being emitted before redaction or blocking.
 
@@ -86,7 +89,7 @@ const policy = defineGuardrailPolicy({
 });
 ```
 
-Observe mode records guardrail decisions but does not block, rewrite, or request approval.
+Observe mode records guardrail decisions but does not block or rewrite.
 
 ## Side Effects Still Need Product Checks
 
@@ -108,7 +111,8 @@ const issueRefund = createTool({
 });
 ```
 
-The model can request a tool call. Guardrails can gate it. The service still decides whether the actor can perform the operation and how duplicate writes are prevented.
+The model can request a tool call. Tool approvals can pause it. The service still decides
+whether the actor can perform the operation and how duplicate writes are prevented.
 
 ## Decision Records
 

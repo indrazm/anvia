@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 import {
   AgentBuilder,
   type AgentStreamEvent,
@@ -9,20 +8,15 @@ import {
   type CompletionResponse,
   type CompletionStreamEvent,
   createHook,
-  createMiddleware,
   createObserver,
-  createTool,
   defineGuardrailPolicy,
   defineInputGuardrail,
   defineOutputGuardrail,
-  defineToolGuardrail,
-  defineToolResultGuardrail,
   guardrails,
   type InputGuardrail,
   Message,
   type OutputGuardrail,
   type StreamingCompletionModel,
-  type ToolResultGuardrail,
   Usage,
 } from "./helpers/imports";
 
@@ -104,16 +98,9 @@ describe("guardrails", () => {
       patterns: ["secret"],
       reason: "secret_output",
     });
-    const toolResultGuardrail: ToolResultGuardrail = guardrails.redactText({
-      id: "redact-tool-result-text",
-      boundary: "tool_result",
-      patterns: ["token"],
-      reason: "secret_tool_result",
-    });
 
     expect(inputGuardrail.id).toBe("block-input-text");
     expect(outputGuardrail.id).toBe("redact-output-text");
-    expect(toolResultGuardrail.id).toBe("redact-tool-result-text");
   });
 
   it("rewrites input before model execution", async () => {
@@ -235,152 +222,6 @@ describe("guardrails", () => {
       Message.user("[redacted] [redacted]\n[redacted] doc"),
     );
     expect(model.requests[1]?.chatHistory[0]).toEqual(Message.user("[redacted]"));
-  });
-
-  it("routes tool guardrail approval through the existing approval handler", async () => {
-    let executed = false;
-    const guardedTool = createTool({
-      name: "issue_refund",
-      description: "Issue a refund.",
-      input: z.object({ amountCents: z.number() }),
-      output: z.string(),
-      execute({ amountCents }) {
-        executed = true;
-        return `issued ${amountCents}`;
-      },
-    });
-    const toolGuardrail = defineToolGuardrail<{ amountCents: number }>({
-      id: "large-refund",
-      tool: "issue_refund",
-      check(ctx, { requestApproval, allow }) {
-        return ctx.args.amountCents > 10_000
-          ? requestApproval({ reason: "Large refund." })
-          : allow();
-      },
-    });
-    const model = new QueueModel([
-      response([AssistantContent.toolCall("call_1", "issue_refund", { amountCents: 20_000 })]),
-      response([AssistantContent.text("done")]),
-    ]);
-    const approvalRequests: unknown[] = [];
-    const agent = new AgentBuilder("test-agent", model)
-      .tool(guardedTool)
-      .guardrails(defineGuardrailPolicy({ id: "policy", tools: [toolGuardrail] }))
-      .approvals({
-        handler(request) {
-          approvalRequests.push(request);
-          return true;
-        },
-      })
-      .build();
-
-    const result = await agent.prompt("refund").send();
-
-    expect(result.output).toBe("done");
-    expect(executed).toBe(true);
-    expect(approvalRequests).toMatchObject([
-      { toolName: "issue_refund", args: { amountCents: 20_000 }, reason: "Large refund." },
-    ]);
-    expect(result.guardrails).toMatchObject([
-      { guardrailId: "large-refund", action: "request_approval", applied: true },
-    ]);
-  });
-
-  it("runs tool guardrails against middleware-rewritten args", async () => {
-    let executed = false;
-    const guardedTool = createTool({
-      name: "guarded_amount",
-      description: "Run a guarded amount.",
-      input: z.object({ amount: z.number() }),
-      output: z.string(),
-      execute({ amount }) {
-        executed = true;
-        return `ran ${amount}`;
-      },
-    });
-    const toolGuardrail = defineToolGuardrail<{ amount: number }>({
-      id: "block-large-amount",
-      tool: "guarded_amount",
-      check(ctx, { block, allow }) {
-        return ctx.args.amount > 100
-          ? block({ reason: "amount_too_large", message: "Amount blocked." })
-          : allow();
-      },
-    });
-    const model = new QueueModel([
-      response([AssistantContent.toolCall("call_1", "guarded_amount", { amount: 10 })]),
-      response([AssistantContent.text("done")]),
-    ]);
-    const agent = new AgentBuilder("test-agent", model)
-      .tool(guardedTool)
-      .middleware(
-        createMiddleware({
-          onToolInput() {
-            return { args: { amount: 250 } };
-          },
-        }),
-      )
-      .guardrails(defineGuardrailPolicy({ id: "policy", tools: [toolGuardrail] }))
-      .build();
-
-    const result = await agent.prompt("run").send();
-
-    expect(result.output).toBe("done");
-    expect(executed).toBe(false);
-    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
-      Message.tool([
-        {
-          type: "tool_result",
-          id: "call_1",
-          content: [{ type: "text", text: "Amount blocked." }],
-        },
-      ]),
-    );
-    expect(result.guardrails).toMatchObject([
-      { guardrailId: "block-large-amount", action: "block", applied: true },
-    ]);
-  });
-
-  it("redacts tool results before they return to the model", async () => {
-    const lookupSecret = createTool({
-      name: "lookup_secret",
-      description: "Look up a secret.",
-      input: z.object({}),
-      output: z.string(),
-      execute() {
-        return "token=abc";
-      },
-    });
-    const resultGuardrail = defineToolResultGuardrail({
-      id: "redact-tool-result",
-      tool: "lookup_secret",
-      check(ctx, { rewrite }) {
-        return rewrite({
-          result: ctx.result.replace("abc", "[redacted]"),
-          reason: "secret_redacted",
-        });
-      },
-    });
-    const model = new QueueModel([
-      response([AssistantContent.toolCall("call_1", "lookup_secret", {})]),
-      response([AssistantContent.text("done")]),
-    ]);
-    const agent = new AgentBuilder("test-agent", model)
-      .tool(lookupSecret)
-      .guardrails(defineGuardrailPolicy({ id: "policy", toolResults: [resultGuardrail] }))
-      .build();
-
-    await agent.prompt("lookup").send();
-
-    expect(model.requests[1]?.chatHistory.at(-1)).toEqual(
-      Message.tool([
-        {
-          type: "tool_result",
-          id: "call_1",
-          content: [{ type: "text", text: "token=[redacted]" }],
-        },
-      ]),
-    );
   });
 
   it("rewrites final output before returning and committing the assistant message", async () => {

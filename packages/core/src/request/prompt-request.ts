@@ -311,9 +311,6 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             runObservers,
             toolDefinitions: request.tools,
           },
-          async (decision) => {
-            await this.recordGuardrailDecision(decision, runObservers);
-          },
         );
         const toolMessage = Message.tool(toolResults);
         newMessages.push(toolMessage);
@@ -614,10 +611,6 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             runObservers,
             toolDefinitions: request.tools,
           },
-          async (decision) => {
-            await this.recordGuardrailDecision(decision, runObservers);
-            toolResultEvents.enqueue({ type: "guardrail_decision", decision });
-          },
         );
         toolResultsPromise.then(
           () => toolResultEvents.close(),
@@ -707,13 +700,11 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       runObservers: ActiveAgentRunObservers;
       toolDefinitions?: ToolDefinition[];
     },
-    onGuardrailDecision?: (decision: GuardrailDecisionRecord) => void | Promise<void>,
   ): Promise<ToolResult[]> {
     const executor = new ToolCallExecutor(
       this.agent,
       this.activeHook,
       this.approvalOptions,
-      this.guardrailPolicies,
       {
         runId,
         sessionId: this.memoryContext?.sessionId,
@@ -722,7 +713,6 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       this.concurrency,
       this.requestMiddlewares,
       (reason) => this.cancelled(newMessages, reason),
-      onGuardrailDecision,
     );
     return executor.execute(toolCalls, onResult, onStreamEvent, observation);
   }
