@@ -111,7 +111,9 @@ describe("public exports", () => {
     expect(extractor).toHaveProperty("ExtractorBuilder");
     expect(guardrails).toHaveProperty("defineGuardrailPolicy");
     expect(guardrails).toHaveProperty("defineInputGuardrail");
-    expect(guardrails).toHaveProperty("defineToolGuardrail");
+    expect(guardrails).toHaveProperty("defineOutputGuardrail");
+    expect(guardrails).not.toHaveProperty("defineToolGuardrail");
+    expect(guardrails).not.toHaveProperty("defineToolResultGuardrail");
     expect(guardrails).toHaveProperty("guardrails");
     expect(guardrails.guardrails).toMatchObject({
       blockText: expect.any(Function),
@@ -138,7 +140,10 @@ describe("public exports", () => {
 
   it("exposes guardrail helpers from the root entrypoint", () => {
     expect("defineGuardrailPolicy" in publicCore).toBe(true);
-    expect("defineToolGuardrail" in publicCore).toBe(true);
+    expect("defineInputGuardrail" in publicCore).toBe(true);
+    expect("defineOutputGuardrail" in publicCore).toBe(true);
+    expect("defineToolGuardrail" in publicCore).toBe(false);
+    expect("defineToolResultGuardrail" in publicCore).toBe(false);
     expect(publicCore).toHaveProperty("guardrails");
     expect(publicCore.guardrails).toMatchObject({
       blockText: expect.any(Function),

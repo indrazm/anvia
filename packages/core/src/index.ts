@@ -35,14 +35,6 @@ export {
   Usage,
   UserContent,
 } from "./completion/index";
-export {
-  cancelPrompt,
-  createHook,
-  requestToolApproval,
-  runControl,
-  skipTool,
-  toolCallControl,
-} from "./hooks";
 export type {
   GuardrailBoundary,
   GuardrailDecisionRecord,
@@ -56,12 +48,6 @@ export type {
   OutputGuardrail,
   OutputGuardrailActions,
   OutputGuardrailContext,
-  ToolGuardrail,
-  ToolGuardrailActions,
-  ToolGuardrailContext,
-  ToolResultGuardrail,
-  ToolResultGuardrailActions,
-  ToolResultGuardrailContext,
 } from "./guardrails";
 export {
   allow,
@@ -69,10 +55,16 @@ export {
   defineGuardrailPolicy,
   defineInputGuardrail,
   defineOutputGuardrail,
-  defineToolGuardrail,
-  defineToolResultGuardrail,
   guardrails,
 } from "./guardrails";
+export {
+  cancelPrompt,
+  createHook,
+  requestToolApproval,
+  runControl,
+  skipTool,
+  toolCallControl,
+} from "./hooks";
 export type { MemoryStore } from "./memory";
 export { MaxTurnsError, PromptCancelledError, ToolApprovalRequiredError } from "./request/errors";
 export type {

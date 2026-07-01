@@ -1,5 +1,4 @@
 import type { z } from "zod";
-import type { ToolGuardrail, ToolResultGuardrail } from "../guardrails";
 import { compact } from "../internal/compact";
 import { toProviderJsonSchema, type ZodSchema } from "../schema/zod-schema";
 import type { Tool, ToolApprovalPolicy, ToolCallContext } from "./tool";
@@ -14,8 +13,6 @@ export type CreateToolOptions<
   input: InputSchema;
   output?: OutputSchema;
   approval?: ToolApprovalPolicy<z.output<InputSchema>>;
-  inputGuardrails?: ToolGuardrail<z.output<InputSchema>>[] | undefined;
-  outputGuardrails?: ToolResultGuardrail<z.output<InputSchema>>[] | undefined;
   execute(
     args: z.output<InputSchema>,
     context: ToolCallContext,
@@ -50,10 +47,6 @@ export function createTool<
     ...compact({
       name: options.name,
       approval: options.approval,
-      inputGuardrails:
-        options.inputGuardrails === undefined ? undefined : [...options.inputGuardrails],
-      outputGuardrails:
-        options.outputGuardrails === undefined ? undefined : [...options.outputGuardrails],
     }),
     definition() {
       return {

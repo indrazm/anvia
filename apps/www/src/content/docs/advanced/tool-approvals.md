@@ -11,6 +11,30 @@ Approvals pause sensitive tool execution until application code returns a decisi
 
 Approvals are a runtime gate. They do not replace handler-level authorization, validation, idempotency, or audit logging.
 
+## Approvals Or Guardrails
+
+Use tool approvals when the right next step is a decision: approve or reject this
+specific tool call before it executes. An approved decision lets the runtime attempt the
+tool call. It does not guarantee the product operation will succeed.
+
+Use guardrails when the right next step can be automatic: block unsafe input, rewrite
+unsafe input, or sanitize the final assistant response.
+
+| Situation | Prefer |
+| --- | --- |
+| A reviewer must approve a sensitive side effect | tool approval |
+| A tool always knows its own approval threshold | tool-level `approval` policy |
+| A run-specific policy may pause several tools | hook-driven approval |
+| User input should be blocked or redacted before the model sees it | input guardrail |
+| Final assistant text should be blocked or redacted before the user sees it | output guardrail |
+
+Neither approvals nor guardrails are product authorization. The tool implementation must
+still check the current actor, tenant, target resource, business state, idempotency, and
+audit requirements.
+
+In practice, approval answers "should this run continue into the tool?" The tool still
+answers "is this actor allowed to perform this operation on this resource right now?"
+
 ## Tool-Level Approval Policy
 
 Add an `approval` policy to a tool when the tool itself knows when approval is required:

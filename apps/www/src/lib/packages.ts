@@ -154,7 +154,7 @@ export const packageReferencePagesBySlug: Record<string, PackageReferencePage[]>
       "reference/guardrails",
       "Guardrails",
       "Guardrails",
-      "Experimental input, tool, tool-result, and output policy APIs.",
+      "Experimental input and output policy APIs.",
     ),
     defineReferencePage(
       "reference/pipeline",

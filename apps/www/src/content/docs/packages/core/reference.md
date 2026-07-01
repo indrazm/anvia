@@ -22,7 +22,7 @@ sidebar:
 | `@anvia/core/audio-generation` | Provider-neutral audio generation contracts and request builders |
 | `@anvia/core/transcription` | Provider-neutral audio transcription contracts and request builders |
 | `@anvia/core/tool` | Tool definitions, registries, tool sets, serialization, and tool errors |
-| `@anvia/core/guardrails` | Experimental input, tool, tool-result, and output policy APIs |
+| `@anvia/core/guardrails` | Experimental input and output policy APIs |
 | `@anvia/core/pipeline` | Typed pipelines and batch execution |
 | `@anvia/core/extractor` | Structured extraction helpers |
 | `@anvia/core/evals` | Eval suites, metrics, agent targets, and reporters |

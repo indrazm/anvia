@@ -1,10 +1,10 @@
-import type { JsonObject, JsonValue, Message, ToolResultContent, Usage } from "../completion";
+import type { JsonObject, Message, Usage } from "../completion";
 
 type MaybePromise<T> = T | Promise<T>;
 
 export type GuardrailMode = "enforce" | "observe";
 
-export type GuardrailBoundary = "input" | "tool" | "tool_result" | "output";
+export type GuardrailBoundary = "input" | "output";
 
 export type GuardrailRunContext = {
   agentId: string;
@@ -26,7 +26,7 @@ export type GuardrailDecisionRecord = {
   latencyMs: number;
 };
 
-export type GuardrailActionName = "allow" | "block" | "rewrite" | "request_approval" | "error";
+export type GuardrailActionName = "allow" | "block" | "rewrite" | "error";
 
 export type GuardrailActionBase = {
   reason?: string | undefined;
@@ -49,38 +49,12 @@ export type InputGuardrailRewrite = GuardrailActionBase & {
   inputText?: string | undefined;
 };
 
-export type ToolGuardrailRewrite = GuardrailActionBase & {
-  action: "rewrite";
-  args: JsonValue | string;
-};
-
-export type ToolResultGuardrailRewrite = GuardrailActionBase & {
-  action: "rewrite";
-  result?: string | undefined;
-  structuredResult?: ToolResultContent[] | undefined;
-};
-
 export type OutputGuardrailRewrite = GuardrailActionBase & {
   action: "rewrite";
   outputText: string;
 };
 
-export type ToolGuardrailApprovalRequest = GuardrailActionBase & {
-  action: "request_approval";
-  reason?: string | undefined;
-  rejectMessage?: string | undefined;
-};
-
 export type InputGuardrailResult = GuardrailAllow | GuardrailBlock | InputGuardrailRewrite;
-export type ToolGuardrailResult =
-  | GuardrailAllow
-  | GuardrailBlock
-  | ToolGuardrailRewrite
-  | ToolGuardrailApprovalRequest;
-export type ToolResultGuardrailResult =
-  | GuardrailAllow
-  | GuardrailBlock
-  | ToolResultGuardrailRewrite;
 export type OutputGuardrailResult = GuardrailAllow | GuardrailBlock | OutputGuardrailRewrite;
 
 export type GuardrailCommonActions = {
@@ -92,17 +66,6 @@ export type InputGuardrailActions = GuardrailCommonActions & {
   rewrite(options: Omit<InputGuardrailRewrite, "action">): InputGuardrailRewrite;
 };
 
-export type ToolGuardrailActions = GuardrailCommonActions & {
-  rewrite(options: Omit<ToolGuardrailRewrite, "action">): ToolGuardrailRewrite;
-  requestApproval(
-    options?: Omit<ToolGuardrailApprovalRequest, "action">,
-  ): ToolGuardrailApprovalRequest;
-};
-
-export type ToolResultGuardrailActions = GuardrailCommonActions & {
-  rewrite(options: Omit<ToolResultGuardrailRewrite, "action">): ToolResultGuardrailRewrite;
-};
-
 export type OutputGuardrailActions = GuardrailCommonActions & {
   rewrite(options: Omit<OutputGuardrailRewrite, "action">): OutputGuardrailRewrite;
 };
@@ -111,28 +74,6 @@ export type InputGuardrailContext = {
   prompt: Message;
   history: Message[];
   inputText: string;
-  run: GuardrailRunContext;
-};
-
-export type ToolGuardrailContext<Args = unknown> = {
-  toolName: string;
-  args: Args;
-  rawArgs: string;
-  toolCallId?: string | undefined;
-  internalCallId: string;
-  turn: number;
-  run: GuardrailRunContext;
-};
-
-export type ToolResultGuardrailContext<Args = unknown> = {
-  toolName: string;
-  args: Args;
-  rawArgs: string;
-  result: string;
-  structuredResult?: ToolResultContent[] | undefined;
-  toolCallId?: string | undefined;
-  internalCallId: string;
-  turn: number;
   run: GuardrailRunContext;
 };
 
@@ -151,24 +92,6 @@ export type InputGuardrail = {
   ): MaybePromise<InputGuardrailResult | undefined>;
 };
 
-export type ToolGuardrail<Args = unknown> = {
-  id: string;
-  tool?: string | string[] | undefined;
-  check(
-    context: ToolGuardrailContext<Args>,
-    actions: ToolGuardrailActions,
-  ): MaybePromise<ToolGuardrailResult | undefined>;
-};
-
-export type ToolResultGuardrail<Args = unknown> = {
-  id: string;
-  tool?: string | string[] | undefined;
-  check(
-    context: ToolResultGuardrailContext<Args>,
-    actions: ToolResultGuardrailActions,
-  ): MaybePromise<ToolResultGuardrailResult | undefined>;
-};
-
 export type OutputGuardrail = {
   id: string;
   check(
@@ -181,8 +104,6 @@ export type GuardrailPolicy = {
   id: string;
   mode: GuardrailMode;
   input: InputGuardrail[];
-  tools: ToolGuardrail[];
-  toolResults: ToolResultGuardrail[];
   output: OutputGuardrail[];
 };
 
@@ -190,8 +111,6 @@ export type GuardrailPolicyOptions = {
   id: string;
   mode?: GuardrailMode | undefined;
   input?: InputGuardrail[] | undefined;
-  tools?: ToolGuardrail[] | undefined;
-  toolResults?: ToolResultGuardrail[] | undefined;
   output?: OutputGuardrail[] | undefined;
 };
 
@@ -200,22 +119,6 @@ export type GuardrailPolicyInput = GuardrailPolicy | GuardrailPolicy[];
 export type InputGuardrailRunResult = {
   prompt: Message;
   inputText: string;
-  blocked: boolean;
-  message?: string | undefined;
-  decisions: GuardrailDecisionRecord[];
-};
-
-export type ToolGuardrailRunResult = {
-  rawArgs: string;
-  blocked: boolean;
-  message?: string | undefined;
-  approval?: { reason?: string | undefined; rejectMessage?: string | undefined } | undefined;
-  decisions: GuardrailDecisionRecord[];
-};
-
-export type ToolResultGuardrailRunResult = {
-  result: string;
-  structuredResult?: ToolResultContent[] | undefined;
   blocked: boolean;
   message?: string | undefined;
   decisions: GuardrailDecisionRecord[];
@@ -233,25 +136,11 @@ export function defineGuardrailPolicy(options: GuardrailPolicyOptions): Guardrai
     id: options.id,
     mode: options.mode ?? "enforce",
     input: options.input ?? [],
-    tools: options.tools ?? [],
-    toolResults: options.toolResults ?? [],
     output: options.output ?? [],
   };
 }
 
 export function defineInputGuardrail(guardrail: InputGuardrail): InputGuardrail {
-  return guardrail;
-}
-
-export function defineToolGuardrail<Args = unknown>(
-  guardrail: ToolGuardrail<Args>,
-): ToolGuardrail<Args> {
-  return guardrail;
-}
-
-export function defineToolResultGuardrail<Args = unknown>(
-  guardrail: ToolResultGuardrail<Args>,
-): ToolResultGuardrail<Args> {
   return guardrail;
 }
 
@@ -333,105 +222,6 @@ export async function runInputGuardrails(
   }
 
   return { prompt, inputText, blocked: false, decisions };
-}
-
-export async function runToolGuardrails<Args>(
-  policies: GuardrailPolicy[],
-  toolGuardrails: ToolGuardrail<Args>[],
-  context: ToolGuardrailContext<Args>,
-): Promise<ToolGuardrailRunResult> {
-  let rawArgs = context.rawArgs;
-  let args = context.args;
-  const decisions: GuardrailDecisionRecord[] = [];
-
-  for (const entry of toolGuardrailEntries(policies, toolGuardrails, context.toolName)) {
-    const currentContext = { ...context, rawArgs, args };
-    const result = await runGuardrail(entry.policy, entry.guardrail.id, "tool", () =>
-      entry.guardrail.check(currentContext, toolActions),
-    );
-    decisions.push(result.decision);
-
-    if (entry.policy.mode === "observe") {
-      continue;
-    }
-    if (result.action.action === "block") {
-      return {
-        rawArgs,
-        blocked: true,
-        message: result.action.message,
-        decisions,
-      };
-    }
-    if (result.action.action === "request_approval") {
-      return {
-        rawArgs,
-        blocked: false,
-        approval: {
-          reason: result.action.reason,
-          rejectMessage: result.action.rejectMessage,
-        },
-        decisions,
-      };
-    }
-    if (result.action.action === "rewrite") {
-      rawArgs =
-        typeof result.action.args === "string"
-          ? result.action.args
-          : JSON.stringify(result.action.args);
-      try {
-        args = JSON.parse(rawArgs) as Args;
-      } catch {
-        args = rawArgs as Args;
-      }
-    }
-  }
-
-  return { rawArgs, blocked: false, decisions };
-}
-
-export async function runToolResultGuardrails<Args>(
-  policies: GuardrailPolicy[],
-  toolGuardrails: ToolResultGuardrail<Args>[],
-  context: ToolResultGuardrailContext<Args>,
-): Promise<ToolResultGuardrailRunResult> {
-  let result = context.result;
-  let structuredResult = context.structuredResult;
-  const decisions: GuardrailDecisionRecord[] = [];
-
-  for (const entry of toolResultGuardrailEntries(policies, toolGuardrails, context.toolName)) {
-    const currentContext = { ...context, result, structuredResult };
-    const guardrailResult = await runGuardrail(
-      entry.policy,
-      entry.guardrail.id,
-      "tool_result",
-      () => entry.guardrail.check(currentContext, toolResultActions),
-    );
-    decisions.push(guardrailResult.decision);
-
-    if (entry.policy.mode === "observe") {
-      continue;
-    }
-    if (guardrailResult.action.action === "block") {
-      return {
-        result,
-        structuredResult,
-        blocked: true,
-        message: guardrailResult.action.message,
-        decisions,
-      };
-    }
-    if (guardrailResult.action.action === "rewrite") {
-      if (guardrailResult.action.structuredResult !== undefined) {
-        structuredResult = guardrailResult.action.structuredResult;
-        result = textFromToolResultContent(structuredResult);
-      } else if (guardrailResult.action.result !== undefined) {
-        result = guardrailResult.action.result;
-        structuredResult = undefined;
-      }
-    }
-  }
-
-  return { result, structuredResult, blocked: false, decisions };
 }
 
 export async function runOutputGuardrails(
@@ -551,23 +341,6 @@ const inputActions: InputGuardrailActions = {
   },
 };
 
-const toolActions: ToolGuardrailActions = {
-  ...commonActions,
-  rewrite(options) {
-    return { action: "rewrite", ...options };
-  },
-  requestApproval(options = {}) {
-    return { action: "request_approval", ...options };
-  },
-};
-
-const toolResultActions: ToolResultGuardrailActions = {
-  ...commonActions,
-  rewrite(options) {
-    return { action: "rewrite", ...options };
-  },
-};
-
 const outputActions: OutputGuardrailActions = {
   ...commonActions,
   rewrite(options) {
@@ -575,62 +348,11 @@ const outputActions: OutputGuardrailActions = {
   },
 };
 
-function toolGuardrailEntries<Args>(
-  policies: GuardrailPolicy[],
-  toolGuardrails: ToolGuardrail<Args>[],
-  toolName: string,
-): Array<{ policy: GuardrailPolicy; guardrail: ToolGuardrail<Args> }> {
-  return [
-    ...policies.flatMap((policy) =>
-      policy.tools
-        .filter((guardrail) => matchesTool(guardrail.tool, toolName))
-        .map((guardrail) => ({ policy, guardrail: guardrail as ToolGuardrail<Args> })),
-    ),
-    ...toolGuardrails.map((guardrail) => ({
-      policy: defineGuardrailPolicy({
-        id: `tool:${toolName}:${guardrail.id}`,
-        tools: [guardrail],
-      }),
-      guardrail,
-    })),
-  ];
-}
-
-function toolResultGuardrailEntries<Args>(
-  policies: GuardrailPolicy[],
-  toolGuardrails: ToolResultGuardrail<Args>[],
-  toolName: string,
-): Array<{ policy: GuardrailPolicy; guardrail: ToolResultGuardrail<Args> }> {
-  return [
-    ...policies.flatMap((policy) =>
-      policy.toolResults
-        .filter((guardrail) => matchesTool(guardrail.tool, toolName))
-        .map((guardrail) => ({ policy, guardrail: guardrail as ToolResultGuardrail<Args> })),
-    ),
-    ...toolGuardrails.map((guardrail) => ({
-      policy: defineGuardrailPolicy({
-        id: `tool:${toolName}:${guardrail.id}`,
-        toolResults: [guardrail],
-      }),
-      guardrail,
-    })),
-  ];
-}
-
-function matchesTool(tool: string | string[] | undefined, toolName: string): boolean {
-  if (tool === undefined) {
-    return true;
-  }
-  return Array.isArray(tool) ? tool.includes(toolName) : tool === toolName;
-}
-
-type TextPatternBoundary = "input" | "output" | "tool_result";
+type TextPatternBoundary = "input" | "output";
 
 type TextPatternGuardrailFor<Boundary extends TextPatternBoundary> = Boundary extends "input"
   ? InputGuardrail
-  : Boundary extends "output"
-    ? OutputGuardrail
-    : ToolResultGuardrail;
+  : OutputGuardrail;
 
 type TextPatternGuardrailOptions<Boundary extends TextPatternBoundary = TextPatternBoundary> = {
   id: string;
@@ -669,21 +391,11 @@ function textPatternGuardrail<Boundary extends TextPatternBoundary>(
       },
     }) as TextPatternGuardrailFor<Boundary>;
   }
-  if (options.boundary === "output") {
-    return defineOutputGuardrail({
-      id: options.id,
-      check(ctx, actions) {
-        return textPatternAction(ctx.outputText, options, action, (value) =>
-          actions.rewrite({ outputText: value, reason: options.reason }),
-        );
-      },
-    }) as TextPatternGuardrailFor<Boundary>;
-  }
-  return defineToolResultGuardrail({
+  return defineOutputGuardrail({
     id: options.id,
     check(ctx, actions) {
-      return textPatternAction(ctx.result, options, action, (value) =>
-        actions.rewrite({ result: value, reason: options.reason }),
+      return textPatternAction(ctx.outputText, options, action, (value) =>
+        actions.rewrite({ outputText: value, reason: options.reason }),
       );
     },
   }) as TextPatternGuardrailFor<Boundary>;
@@ -769,8 +481,4 @@ function rewriteMessageText(message: Message, text: string): Message {
     return { ...message, content: [{ type: "text", text }] };
   }
   return message;
-}
-
-function textFromToolResultContent(content: ToolResultContent[]): string {
-  return content.map((item) => (item.type === "text" ? item.text : "[image]")).join("\n");
 }
