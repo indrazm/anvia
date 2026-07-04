@@ -31,7 +31,7 @@ import type {
 import { compact } from "../compact";
 import { mapWithConcurrency } from "../concurrency";
 
-const MCP_TOOL_METADATA_KEY = Symbol.for("anvia.mcp.tool.metadata");
+const MCP_TOOL_METADATA_KEY = Symbol("anvia.mcp.tool.metadata");
 
 export type ToolResultEventPayload = {
   type: "tool_result";
@@ -83,8 +83,12 @@ export class ToolCallExecutor {
     onResult?: (result: ToolResultEventPayload) => void,
     onStreamEvent?: (event: AgentToolEventPayload) => void,
     observation?: ToolExecutionObservation,
+    signal?: AbortSignal,
   ): Promise<ToolResult[]> {
     return mapWithConcurrency(toolCalls, this.concurrency, async (toolCall) => {
+      if (signal?.aborted) {
+        return ToolContent.toolResult(toolCall.id, "Tool execution cancelled", toolCall.callId);
+      }
       const args = JSON.stringify(toolCall.function.arguments ?? {});
       const internalCallId = globalThis.crypto.randomUUID();
       const hookArgs: ToolHookArgs = {

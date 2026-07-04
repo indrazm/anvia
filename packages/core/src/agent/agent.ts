@@ -16,6 +16,7 @@ import type { AgentObserverRegistration } from "../observability";
 import { PromptRequest } from "../request";
 import { createTool } from "../tool/create-tool";
 import type { ToolSearchDocument } from "../tool/dynamic-tools";
+import { ToolNotFoundError } from "../tool/errors";
 import type { AgentMiddleware } from "../tool/middleware";
 import { isSkillTool } from "../tool/skill-tool-marker";
 import type {
@@ -174,18 +175,23 @@ export class Agent<M extends CompletionModel = CompletionModel> {
     args: string,
     context?: ToolCallContext,
   ): Promise<NormalizedToolOutput> {
-    if (this.toolSet.contains(toolName)) {
-      return this.toolSet.call(toolName, args, context);
+    const tool = this.toolSet.get(toolName);
+    if (tool !== undefined) {
+      return this.toolSet.callWithTool(tool, args, context);
     }
 
     for (const registration of this.dynamicTools) {
       const toolSet = dynamicToolSetFromIndex(registration.index);
-      if (toolSet?.contains(toolName)) {
-        return toolSet.call(toolName, args, context);
+      if (toolSet === undefined) {
+        continue;
+      }
+      const dynamicTool = toolSet.get(toolName);
+      if (dynamicTool !== undefined) {
+        return toolSet.callWithTool(dynamicTool, args, context);
       }
     }
 
-    return this.toolSet.call(toolName, args, context);
+    throw new ToolNotFoundError(toolName);
   }
 
   shouldApplyToolMiddleware(toolName: string): boolean {

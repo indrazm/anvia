@@ -6,6 +6,7 @@ import {
   type CompletionModel,
   type CompletionRequest,
   type CompletionResponse,
+  type CompletionStreamEvent,
   cancelPrompt,
   createHook,
   createMiddleware,
@@ -15,6 +16,7 @@ import {
   Message,
   PromptCancelledError,
   requestToolApproval,
+  type StreamingCompletionModel,
   ToolApprovalRequiredError,
   ToolOutput,
   Usage,
@@ -1186,4 +1188,79 @@ describe("PromptRequest", () => {
       title: "summary_response",
     });
   });
+
+  it("does not produce unhandled rejections when stream is cancelled early", async () => {
+    const model = new StreamingQueueModel([
+      [
+        {
+          type: "tool_call" as const,
+          toolCall: AssistantContent.toolCall("call_1", "add", { x: 1, y: 2 }),
+        },
+        {
+          type: "tool_call" as const,
+          toolCall: AssistantContent.toolCall("call_2", "add", { x: 3, y: 4 }),
+        },
+      ],
+    ]);
+    const agent = new AgentBuilder("test-agent", model).tool(addTool).build();
+
+    const unhandledRejections: unknown[] = [];
+    const handler = (reason: unknown) => unhandledRejections.push(reason);
+    process.on("unhandledRejection", handler);
+    try {
+      const iterator = agent.prompt("add").stream()[Symbol.asyncIterator]();
+      await iterator.next();
+      await iterator.return?.();
+    } finally {
+      process.off("unhandledRejection", handler);
+    }
+
+    expect(unhandledRejections).toHaveLength(0);
+  });
+
+  it("returns a valid messages array after multi-turn tool execution", async () => {
+    const model = new QueueModel([
+      response([AssistantContent.toolCall("call_1", "add", { x: 1, y: 2 })]),
+      response([AssistantContent.text("3")]),
+    ]);
+    const agent = new AgentBuilder("test-agent", model).tool(addTool).build();
+    const result = await agent.prompt("add").send();
+
+    expect(result.messages).toHaveLength(4);
+    expect(result.messages[0]?.role).toBe("user");
+    expect(result.messages[1]?.role).toBe("assistant");
+    expect(result.messages[2]?.role).toBe("tool");
+    expect(result.messages[3]?.role).toBe("assistant");
+    expect(result.messages[3]?.content).toEqual([{ type: "text", text: "3" }]);
+  });
 });
+
+class StreamingQueueModel implements StreamingCompletionModel {
+  readonly provider = "test";
+  readonly defaultModel = "test";
+  readonly capabilities = {
+    streaming: true,
+    tools: true,
+    toolChoice: true,
+    imageInput: true,
+    documentInput: true,
+    outputSchema: true,
+    reasoning: true,
+  };
+  readonly requests: CompletionRequest[] = [];
+
+  constructor(private readonly responses: CompletionStreamEvent[][]) {}
+
+  async completion(): Promise<CompletionResponse> {
+    throw new Error("completion should not be called");
+  }
+
+  async *streamCompletion(request: CompletionRequest): AsyncIterable<CompletionStreamEvent> {
+    this.requests.push(request);
+    const response = this.responses.shift();
+    if (response === undefined) {
+      throw new Error("No queued response");
+    }
+    yield* response;
+  }
+}

@@ -193,7 +193,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       newMessages = [this.promptMessage];
       this.chatHistory = await this.memoryRecorder.prepareRun(runId, newMessages);
       const pendingTurnMessages = this.memoryRecorder.pendingTurnMessages(newMessages);
-      await this.runRunStartHook(newMessages);
+      await this.runRunStartHook([...newMessages]);
       while (currentTurns <= this.maxTurnCount + 1) {
         const prompt = newMessages.at(-1);
         if (prompt === undefined) {
@@ -204,8 +204,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         currentTurns += 1;
 
         const historyForRequest = [...this.chatHistory, ...newMessages.slice(0, -1)];
-        await this.runTurnStartHook(currentTurns, prompt, historyForRequest, newMessages);
-        await this.runCompletionCallHook(prompt, historyForRequest, newMessages);
+        await this.runTurnStartHook(currentTurns, prompt, historyForRequest, [...newMessages]);
+        await this.runCompletionCallHook(prompt, historyForRequest, [...newMessages]);
 
         const ragText = extractRagText(prompt);
         const dynamicContext = await fetchDynamicContext(this.agent, ragText);
@@ -230,13 +230,13 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         try {
           response = await this.runCompletion(request, currentTurns, runObservers);
         } catch (error) {
-          await this.runCompletionErrorHook(prompt, error, newMessages);
+          await this.runCompletionErrorHook(prompt, error, [...newMessages]);
           throw error;
         }
         response = await this.runCompletionResponseMiddlewares(request, response, currentTurns);
         usage = Usage.add(usage, response.usage);
-        await this.runCompletionResponseHook(prompt, response, newMessages);
-        await this.runTurnEndHook(currentTurns, response, newMessages);
+        await this.runCompletionResponseHook(prompt, response, [...newMessages]);
+        await this.runTurnEndHook(currentTurns, response, [...newMessages]);
 
         const toolCalls = response.choice.filter(
           (item): item is ToolCall => item.type === "tool_call",
@@ -282,7 +282,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             trace: runObservers.trace,
             guardrails: [...this.guardrailDecisions],
           };
-          await this.runRunEndHook(result, newMessages);
+          await this.runRunEndHook(result, [...newMessages]);
           await runObservers.end(result);
           await this.memoryRecorder.commitCompletedRun(
             runId,
@@ -326,7 +326,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
       throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
-      const finalError = await this.runRunErrorHook(error, usage, newMessages);
+      const finalError = await this.runRunErrorHook(error, usage, [...newMessages]);
       this.runState = finalError instanceof PromptCancelledError ? "cancelled" : "errored";
       await runObservers.error({ error: finalError, usage, messages: [...newMessages] });
       await this.memoryRecorder.recordError(runId, finalError, newMessages);
@@ -338,6 +338,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
     if (!this.agent.model.capabilities.streaming || !isStreamingCompletionModel(this.agent.model)) {
       throw new Error("This completion model does not support streaming");
     }
+
+    const abort = new AbortController();
 
     this.startRun();
     const runId = globalThis.crypto.randomUUID();
@@ -388,7 +390,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       newMessages = [this.promptMessage];
       this.chatHistory = await this.memoryRecorder.prepareRun(runId, newMessages);
       const pendingTurnMessages = this.memoryRecorder.pendingTurnMessages(newMessages);
-      await this.runRunStartHook(newMessages);
+      await this.runRunStartHook([...newMessages]);
       while (currentTurns <= this.maxTurnCount + 1) {
         const prompt = newMessages.at(-1);
         if (prompt === undefined) {
@@ -405,8 +407,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           prompt,
           history: historyForRequest,
         });
-        await this.runTurnStartHook(currentTurns, prompt, historyForRequest, newMessages);
-        await this.runCompletionCallHook(prompt, historyForRequest, newMessages);
+        await this.runTurnStartHook(currentTurns, prompt, historyForRequest, [...newMessages]);
+        await this.runCompletionCallHook(prompt, historyForRequest, [...newMessages]);
 
         const ragText = extractRagText(prompt);
         const dynamicContext = await fetchDynamicContext(this.agent, ragText);
@@ -471,7 +473,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
           }
         } catch (error) {
           await generationObservers.error({ turn: currentTurns, error });
-          await this.runCompletionErrorHook(prompt, error, newMessages);
+          await this.runCompletionErrorHook(prompt, error, [...newMessages]);
           throw error;
         }
 
@@ -485,8 +487,8 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
         );
         response = await this.runCompletionResponseMiddlewares(request, response, currentTurns);
         usage = Usage.add(usage, response.usage);
-        await this.runCompletionResponseHook(prompt, response, newMessages);
-        await this.runTurnEndHook(currentTurns, response, newMessages);
+        await this.runCompletionResponseHook(prompt, response, [...newMessages]);
+        await this.runTurnEndHook(currentTurns, response, [...newMessages]);
 
         const toolCalls = response.choice.filter(
           (item): item is ToolCall => item.type === "tool_call",
@@ -555,7 +557,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             trace: runObservers.trace,
             guardrails: [...this.guardrailDecisions],
           };
-          await this.runRunEndHook(result, newMessages);
+          await this.runRunEndHook(result, [...newMessages]);
           await runObservers.end(result);
           await this.memoryRecorder.commitCompletedRun(
             runId,
@@ -611,11 +613,14 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
             runObservers,
             toolDefinitions: request.tools,
           },
+          abort.signal,
         );
-        toolResultsPromise.then(
-          () => toolResultEvents.close(),
-          (error: unknown) => toolResultEvents.throw(error),
-        );
+        toolResultsPromise
+          .then(
+            () => toolResultEvents.close(),
+            (error: unknown) => toolResultEvents.throw(error),
+          )
+          .catch(() => {});
         for await (const result of toolResultEvents) {
           yield await emit({ turn: currentTurns, ...result });
         }
@@ -634,12 +639,14 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
 
       throw new MaxTurnsError(this.maxTurnCount, [...this.chatHistory, ...newMessages], lastPrompt);
     } catch (error) {
-      const finalError = await this.runRunErrorHook(error, usage, newMessages);
+      const finalError = await this.runRunErrorHook(error, usage, [...newMessages]);
       this.runState = finalError instanceof PromptCancelledError ? "cancelled" : "errored";
       await runObservers.error({ error: finalError, usage, messages: [...newMessages] });
       await this.memoryRecorder.recordError(runId, finalError, newMessages);
       yield await emit({ type: "error", error: finalError });
       throw finalError;
+    } finally {
+      abort.abort("stream generator exited");
     }
   }
 
@@ -700,6 +707,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       runObservers: ActiveAgentRunObservers;
       toolDefinitions?: ToolDefinition[];
     },
+    signal?: AbortSignal,
   ): Promise<ToolResult[]> {
     const executor = new ToolCallExecutor(
       this.agent,
@@ -714,7 +722,7 @@ export class PromptRequest<M extends CompletionModel = CompletionModel> {
       this.requestMiddlewares,
       (reason) => this.cancelled(newMessages, reason),
     );
-    return executor.execute(toolCalls, onResult, onStreamEvent, observation);
+    return executor.execute(toolCalls, onResult, onStreamEvent, observation, signal);
   }
 
   private async runOutputGuardrailsForResponse(

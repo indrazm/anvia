@@ -3,7 +3,7 @@ import type { Tool } from "../tool/index";
 import { createCallToolParams, mapMcpToolResult } from "./result";
 import type { McpClient, McpToolDefinition } from "./types";
 
-const MCP_TOOL_METADATA_KEY = Symbol.for("anvia.mcp.tool.metadata");
+const MCP_TOOL_METADATA_KEY = Symbol("anvia.mcp.tool.metadata");
 
 export function createMcpTool(
   definition: McpToolDefinition,

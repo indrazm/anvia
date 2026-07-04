@@ -65,12 +65,19 @@ export class ToolSet {
     if (tool === undefined) {
       throw new ToolNotFoundError(toolName);
     }
+    return this.callWithTool(tool, args, context);
+  }
 
+  async callWithTool(
+    tool: AnyTool,
+    args: string,
+    context?: ToolCallContext,
+  ): Promise<NormalizedToolOutput> {
     let parsedArgs: unknown;
     try {
       parsedArgs = parseToolArgs(args);
     } catch (error) {
-      throw new ToolJsonError(`Invalid JSON arguments for tool ${toolName}`, error);
+      throw new ToolJsonError(`Invalid JSON arguments for tool ${tool.name}`, error);
     }
 
     try {
@@ -80,7 +87,7 @@ export class ToolSet {
       if (error instanceof Error) {
         throw new ToolCallError(error.message, error);
       }
-      throw new ToolCallError(`Tool ${toolName} failed`, error);
+      throw new ToolCallError(`Tool ${tool.name} failed`, error);
     }
   }
 }

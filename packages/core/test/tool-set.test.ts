@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  type AnyTool,
   createTool,
   ToolCallError,
   ToolJsonError,
@@ -195,5 +196,42 @@ describe("ToolSet", () => {
     await expect(toolSet.getToolDefinitions()).resolves.toEqual([
       expect.objectContaining({ name: "add", description: "Replace add" }),
     ]);
+  });
+
+  it("prevents TOCTOU race between contains() and call() via callWithTool", async () => {
+    const toolA = createTool({
+      name: "a",
+      description: "Tool A",
+      input: z.object({}),
+      execute: () => "a_result",
+    });
+    const toolSet = new ToolSet().addTool(toolA);
+
+    // Get the tool by name, then delete it from the set
+    const tool = toolSet.get("a");
+    expect(tool).toBeDefined();
+    toolSet.deleteTool("a");
+    expect(toolSet.contains("a")).toBe(false);
+
+    // callWithTool should still work because it uses the tool reference directly
+    await expect(toolSet.callWithTool(tool as AnyTool, "{}")).resolves.toBe("a_result");
+  });
+
+  it("callWithTool throws ToolJsonError for invalid JSON args", async () => {
+    const toolSet = ToolSet.fromTools([addTool]);
+    const tool = toolSet.get("add");
+    expect(tool).toBeDefined();
+
+    await expect(toolSet.callWithTool(tool as AnyTool, "{")).rejects.toBeInstanceOf(ToolJsonError);
+  });
+
+  it("callWithTool throws ToolCallError for Zod validation failure", async () => {
+    const toolSet = ToolSet.fromTools([addTool]);
+    const tool = toolSet.get("add");
+    expect(tool).toBeDefined();
+
+    await expect(
+      toolSet.callWithTool(tool as AnyTool, JSON.stringify({ x: "not_a_number", y: 5 })),
+    ).rejects.toBeInstanceOf(ToolCallError);
   });
 });
